@@ -57,6 +57,10 @@ export interface BookFilters {
   status?: string;
   minPrice?: number;
   maxPrice?: number;
+  language?: string;
+  countryOfOrigin?: string;
+  era?: string;
+  script?: string;
   sort?: string;
   limit?: number;
   offset?: number;
@@ -123,6 +127,22 @@ export class DatabaseStorage implements IStorage {
 
     if (filters.maxPrice !== undefined) {
       conditions.push(lte(books.price, filters.maxPrice));
+    }
+
+    if (filters.language) {
+      conditions.push(ilike(books.language, `%${filters.language}%`));
+    }
+
+    if (filters.countryOfOrigin) {
+      conditions.push(ilike(books.countryOfOrigin, `%${filters.countryOfOrigin}%`));
+    }
+
+    if (filters.era) {
+      conditions.push(eq(books.era, filters.era));
+    }
+
+    if (filters.script) {
+      conditions.push(ilike(books.script, `%${filters.script}%`));
     }
 
     let query = db.select().from(books);

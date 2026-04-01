@@ -32,6 +32,13 @@ export const books = pgTable("books", {
   publisher: text("publisher"),
   edition: text("edition"),
   year: integer("year"),
+  // International & historical book support
+  language: text("language"),          // e.g. "Serbian", "Russian", "Japanese", "English"
+  originalLanguage: text("original_language"), // if this is a translation
+  countryOfOrigin: text("country_of_origin"), // includes historical: "Yugoslavia", "USSR", "Ottoman Empire"
+  printCountry: text("print_country"),  // where this specific copy was printed
+  era: text("era"),                    // "Antique (Pre-1900)", "Vintage (1900-1970)", "Modern", etc.
+  script: text("script"),              // "Latin", "Cyrillic", "Arabic", "Kanji", etc.
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -44,6 +51,8 @@ export const bookRequests = pgTable("book_requests", {
   edition: text("edition"),
   description: text("description"),
   maxPrice: real("max_price"),
+  language: text("language"),
+  countryOfOrigin: text("country_of_origin"),
   status: text("status").default("open"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -105,6 +114,12 @@ export const insertBookSchema = createInsertSchema(books).omit({
   publisher: z.string().nullable().optional(),
   edition: z.string().nullable().optional(),
   year: z.number().nullable().optional(),
+  language: z.string().nullable().optional(),
+  originalLanguage: z.string().nullable().optional(),
+  countryOfOrigin: z.string().nullable().optional(),
+  printCountry: z.string().nullable().optional(),
+  era: z.string().nullable().optional(),
+  script: z.string().nullable().optional(),
 });
 
 export const insertBookRequestSchema = createInsertSchema(bookRequests).omit({
@@ -119,6 +134,8 @@ export const insertBookRequestSchema = createInsertSchema(bookRequests).omit({
   edition: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
   maxPrice: z.number().min(0).nullable().optional(),
+  language: z.string().nullable().optional(),
+  countryOfOrigin: z.string().nullable().optional(),
 });
 
 export const insertMessageSchema = z.object({

@@ -9,8 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Search, BookOpen, X } from "lucide-react";
+import { ArrowLeft, Loader2, Search, BookOpen, X, Globe } from "lucide-react";
 import { Link } from "wouter";
+import { languages, allCountries, countries, eras, scripts, genres } from "@/lib/constants";
 
 interface SearchResult {
   title: string;
@@ -39,7 +40,7 @@ const statuses = [
   { value: "wishlist", label: "Wishlist", description: "Books you want to find" },
 ];
 
-const genres = ["Fiction", "Non-Fiction", "Textbooks", "Sci-Fi", "Mystery", "Biography", "Poetry", "Philosophy", "History", "Rare", "Fantasy", "Romance", "Thriller", "Horror", "Self-Help"];
+// genres imported from constants
 
 export default function AddBook() {
   const { user } = useAuth();
@@ -69,6 +70,12 @@ export default function AddBook() {
     publisher: "",
     edition: "",
     year: "",
+    language: "",
+    originalLanguage: "",
+    countryOfOrigin: "",
+    printCountry: "",
+    era: "",
+    script: "",
   });
 
   // Debounced search
@@ -138,6 +145,12 @@ export default function AddBook() {
         publisher: form.publisher || null,
         edition: form.edition || null,
         year: form.year ? parseInt(form.year) : null,
+        language: form.language || null,
+        originalLanguage: form.originalLanguage || null,
+        countryOfOrigin: form.countryOfOrigin || null,
+        printCountry: form.printCountry || null,
+        era: form.era || null,
+        script: form.script || null,
       });
     },
     onSuccess: () => {
@@ -381,6 +394,111 @@ export default function AddBook() {
                     {g}
                   </Button>
                 ))}
+              </div>
+            </div>
+
+            {/* International & Historical */}
+            <div className="border-t pt-5 mt-2">
+              <div className="flex items-center gap-2 mb-4">
+                <Globe className="h-4 w-4 text-primary" />
+                <h3 className="font-medium text-sm">Language & Origin</h3>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Language</label>
+                  <Select value={form.language} onValueChange={(v) => setForm({ ...form, language: v })}>
+                    <SelectTrigger data-testid="book-language-select">
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {languages.map((l) => (
+                        <SelectItem key={l} value={l}>{l}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Original Language</label>
+                  <Select value={form.originalLanguage} onValueChange={(v) => setForm({ ...form, originalLanguage: v })}>
+                    <SelectTrigger data-testid="book-orig-language-select">
+                      <SelectValue placeholder="If translated" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {languages.map((l) => (
+                        <SelectItem key={l} value={l}>{l}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Country of Origin</label>
+                  <Select value={form.countryOfOrigin} onValueChange={(v) => setForm({ ...form, countryOfOrigin: v })}>
+                    <SelectTrigger data-testid="book-origin-select">
+                      <SelectValue placeholder="Where was it written/published" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Historical Nations</div>
+                      {countries["Historical Nations"].map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-1">Current Nations</div>
+                      {countries["Current Nations"].map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Printed In</label>
+                  <Select value={form.printCountry} onValueChange={(v) => setForm({ ...form, printCountry: v })}>
+                    <SelectTrigger data-testid="book-print-country-select">
+                      <SelectValue placeholder="Where this copy was printed" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Historical Nations</div>
+                      {countries["Historical Nations"].map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-1">Current Nations</div>
+                      {countries["Current Nations"].map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Era</label>
+                  <Select value={form.era} onValueChange={(v) => setForm({ ...form, era: v })}>
+                    <SelectTrigger data-testid="book-era-select">
+                      <SelectValue placeholder="Time period" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {eras.map((e) => (
+                        <SelectItem key={e} value={e}>{e}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Script</label>
+                  <Select value={form.script} onValueChange={(v) => setForm({ ...form, script: v })}>
+                    <SelectTrigger data-testid="book-script-select">
+                      <SelectValue placeholder="Writing system" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {scripts.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 

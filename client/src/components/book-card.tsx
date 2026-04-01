@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Globe } from "lucide-react";
 import type { Book } from "@shared/schema";
 
 const conditionColors: Record<string, string> = {
@@ -52,6 +52,15 @@ export default function BookCard({ book, size = "medium" }: BookCardProps) {
             {book.title}
           </h3>
           <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{book.author}</p>
+          {/* Language / Origin indicators */}
+          {(book.language || book.countryOfOrigin) && (
+            <div className="flex items-center gap-1 mb-1.5 text-[10px] text-muted-foreground">
+              <Globe className="h-2.5 w-2.5" />
+              {book.language && <span>{book.language}</span>}
+              {book.language && book.countryOfOrigin && <span>·</span>}
+              {book.countryOfOrigin && <span>{book.countryOfOrigin}</span>}
+            </div>
+          )}
           <div className="flex items-center justify-between">
             {book.status === "for-sale" && book.price != null ? (
               <span className="font-semibold text-sm text-primary" data-testid="book-price">${book.price.toFixed(2)}</span>

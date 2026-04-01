@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { BookOpen, MapPin, Star, MessageSquare, DollarSign, User, ArrowLeft } from "lucide-react";
+import { BookOpen, MapPin, Star, MessageSquare, DollarSign, User, ArrowLeft, Globe, Languages, BookType } from "lucide-react";
 import { useState } from "react";
 import type { Book } from "@shared/schema";
 
@@ -99,7 +99,11 @@ export default function BookDetail() {
   }
 
   const cond = conditionLabels[book.condition] || { label: book.condition, color: "" };
-  const genres = book.genre ? JSON.parse(book.genre) : [];
+  // Handle both JSON array and comma-separated genre strings
+  let genres: string[] = [];
+  if (book.genre) {
+    try { genres = JSON.parse(book.genre); } catch { genres = book.genre.split(",").map(g => g.trim()); }
+  }
 
   return (
     <div className="container mx-auto max-w-4xl px-4 py-8" data-testid="book-detail-page">
@@ -168,6 +172,42 @@ export default function BookDetail() {
               </>
             )}
           </div>
+
+          {/* International metadata */}
+          {(book.language || book.countryOfOrigin || book.era || book.script) && (
+            <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm mb-6 border-t pt-4">
+              {book.language && (
+                <>
+                  <span className="text-muted-foreground flex items-center gap-1.5"><Languages className="h-3 w-3" /> Language</span>
+                  <span>{book.language}{book.originalLanguage && book.originalLanguage !== book.language ? ` (translated from ${book.originalLanguage})` : ""}</span>
+                </>
+              )}
+              {book.countryOfOrigin && (
+                <>
+                  <span className="text-muted-foreground flex items-center gap-1.5"><Globe className="h-3 w-3" /> Origin</span>
+                  <span>{book.countryOfOrigin}</span>
+                </>
+              )}
+              {book.printCountry && book.printCountry !== book.countryOfOrigin && (
+                <>
+                  <span className="text-muted-foreground">Printed In</span>
+                  <span>{book.printCountry}</span>
+                </>
+              )}
+              {book.era && (
+                <>
+                  <span className="text-muted-foreground flex items-center gap-1.5"><BookType className="h-3 w-3" /> Era</span>
+                  <span>{book.era}</span>
+                </>
+              )}
+              {book.script && (
+                <>
+                  <span className="text-muted-foreground">Script</span>
+                  <span>{book.script}</span>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Genres */}
           {genres.length > 0 && (
