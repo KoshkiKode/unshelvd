@@ -50,7 +50,14 @@ export async function registerRoutes(
       secret: process.env.SESSION_SECRET || "unshelvd-dev-secret-change-me",
       resave: false,
       saveUninitialized: false,
-      cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 },
+      cookie: {
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        // For Capacitor native apps making cross-origin requests:
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        secure: process.env.NODE_ENV === "production",
+      },
+      // Trust the first proxy (Cloud Run, nginx, etc.)
+      proxy: process.env.NODE_ENV === "production",
     })
   );
 

@@ -10,9 +10,19 @@ vite.config.ts.*
 .env
 .env.local
 
-# Capacitor
-android/
-ios/
+# Capacitor build artifacts (but keep the project files)
+android/app/build/
+android/.gradle/
+android/build/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/capacitor-cordova-android-plugins/build/
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+ios/App/Pods/
+*.apk
+*.aab
+*.ipa
 
 # Tauri
 src-tauri/target/

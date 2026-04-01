@@ -2,8 +2,15 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import cors from "cors";
 
 const app = express();
+
+// Trust proxy — needed for Cloud Run, secure cookies, and rate limiting
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
 const httpServer = createServer(app);
 
 declare module "http" {
@@ -11,6 +18,31 @@ declare module "http" {
     rawBody: unknown;
   }
 }
+
+// CORS — needed for Capacitor native apps and cross-origin requests
+const allowedOrigins = [
+  "capacitor://localhost",
+  "https://localhost",
+  "http://localhost",
+  "http://localhost:5000",
+  "http://10.0.2.2:5000",
+  // Add your production domain here when you have one:
+  // "https://unshelvd.com",
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (same-origin, curl, etc.)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || origin.endsWith(".run.app")) {
+      return callback(null, true);
+    }
+    // In dev, allow everything
+    if (process.env.NODE_ENV !== "production") return callback(null, true);
+    callback(null, false);
+  },
+  credentials: true,
+}));
 
 app.use(
   express.json({
