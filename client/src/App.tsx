@@ -1,0 +1,60 @@
+import { Switch, Route, Router } from "wouter";
+import { useHashLocation } from "wouter/use-hash-location";
+import { queryClient } from "./lib/queryClient";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/hooks/use-auth";
+import Navbar from "@/components/layout/navbar";
+import Home from "@/pages/home";
+import Browse from "@/pages/browse";
+import BookDetail from "@/pages/book-detail";
+import UserProfile from "@/pages/user-profile";
+import Requests from "@/pages/requests";
+import Dashboard from "@/pages/dashboard";
+import AddBook from "@/pages/add-book";
+import Messages from "@/pages/messages";
+import Offers from "@/pages/offers";
+import { LoginPage, RegisterPage } from "@/pages/auth";
+import NotFound from "@/pages/not-found";
+
+function AppRouter() {
+  return (
+    <>
+      <Navbar />
+      <main>
+        <Switch>
+          <Route path="/" component={Home} />
+          <Route path="/browse" component={Browse} />
+          <Route path="/book/:id" component={BookDetail} />
+          <Route path="/user/:id" component={UserProfile} />
+          <Route path="/requests" component={Requests} />
+          <Route path="/dashboard" component={Dashboard} />
+          <Route path="/dashboard/add-book" component={AddBook} />
+          <Route path="/dashboard/messages" component={Messages} />
+          <Route path="/dashboard/offers" component={Offers} />
+          <Route path="/login" component={LoginPage} />
+          <Route path="/register" component={RegisterPage} />
+          <Route component={NotFound} />
+        </Switch>
+      </main>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Router hook={useHashLocation}>
+          <AuthProvider>
+            <AppRouter />
+          </AuthProvider>
+        </Router>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
