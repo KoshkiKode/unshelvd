@@ -291,6 +291,69 @@ export async function registerRoutes(
     }
   });
 
+  // === BOOK SEARCH (Open Library) ===
+  app.get("/api/search/books", async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query || query.length < 2) {
+        return res.json([]);
+      }
+
+      const fields = "title,author_name,first_publish_year,publisher,isbn,cover_i,subject,edition_count";
+      const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=10&fields=${fields}`;
+      const response = await fetch(url);
+      const data = await response.json() as any;
+
+      const results = (data.docs || []).map((doc: any) => ({
+        title: doc.title || "",
+        author: doc.author_name?.[0] || "",
+        year: doc.first_publish_year || null,
+        publisher: doc.publisher?.[0] || null,
+        isbn: doc.isbn?.[0] || null,
+        coverUrl: doc.cover_i
+          ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
+          : null,
+        editionCount: doc.edition_count || 0,
+        subjects: (doc.subject || []).slice(0, 5),
+      }));
+
+      return res.json(results);
+    } catch (err) {
+      console.error("Open Library search error:", err);
+      return res.status(500).json({ message: "Search failed" });
+    }
+  });
+
+  // ISBN lookup
+  app.get("/api/search/isbn/:isbn", async (req, res) => {
+    try {
+      const isbn = req.params.isbn.replace(/[^0-9X]/gi, "");
+      const url = `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`;
+      const response = await fetch(url);
+      const data = await response.json() as any;
+
+      const key = `ISBN:${isbn}`;
+      if (!data[key]) {
+        return res.status(404).json({ message: "Book not found" });
+      }
+
+      const book = data[key];
+      return res.json({
+        title: book.title || "",
+        author: book.authors?.[0]?.name || "",
+        year: book.publish_date ? parseInt(book.publish_date) || null : null,
+        publisher: book.publishers?.[0]?.name || null,
+        isbn: isbn,
+        coverUrl: book.cover?.large || book.cover?.medium || null,
+        subjects: (book.subjects || []).slice(0, 5).map((s: any) => s.name),
+        pages: book.number_of_pages || null,
+      });
+    } catch (err) {
+      console.error("ISBN lookup error:", err);
+      return res.status(500).json({ message: "ISBN lookup failed" });
+    }
+  });
+
   // === USER ROUTES ===
   app.get("/api/users/:id", async (req, res) => {
     try {

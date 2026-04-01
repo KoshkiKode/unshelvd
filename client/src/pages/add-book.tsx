@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation, Redirect } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -9,8 +9,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Search, BookOpen, X } from "lucide-react";
 import { Link } from "wouter";
+
+interface SearchResult {
+  title: string;
+  author: string;
+  year: number | null;
+  publisher: string | null;
+  isbn: string | null;
+  coverUrl: string | null;
+  editionCount: number;
+  subjects: string[];
+}
 
 const conditions = [
   { value: "new", label: "New" },
@@ -36,6 +47,15 @@ export default function AddBook() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // Form state
   const [form, setForm] = useState({
     title: "",
     author: "",
@@ -51,6 +71,58 @@ export default function AddBook() {
     year: "",
   });
 
+  // Debounced search
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      setSearchResults([]);
+      setShowResults(false);
+      return;
+    }
+
+    clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await apiRequest("GET", `/api/search/books?q=${encodeURIComponent(searchQuery)}`);
+        const data = await res.json();
+        setSearchResults(data);
+        setShowResults(true);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(searchTimeout.current);
+  }, [searchQuery]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowResults(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const selectResult = (result: SearchResult) => {
+    setForm((prev) => ({
+      ...prev,
+      title: result.title,
+      author: result.author,
+      isbn: result.isbn || "",
+      coverUrl: result.coverUrl || "",
+      publisher: result.publisher || "",
+      year: result.year ? String(result.year) : "",
+    }));
+    setSearchQuery("");
+    setShowResults(false);
+    toast({ title: "Book info filled in", description: `"${result.title}" by ${result.author}` });
+  };
+
   const mutation = useMutation({
     mutationFn: async () => {
       await apiRequest("POST", "/api/books", {
@@ -62,7 +134,7 @@ export default function AddBook() {
         condition: form.condition,
         status: form.status,
         price: form.price ? parseFloat(form.price) : null,
-        genre: form.genre.length > 0 ? JSON.stringify(form.genre) : null,
+        genre: form.genre.length > 0 ? form.genre.join(",") : null,
         publisher: form.publisher || null,
         edition: form.edition || null,
         year: form.year ? parseInt(form.year) : null,
@@ -103,6 +175,92 @@ export default function AddBook() {
           <CardTitle className="font-serif text-2xl">Add a Book</CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Book search / autofill */}
+          <div className="mb-6" ref={searchRef}>
+            <label className="text-sm font-medium mb-1 block">Search for a book to autofill details</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Type a title, author, or ISBN..."
+                className="pl-9 pr-9"
+                data-testid="book-search-input"
+              />
+              {isSearching && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+              {searchQuery && !isSearching && (
+                <button
+                  type="button"
+                  onClick={() => { setSearchQuery(""); setShowResults(false); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Search results dropdown */}
+            {showResults && searchResults.length > 0 && (
+              <div className="absolute z-50 mt-1 w-full max-w-[calc(100%-2rem)] bg-card border border-border rounded-lg shadow-lg max-h-80 overflow-y-auto" data-testid="search-results">
+                {searchResults.map((result, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    className="w-full flex items-start gap-3 p-3 hover:bg-accent text-left border-b border-border last:border-0 transition-colors"
+                    onClick={() => selectResult(result)}
+                    data-testid={`search-result-${i}`}
+                  >
+                    {result.coverUrl ? (
+                      <img
+                        src={result.coverUrl}
+                        alt={result.title}
+                        className="w-10 h-14 object-cover rounded flex-shrink-0"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <div className="w-10 h-14 bg-muted rounded flex items-center justify-center flex-shrink-0">
+                        <BookOpen className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm truncate">{result.title}</p>
+                      <p className="text-xs text-muted-foreground">{result.author}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {result.year && `${result.year}`}
+                        {result.publisher && ` · ${result.publisher}`}
+                        {result.editionCount > 1 && ` · ${result.editionCount} editions`}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {showResults && searchResults.length === 0 && searchQuery.length >= 2 && !isSearching && (
+              <div className="absolute z-50 mt-1 w-full max-w-[calc(100%-2rem)] bg-card border border-border rounded-lg shadow-lg p-4 text-center text-sm text-muted-foreground">
+                No books found. You can still fill in the details manually below.
+              </div>
+            )}
+          </div>
+
+          {/* Cover preview */}
+          {form.coverUrl && (
+            <div className="mb-5 flex items-start gap-4">
+              <img
+                src={form.coverUrl}
+                alt="Cover preview"
+                className="w-20 h-28 object-cover rounded shadow-sm"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+              <div className="text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">{form.title || "Book cover preview"}</p>
+                {form.author && <p>{form.author}</p>}
+              </div>
+            </div>
+          )}
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -138,7 +296,7 @@ export default function AddBook() {
               <Input
                 value={form.coverUrl}
                 onChange={(e) => setForm({ ...form, coverUrl: e.target.value })}
-                placeholder="https://..."
+                placeholder="https://... (auto-filled from search)"
                 data-testid="book-cover-input"
               />
             </div>
