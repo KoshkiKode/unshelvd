@@ -47,7 +47,7 @@ export async function registerRoutes(
   // Session setup
   app.use(
     session({
-      secret: "unshelvd-secret-key-2024",
+      secret: process.env.SESSION_SECRET || "unshelvd-dev-secret-change-me",
       resave: false,
       saveUninitialized: false,
       cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 },

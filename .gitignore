@@ -7,3 +7,12 @@ vite.config.ts.*
 *.db
 *.db-shm
 *.db-wal
+.env
+.env.local
+
+# Capacitor
+android/
+ios/
+
+# Tauri
+src-tauri/target/

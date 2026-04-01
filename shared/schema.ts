@@ -1,9 +1,9 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, serial, real, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = sqliteTable("users", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   displayName: text("display_name").notNull(),
   email: text("email").notNull().unique(),
@@ -14,11 +14,11 @@ export const users = sqliteTable("users", {
   rating: real("rating").default(0),
   totalSales: integer("total_sales").default(0),
   totalPurchases: integer("total_purchases").default(0),
-  createdAt: text("created_at").default("NOW"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const books = sqliteTable("books", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const books = pgTable("books", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
   title: text("title").notNull(),
   author: text("author").notNull(),
@@ -32,11 +32,11 @@ export const books = sqliteTable("books", {
   publisher: text("publisher"),
   edition: text("edition"),
   year: integer("year"),
-  createdAt: text("created_at").default("NOW"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const bookRequests = sqliteTable("book_requests", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const bookRequests = pgTable("book_requests", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
   title: text("title").notNull(),
   author: text("author"),
@@ -45,21 +45,21 @@ export const bookRequests = sqliteTable("book_requests", {
   description: text("description"),
   maxPrice: real("max_price"),
   status: text("status").default("open"),
-  createdAt: text("created_at").default("NOW"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const messages = sqliteTable("messages", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const messages = pgTable("messages", {
+  id: serial("id").primaryKey(),
   senderId: integer("sender_id").notNull(),
   receiverId: integer("receiver_id").notNull(),
   bookId: integer("book_id"),
   content: text("content").notNull(),
-  isRead: integer("is_read").default(0),
-  createdAt: text("created_at").default("NOW"),
+  isRead: boolean("is_read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const offers = sqliteTable("offers", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const offers = pgTable("offers", {
+  id: serial("id").primaryKey(),
   buyerId: integer("buyer_id").notNull(),
   sellerId: integer("seller_id").notNull(),
   bookId: integer("book_id").notNull(),
@@ -67,7 +67,7 @@ export const offers = sqliteTable("offers", {
   status: text("status").default("pending"),
   counterAmount: real("counter_amount"),
   message: text("message"),
-  createdAt: text("created_at").default("NOW"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Insert schemas

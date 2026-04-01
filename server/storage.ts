@@ -4,14 +4,15 @@ import {
   type Offer, type InsertOffer,
   users, books, bookRequests, messages, offers,
 } from "@shared/schema";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import Database from "better-sqlite3";
-import { eq, and, or, like, desc, asc, gte, lte, sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import { eq, and, or, like, desc, asc, gte, lte, sql, ilike } from "drizzle-orm";
 
-const sqlite = new Database("data.db");
-sqlite.pragma("journal_mode = WAL");
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-export const db = drizzle(sqlite);
+export const db = drizzle(pool);
 
 export interface IStorage {
   // Users
@@ -63,29 +64,34 @@ export interface BookFilters {
 
 export class DatabaseStorage implements IStorage {
   async getUser(id: number): Promise<User | undefined> {
-    return db.select().from(users).where(eq(users.id, id)).get();
+    const rows = await db.select().from(users).where(eq(users.id, id));
+    return rows[0];
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return db.select().from(users).where(eq(users.username, username)).get();
+    const rows = await db.select().from(users).where(eq(users.username, username));
+    return rows[0];
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    return db.select().from(users).where(eq(users.email, email)).get();
+    const rows = await db.select().from(users).where(eq(users.email, email));
+    return rows[0];
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const now = new Date().toISOString();
-    return db.insert(users).values({ ...insertUser, createdAt: now }).returning().get();
+    const rows = await db.insert(users).values(insertUser).returning();
+    return rows[0];
   }
 
   async updateUser(id: number, data: Partial<User>): Promise<User | undefined> {
-    return db.update(users).set(data).where(eq(users.id, id)).returning().get();
+    const rows = await db.update(users).set(data).where(eq(users.id, id)).returning();
+    return rows[0];
   }
 
   // Books
   async getBook(id: number): Promise<Book | undefined> {
-    return db.select().from(books).where(eq(books.id, id)).get();
+    const rows = await db.select().from(books).where(eq(books.id, id));
+    return rows[0];
   }
 
   async getBooks(filters: BookFilters): Promise<Book[]> {
@@ -100,11 +106,11 @@ export class DatabaseStorage implements IStorage {
 
     if (filters.search) {
       const term = `%${filters.search}%`;
-      conditions.push(or(like(books.title, term), like(books.author, term)));
+      conditions.push(or(ilike(books.title, term), ilike(books.author, term)));
     }
 
     if (filters.genre) {
-      conditions.push(like(books.genre, `%${filters.genre}%`));
+      conditions.push(ilike(books.genre, `%${filters.genre}%`));
     }
 
     if (filters.condition) {
@@ -138,55 +144,56 @@ export class DatabaseStorage implements IStorage {
     const offset = filters.offset || 0;
     query = query.limit(limit).offset(offset) as any;
 
-    return query.all();
+    return await query;
   }
 
   async getBooksByUser(userId: number): Promise<Book[]> {
-    return db.select().from(books).where(eq(books.userId, userId)).orderBy(desc(books.id)).all();
+    return await db.select().from(books).where(eq(books.userId, userId)).orderBy(desc(books.id));
   }
 
   async createBook(userId: number, book: InsertBook): Promise<Book> {
-    const now = new Date().toISOString();
-    return db.insert(books).values({ ...book, userId, createdAt: now }).returning().get();
+    const rows = await db.insert(books).values({ ...book, userId }).returning();
+    return rows[0];
   }
 
   async updateBook(id: number, userId: number, book: Partial<InsertBook>): Promise<Book | undefined> {
-    return db.update(books).set(book).where(and(eq(books.id, id), eq(books.userId, userId))).returning().get();
+    const rows = await db.update(books).set(book).where(and(eq(books.id, id), eq(books.userId, userId))).returning();
+    return rows[0];
   }
 
   async deleteBook(id: number, userId: number): Promise<boolean> {
-    const result = db.delete(books).where(and(eq(books.id, id), eq(books.userId, userId))).run();
-    return result.changes > 0;
+    const result = await db.delete(books).where(and(eq(books.id, id), eq(books.userId, userId))).returning();
+    return result.length > 0;
   }
 
   // Book Requests
   async getBookRequests(filters?: { status?: string }): Promise<BookRequest[]> {
     if (filters?.status) {
-      return db.select().from(bookRequests).where(eq(bookRequests.status, filters.status)).orderBy(desc(bookRequests.id)).all();
+      return await db.select().from(bookRequests).where(eq(bookRequests.status, filters.status)).orderBy(desc(bookRequests.id));
     }
-    return db.select().from(bookRequests).orderBy(desc(bookRequests.id)).all();
+    return await db.select().from(bookRequests).orderBy(desc(bookRequests.id));
   }
 
   async getBookRequest(id: number): Promise<BookRequest | undefined> {
-    return db.select().from(bookRequests).where(eq(bookRequests.id, id)).get();
+    const rows = await db.select().from(bookRequests).where(eq(bookRequests.id, id));
+    return rows[0];
   }
 
   async createBookRequest(userId: number, request: InsertBookRequest): Promise<BookRequest> {
-    const now = new Date().toISOString();
-    return db.insert(bookRequests).values({ ...request, userId, createdAt: now }).returning().get();
+    const rows = await db.insert(bookRequests).values({ ...request, userId }).returning();
+    return rows[0];
   }
 
   async updateBookRequest(id: number, userId: number, data: Partial<BookRequest>): Promise<BookRequest | undefined> {
-    return db.update(bookRequests).set(data).where(and(eq(bookRequests.id, id), eq(bookRequests.userId, userId))).returning().get();
+    const rows = await db.update(bookRequests).set(data).where(and(eq(bookRequests.id, id), eq(bookRequests.userId, userId))).returning();
+    return rows[0];
   }
 
   // Messages
   async getConversations(userId: number): Promise<any[]> {
-    // Get distinct conversations for this user
-    const allMessages = db.select().from(messages)
+    const allMessages = await db.select().from(messages)
       .where(or(eq(messages.senderId, userId), eq(messages.receiverId, userId)))
-      .orderBy(desc(messages.id))
-      .all();
+      .orderBy(desc(messages.id));
 
     const convMap = new Map<number, { otherUserId: number; lastMessage: Message; unreadCount: number }>();
 
@@ -214,45 +221,41 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getMessages(userId: number, otherUserId: number): Promise<Message[]> {
-    return db.select().from(messages)
+    return await db.select().from(messages)
       .where(or(
         and(eq(messages.senderId, userId), eq(messages.receiverId, otherUserId)),
         and(eq(messages.senderId, otherUserId), eq(messages.receiverId, userId))
       ))
-      .orderBy(asc(messages.id))
-      .all();
+      .orderBy(asc(messages.id));
   }
 
   async createMessage(senderId: number, message: InsertMessage): Promise<Message> {
-    const now = new Date().toISOString();
-    return db.insert(messages).values({
+    const rows = await db.insert(messages).values({
       senderId,
       receiverId: message.receiverId,
       bookId: message.bookId || null,
       content: message.content,
-      createdAt: now,
-    }).returning().get();
+    }).returning();
+    return rows[0];
   }
 
   async markMessagesRead(userId: number, senderId: number): Promise<void> {
-    db.update(messages)
-      .set({ isRead: 1 })
-      .where(and(eq(messages.senderId, senderId), eq(messages.receiverId, userId)))
-      .run();
+    await db.update(messages)
+      .set({ isRead: true })
+      .where(and(eq(messages.senderId, senderId), eq(messages.receiverId, userId)));
   }
 
   async getUnreadCount(userId: number): Promise<number> {
-    const result = db.select({ count: sql<number>`count(*)` })
+    const result = await db.select({ count: sql<number>`count(*)::int` })
       .from(messages)
-      .where(and(eq(messages.receiverId, userId), eq(messages.isRead, 0)))
-      .get();
-    return result?.count || 0;
+      .where(and(eq(messages.receiverId, userId), eq(messages.isRead, false)));
+    return result[0]?.count || 0;
   }
 
   // Offers
   async getOffers(userId: number): Promise<{ sent: any[]; received: any[] }> {
-    const sent = db.select().from(offers).where(eq(offers.buyerId, userId)).orderBy(desc(offers.id)).all();
-    const received = db.select().from(offers).where(eq(offers.sellerId, userId)).orderBy(desc(offers.id)).all();
+    const sent = await db.select().from(offers).where(eq(offers.buyerId, userId)).orderBy(desc(offers.id));
+    const received = await db.select().from(offers).where(eq(offers.sellerId, userId)).orderBy(desc(offers.id));
 
     const enrichOffer = async (offer: Offer) => {
       const book = await this.getBook(offer.bookId);
@@ -273,19 +276,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOffer(id: number): Promise<Offer | undefined> {
-    return db.select().from(offers).where(eq(offers.id, id)).get();
+    const rows = await db.select().from(offers).where(eq(offers.id, id));
+    return rows[0];
   }
 
   async createOffer(buyerId: number, sellerId: number, offer: InsertOffer): Promise<Offer> {
-    const now = new Date().toISOString();
-    return db.insert(offers).values({
+    const rows = await db.insert(offers).values({
       buyerId,
       sellerId,
       bookId: offer.bookId,
       amount: offer.amount,
       message: offer.message || null,
-      createdAt: now,
-    }).returning().get();
+    }).returning();
+    return rows[0];
   }
 
   async updateOffer(id: number, userId: number, status: string, counterAmount?: number | null): Promise<Offer | undefined> {
@@ -297,7 +300,8 @@ export class DatabaseStorage implements IStorage {
       updates.counterAmount = counterAmount;
     }
 
-    return db.update(offers).set(updates).where(eq(offers.id, id)).returning().get();
+    const rows = await db.update(offers).set(updates).where(eq(offers.id, id)).returning();
+    return rows[0];
   }
 }
 

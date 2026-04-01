@@ -1,0 +1,41 @@
+# Local development with PostgreSQL
+# Usage: docker-compose up -d db   (start just the database)
+#        npm run dev                (run the app locally against it)
+#
+# Or run everything in containers:
+#        docker-compose up --build
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: unshelvd
+      POSTGRES_USER: unshelvd
+      POSTGRES_PASSWORD: unshelvd_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U unshelvd"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgresql://unshelvd:unshelvd_dev@db:5432/unshelvd
+      NODE_ENV: production
+      PORT: "8080"
+      SESSION_SECRET: change-me-in-production
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
