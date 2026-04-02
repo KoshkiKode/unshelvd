@@ -7,6 +7,8 @@ import { eq, and, or, ilike, desc, asc, sql } from "drizzle-orm";
 import { resolveWork, getWorkEditions, updateWorkStats } from "./work-resolver";
 import { createPaymentIntent, confirmPayment, markShipped, confirmDelivery, getUserTransactions, PLATFORM_FEE_PERCENT } from "./payments";
 import { validatePassword } from "@shared/password-policy";
+import { sanitizeLikeInput, parseIntParam } from "./security";
+import { z } from "zod";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
@@ -271,11 +273,15 @@ export async function registerRoutes(
 
   app.patch("/api/books/:id", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
-      const book = await storage.updateBook(id, req.user!.id, req.body);
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid book ID" });
+      // Validate update data with partial book schema
+      const data = insertBookSchema.partial().parse(req.body);
+      const book = await storage.updateBook(id, req.user!.id, data);
       if (!book) return res.status(404).json({ message: "Book not found or not yours" });
       return res.json(book);
     } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ message: err.errors[0]?.message });
       return res.status(500).json({ message: "Failed to update book" });
     }
   });
@@ -329,11 +335,14 @@ export async function registerRoutes(
 
   app.patch("/api/requests/:id", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
-      const updated = await storage.updateBookRequest(id, req.user!.id, req.body);
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid request ID" });
+      const data = insertBookRequestSchema.partial().parse(req.body);
+      const updated = await storage.updateBookRequest(id, req.user!.id, data);
       if (!updated) return res.status(404).json({ message: "Request not found or not yours" });
       return res.json(updated);
     } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ message: err.errors[0]?.message });
       return res.status(500).json({ message: "Failed to update request" });
     }
   });
@@ -412,7 +421,7 @@ export async function registerRoutes(
 
       const conditions = [];
       if (q && q.length >= 2) {
-        const term = `%${q}%`;
+        const term = `%${sanitizeLikeInput(q)}%`;
         conditions.push(
           or(
             ilike(bookCatalog.title, term),
@@ -423,8 +432,8 @@ export async function registerRoutes(
           )
         );
       }
-      if (lang) conditions.push(ilike(bookCatalog.language, `%${lang}%`));
-      if (country) conditions.push(ilike(bookCatalog.countryOfOrigin, `%${country}%`));
+      if (lang) conditions.push(ilike(bookCatalog.language, `%${sanitizeLikeInput(lang)}%`));
+      if (country) conditions.push(ilike(bookCatalog.countryOfOrigin, `%${sanitizeLikeInput(country)}%`));
 
       let query = db.select().from(bookCatalog);
       if (conditions.length > 0) query = query.where(and(...conditions)) as any;
@@ -505,7 +514,7 @@ export async function registerRoutes(
       let query = db.select().from(works);
 
       if (q && q.length >= 2) {
-        const term = `%${q}%`;
+        const term = `%${sanitizeLikeInput(q)}%`;
         query = query.where(
           or(
             ilike(works.title, term),
@@ -529,12 +538,19 @@ export async function registerRoutes(
   });
 
   // Resolve: given title+author+isbn, find or create the work
-  app.post("/api/works/resolve", async (req, res) => {
+  app.post("/api/works/resolve", requireAuth, async (req, res) => {
     try {
-      const { title, author, isbn, language, originalLanguage, year, coverUrl, genre } = req.body;
-      if (!title || !author) {
-        return res.status(400).json({ message: "title and author required" });
-      }
+      const resolveSchema = z.object({
+        title: z.string().min(1).max(500),
+        author: z.string().min(1).max(200),
+        isbn: z.string().max(20).nullable().optional(),
+        language: z.string().max(50).nullable().optional(),
+        originalLanguage: z.string().max(50).nullable().optional(),
+        year: z.number().nullable().optional(),
+        coverUrl: z.string().url().nullable().optional(),
+        genre: z.string().max(200).nullable().optional(),
+      });
+      const { title, author, isbn, language, originalLanguage, year, coverUrl, genre } = resolveSchema.parse(req.body);
 
       const result = await resolveWork({
         title, author, isbn, language, originalLanguage, year, coverUrl, genre,
@@ -594,8 +610,11 @@ export async function registerRoutes(
   // Create checkout / payment intent
   app.post("/api/payments/checkout", requireAuth, async (req, res) => {
     try {
-      const { bookId, offerId } = req.body;
-      if (!bookId) return res.status(400).json({ message: "bookId required" });
+      const checkoutSchema = z.object({
+        bookId: z.number().int().positive(),
+        offerId: z.number().int().positive().optional(),
+      });
+      const { bookId, offerId } = checkoutSchema.parse(req.body);
 
       const result = await createPaymentIntent(req.user!.id, bookId, offerId);
       return res.json(result);
@@ -619,7 +638,11 @@ export async function registerRoutes(
   app.post("/api/payments/:id/ship", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { carrier, trackingNumber } = req.body;
+      const shipSchema = z.object({
+        carrier: z.string().max(100).optional(),
+        trackingNumber: z.string().max(100).optional(),
+      });
+      const { carrier, trackingNumber } = shipSchema.parse(req.body);
       const result = await markShipped(id, req.user!.id, carrier, trackingNumber);
       return res.json(result);
     } catch (err: any) {
@@ -650,11 +673,18 @@ export async function registerRoutes(
 
   // Stripe webhook (handles payment confirmations)
   app.post("/api/webhooks/stripe", async (req, res) => {
-    // In production, verify the webhook signature:
-    // const sig = req.headers['stripe-signature'];
-    // const event = stripe.webhooks.constructEvent(req.rawBody, sig, webhookSecret);
     try {
-      const event = req.body;
+      let event = req.body;
+
+      // Verify webhook signature in production
+      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+      if (webhookSecret && (req as any).rawBody) {
+        const { stripe } = await import("./payments");
+        if (stripe) {
+          const sig = req.headers["stripe-signature"] as string;
+          event = stripe.webhooks.constructEvent((req as any).rawBody, sig, webhookSecret);
+        }
+      }
       if (event.type === "payment_intent.succeeded") {
         const transactionId = parseInt(event.data.object.metadata.transactionId);
         const buyerId = parseInt(event.data.object.metadata.buyerId);

@@ -7,6 +7,7 @@ import {
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { eq, and, or, like, desc, asc, gte, lte, sql, ilike } from "drizzle-orm";
+import { sanitizeLikeInput } from "./security";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -109,12 +110,12 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters.search) {
-      const term = `%${filters.search}%`;
+      const term = `%${sanitizeLikeInput(filters.search)}%`;
       conditions.push(or(ilike(books.title, term), ilike(books.author, term)));
     }
 
     if (filters.genre) {
-      conditions.push(ilike(books.genre, `%${filters.genre}%`));
+      conditions.push(ilike(books.genre, `%${sanitizeLikeInput(filters.genre)}%`));
     }
 
     if (filters.condition) {
@@ -130,11 +131,11 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters.language) {
-      conditions.push(ilike(books.language, `%${filters.language}%`));
+      conditions.push(ilike(books.language, `%${sanitizeLikeInput(filters.language)}%`));
     }
 
     if (filters.countryOfOrigin) {
-      conditions.push(ilike(books.countryOfOrigin, `%${filters.countryOfOrigin}%`));
+      conditions.push(ilike(books.countryOfOrigin, `%${sanitizeLikeInput(filters.countryOfOrigin)}%`));
     }
 
     if (filters.era) {
@@ -142,7 +143,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters.script) {
-      conditions.push(ilike(books.script, `%${filters.script}%`));
+      conditions.push(ilike(books.script, `%${sanitizeLikeInput(filters.script)}%`));
     }
 
     let query = db.select().from(books);

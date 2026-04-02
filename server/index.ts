@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import cors from "cors";
+import { applySecurityMiddleware } from "./security";
 
 const app = express();
 
@@ -53,6 +54,9 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+// Security middleware (Helmet headers + rate limiting)
+applySecurityMiddleware(app);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
