@@ -21,7 +21,8 @@
     "build:ios": "bash scripts/build-ios.sh",
     "build:ios:archive": "bash scripts/build-ios.sh archive",
     "catalog:seed": "tsx server/catalog-import.ts --api",
-    "catalog:import": "tsx server/catalog-import.ts"
+    "catalog:import": "tsx server/catalog-import.ts",
+    "catalog:mass-seed": "python3 scripts/seed-catalog.py"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.0",
