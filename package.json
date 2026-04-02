@@ -15,7 +15,9 @@
     "cap:android": "npx cap open android",
     "cap:ios": "npx cap open ios",
     "cap:build:android": "VITE_API_URL=$API_URL npm run build && npx cap sync android",
-    "cap:build:ios": "VITE_API_URL=$API_URL npm run build && npx cap sync ios"
+    "cap:build:ios": "VITE_API_URL=$API_URL npm run build && npx cap sync ios",
+    "catalog:seed": "tsx server/catalog-import.ts --api",
+    "catalog:import": "tsx server/catalog-import.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.0",

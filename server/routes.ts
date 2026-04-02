@@ -1,7 +1,9 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, loginSchema, insertBookSchema, insertBookRequestSchema, insertMessageSchema, insertOfferSchema, updateOfferSchema } from "@shared/schema";
+import { insertUserSchema, loginSchema, insertBookSchema, insertBookRequestSchema, insertMessageSchema, insertOfferSchema, updateOfferSchema, books, bookCatalog } from "@shared/schema";
+import { db } from "./storage";
+import { eq, and, or, ilike, desc, sql } from "drizzle-orm";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
@@ -362,6 +364,83 @@ export async function registerRoutes(
     } catch (err) {
       console.error("ISBN lookup error:", err);
       return res.status(500).json({ message: "ISBN lookup failed" });
+    }
+  });
+
+  // === BOOK CATALOG (proprietary master database) ===
+  app.get("/api/catalog/search", async (req, res) => {
+    try {
+      const q = req.query.q as string;
+      const lang = req.query.language as string;
+      const country = req.query.countryOfOrigin as string;
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+      const offset = parseInt(req.query.offset as string) || 0;
+
+      const conditions = [];
+      if (q && q.length >= 2) {
+        const term = `%${q}%`;
+        conditions.push(
+          or(
+            ilike(bookCatalog.title, term),
+            ilike(bookCatalog.titleNative, term),
+            ilike(bookCatalog.author, term),
+            ilike(bookCatalog.authorNative, term),
+            eq(bookCatalog.isbn13, q.replace(/[^0-9X]/gi, "")),
+          )
+        );
+      }
+      if (lang) conditions.push(ilike(bookCatalog.language, `%${lang}%`));
+      if (country) conditions.push(ilike(bookCatalog.countryOfOrigin, `%${country}%`));
+
+      let query = db.select().from(bookCatalog);
+      if (conditions.length > 0) query = query.where(and(...conditions)) as any;
+      query = query.orderBy(desc(bookCatalog.id)).limit(limit).offset(offset) as any;
+
+      const results = await query;
+
+      // Count total for pagination
+      let countQuery = db.select({ count: sql<number>`count(*)::int` }).from(bookCatalog);
+      if (conditions.length > 0) countQuery = countQuery.where(and(...conditions)) as any;
+      const [{ count: total }] = await countQuery;
+
+      return res.json({ results, total, limit, offset });
+    } catch (err) {
+      console.error("Catalog search error:", err);
+      return res.status(500).json({ message: "Catalog search failed" });
+    }
+  });
+
+  app.get("/api/catalog/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const rows = await db.select().from(bookCatalog).where(eq(bookCatalog.id, id));
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+
+      // Also fetch user listings linked to this catalog entry
+      const listings = await db.select().from(books).where(
+        and(eq(books.catalogId, id), or(eq(books.status, "for-sale"), eq(books.status, "open-to-offers")))
+      );
+
+      return res.json({ ...rows[0], listings });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch catalog entry" });
+    }
+  });
+
+  app.get("/api/catalog/stats", async (_req, res) => {
+    try {
+      const [{ count: total }] = await db.select({ count: sql<number>`count(*)::int` }).from(bookCatalog);
+      const [{ count: verified }] = await db.select({ count: sql<number>`count(*)::int` }).from(bookCatalog).where(eq(bookCatalog.verified, true));
+
+      // Language distribution
+      const langDist = await db.select({
+        language: bookCatalog.language,
+        count: sql<number>`count(*)::int`,
+      }).from(bookCatalog).groupBy(bookCatalog.language).orderBy(desc(sql`count(*)`)).limit(20);
+
+      return res.json({ total, verified, languageDistribution: langDist });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch catalog stats" });
     }
   });
 

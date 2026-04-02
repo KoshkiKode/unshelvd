@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, Globe } from "lucide-react";
 import type { Book } from "@shared/schema";
+import { getTextDirection, isCJK } from "@/lib/constants";
 
 const conditionColors: Record<string, string> = {
   new: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
@@ -48,7 +49,11 @@ export default function BookCard({ book, size = "medium" }: BookCardProps) {
 
         {/* Info */}
         <div className="p-3">
-          <h3 className="font-serif font-medium text-sm leading-tight line-clamp-2 mb-0.5" data-testid="book-title">
+          <h3
+            className={`font-serif font-medium text-sm leading-tight line-clamp-2 mb-0.5 ${isCJK(book.title) ? "font-cjk" : ""}`}
+            dir={getTextDirection(book.language)}
+            data-testid="book-title"
+          >
             {book.title}
           </h3>
           <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{book.author}</p>

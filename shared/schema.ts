@@ -39,7 +39,66 @@ export const books = pgTable("books", {
   printCountry: text("print_country"),  // where this specific copy was printed
   era: text("era"),                    // "Antique (Pre-1900)", "Vintage (1900-1970)", "Modern", etc.
   script: text("script"),              // "Latin", "Cyrillic", "Arabic", "Kanji", etc.
+  calendarSystem: text("calendar_system"), // "gregorian", "islamic_hijri", "hebrew", etc.
+  calendarYear: text("calendar_year"),    // year in the specified calendar, e.g. "1444 AH"
+  textDirection: text("text_direction"),  // "ltr" or "rtl"
+  catalogId: integer("catalog_id"),       // link to canonical book_catalog entry
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ═══════════════════════════════════════════════════════════════
+// CANONICAL BOOK CATALOG — proprietary master database
+// Every book ever published, worldwide. User listings link to this.
+// ═══════════════════════════════════════════════════════════════
+
+export const bookCatalog = pgTable("book_catalog", {
+  id: serial("id").primaryKey(),
+  // Core identity
+  title: text("title").notNull(),
+  titleNative: text("title_native"),        // title in original script (e.g. 戦争と平和)
+  titleRomanized: text("title_romanized"),  // romanized version (e.g. Sensō to Heiwa)
+  author: text("author").notNull(),
+  authorNative: text("author_native"),      // author in original script
+  authorRomanized: text("author_romanized"),
+  // Identifiers
+  isbn10: text("isbn_10"),
+  isbn13: text("isbn_13"),
+  oclc: text("oclc"),                       // WorldCat number
+  lccn: text("lccn"),                       // Library of Congress number
+  openLibraryId: text("open_library_id"),   // Open Library work ID
+  goodreadsId: text("goodreads_id"),
+  // Publication
+  publisher: text("publisher"),
+  publisherNative: text("publisher_native"),
+  publicationYear: integer("publication_year"),
+  firstPublishedYear: integer("first_published_year"),
+  edition: text("edition"),
+  editionNumber: integer("edition_number"),
+  pages: integer("pages"),
+  // Language & geography
+  language: text("language").notNull(),
+  originalLanguage: text("original_language"),
+  countryOfOrigin: text("country_of_origin"),
+  script: text("script"),
+  textDirection: text("text_direction"),   // "ltr" or "rtl"
+  // Classification
+  genre: text("genre"),                   // comma-separated
+  subjects: text("subjects"),             // comma-separated subject headings
+  deweyDecimal: text("dewey_decimal"),     // Dewey Decimal Classification
+  lcClassification: text("lc_classification"), // Library of Congress Classification
+  // Calendar/dating
+  calendarSystem: text("calendar_system"),
+  calendarYear: text("calendar_year"),
+  era: text("era"),
+  // Metadata
+  coverUrl: text("cover_url"),
+  description: text("description"),
+  // Data provenance
+  source: text("source"),                 // "open_library", "manual", "loc", etc.
+  sourceId: text("source_id"),            // ID in the source system
+  verified: boolean("verified").default(false), // manually verified entry
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const bookRequests = pgTable("book_requests", {
@@ -120,7 +179,24 @@ export const insertBookSchema = createInsertSchema(books).omit({
   printCountry: z.string().nullable().optional(),
   era: z.string().nullable().optional(),
   script: z.string().nullable().optional(),
+  calendarSystem: z.string().nullable().optional(),
+  calendarYear: z.string().nullable().optional(),
+  textDirection: z.string().nullable().optional(),
+  catalogId: z.number().nullable().optional(),
 });
+
+export const insertCatalogSchema = createInsertSchema(bookCatalog).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  title: z.string().min(1),
+  author: z.string().min(1),
+  language: z.string().min(1),
+});
+
+export type CatalogEntry = typeof bookCatalog.$inferSelect;
+export type InsertCatalogEntry = z.infer<typeof insertCatalogSchema>;
 
 export const insertBookRequestSchema = createInsertSchema(bookRequests).omit({
   id: true,

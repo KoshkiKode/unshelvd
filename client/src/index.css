@@ -224,3 +224,55 @@
     inset: -1px;
   }
 }
+
+/* ═══ International Text Support ═══ */
+
+/* CJK (Chinese, Japanese, Korean) font stack */
+.font-cjk {
+  font-family: "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC",
+    "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB",
+    "Meiryo", "Malgun Gothic", sans-serif;
+  word-break: break-all;
+}
+
+/* RTL (Arabic, Hebrew, Persian, Urdu) */
+[dir="rtl"] {
+  text-align: right;
+}
+
+[dir="rtl"] .font-serif {
+  font-family: "Amiri", "Traditional Arabic", "Noto Naskh Arabic",
+    "Scheherazade New", serif;
+}
+
+/* Native script display — slightly larger for readability */
+.text-native-script {
+  font-size: 1.05em;
+  line-height: 1.6;
+}
+
+/* Devanagari, Bengali, Tamil, etc. */
+.font-indic {
+  font-family: "Noto Sans Devanagari", "Noto Sans Bengali",
+    "Noto Sans Tamil", "Noto Sans Telugu", "Noto Sans Malayalam",
+    sans-serif;
+  line-height: 1.7;
+}
+
+/* Georgian, Armenian */
+.font-caucasus {
+  font-family: "Noto Sans Georgian", "Noto Sans Armenian", sans-serif;
+}
+
+/* Tibetan */
+.font-tibetan {
+  font-family: "Noto Sans Tibetan", "Jomolhari", sans-serif;
+  line-height: 2;
+}
+
+/* Thai, Khmer, Burmese */
+.font-southeast-asian {
+  font-family: "Noto Sans Thai", "Noto Sans Khmer", "Noto Sans Myanmar",
+    sans-serif;
+  line-height: 1.8;
+}

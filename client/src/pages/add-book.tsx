@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, Search, BookOpen, X, Globe } from "lucide-react";
 import { Link } from "wouter";
-import { languages, allCountries, countries, eras, scripts, genres } from "@/lib/constants";
+import { languages, allCountries, countries, eras, scripts, genres, calendarSystems, languageGroups } from "@/lib/constants";
 
 interface SearchResult {
   title: string;
@@ -76,6 +76,8 @@ export default function AddBook() {
     printCountry: "",
     era: "",
     script: "",
+    calendarSystem: "",
+    calendarYear: "",
   });
 
   // Debounced search
@@ -151,6 +153,8 @@ export default function AddBook() {
         printCountry: form.printCountry || null,
         era: form.era || null,
         script: form.script || null,
+        calendarSystem: form.calendarSystem || null,
+        calendarYear: form.calendarYear || null,
       });
     },
     onSuccess: () => {
@@ -499,6 +503,39 @@ export default function AddBook() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              {/* Calendar system — for antique/religious texts */}
+              <div className="grid md:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Calendar System</label>
+                  <Select value={form.calendarSystem} onValueChange={(v) => setForm({ ...form, calendarSystem: v })}>
+                    <SelectTrigger data-testid="book-calendar-select">
+                      <SelectValue placeholder="Gregorian (default)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {calendarSystems.map((cal) => (
+                        <SelectItem key={cal.value} value={cal.value}>
+                          <div>
+                            <span>{cal.label}</span>
+                            <span className="text-xs text-muted-foreground ml-2">— {cal.description}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.calendarSystem && form.calendarSystem !== "gregorian" && (
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">Year in {calendarSystems.find(c => c.value === form.calendarSystem)?.label || "Calendar"}</label>
+                    <Input
+                      value={form.calendarYear}
+                      onChange={(e) => setForm({ ...form, calendarYear: e.target.value })}
+                      placeholder="e.g. 1444 AH, 5784, 2567 BE"
+                      data-testid="book-calendar-year-input"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
