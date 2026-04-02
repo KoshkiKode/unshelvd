@@ -5,7 +5,7 @@ import { insertUserSchema, loginSchema, insertBookSchema, insertBookRequestSchem
 import { db } from "./storage";
 import { eq, and, or, ilike, desc, asc, sql } from "drizzle-orm";
 import { resolveWork, getWorkEditions, updateWorkStats } from "./work-resolver";
-import { createPaymentIntent, confirmPayment, markShipped, confirmDelivery, getUserTransactions, PLATFORM_FEE_PERCENT } from "./payments";
+import { createPaymentIntent, confirmPayment, markShipped, confirmDelivery, getUserTransactions, PLATFORM_FEE_PERCENT, createSellerAccount, checkSellerStatus } from "./payments";
 import { registerAdminRoutes } from "./admin";
 import { validatePassword } from "@shared/password-policy";
 import { sanitizeLikeInput, parseIntParam } from "./security";
@@ -594,6 +594,40 @@ export async function registerRoutes(
       return res.json(listings);
     } catch (err) {
       return res.status(500).json({ message: "Failed to fetch listings" });
+    }
+  });
+
+  // === SELLER STRIPE ONBOARDING ===
+
+  // Start or resume Stripe Connect onboarding
+  app.post("/api/seller/connect", requireAuth, async (req, res) => {
+    try {
+      const returnUrl = req.body.returnUrl || `${req.protocol}://${req.get("host")}/#/dashboard`;
+      const result = await createSellerAccount(req.user!.id, returnUrl);
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message || "Failed to create seller account" });
+    }
+  });
+
+  // Check seller's Stripe status
+  app.get("/api/seller/status", requireAuth, async (req, res) => {
+    try {
+      const result = await checkSellerStatus(req.user!.id);
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message || "Failed to check status" });
+    }
+  });
+
+  // Stripe Connect OAuth return handler
+  app.get("/api/seller/connect/complete", requireAuth, async (req, res) => {
+    try {
+      // After Stripe redirects back, check the account status
+      const result = await checkSellerStatus(req.user!.id);
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
     }
   });
 

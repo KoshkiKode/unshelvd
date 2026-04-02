@@ -8,7 +8,7 @@
  */
 
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import rateLimit, { type Options } from "express-rate-limit";
 import type { Express, Request, Response, NextFunction } from "express";
 
 /**
@@ -31,7 +31,6 @@ export function applySecurityMiddleware(app: Express) {
     message: { message: "Too many login attempts. Please try again in 15 minutes." },
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => req.ip || req.headers["x-forwarded-for"] as string || "unknown",
   });
   app.use("/api/auth/login", authLimiter);
   app.use("/api/auth/register", authLimiter);

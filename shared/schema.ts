@@ -53,7 +53,9 @@ export const users = pgTable("users", {
   rating: real("rating").default(0),
   totalSales: integer("total_sales").default(0),
   totalPurchases: integer("total_purchases").default(0),
-  role: text("role").default("user"),  // "user" | "admin"
+  role: text("role").default("user"),  // "user" | "admin" | "suspended"
+  stripeAccountId: text("stripe_account_id"),  // Stripe Connect Express account ID
+  stripeOnboarded: boolean("stripe_onboarded").default(false), // completed Stripe onboarding
   createdAt: timestamp("created_at").defaultNow(),
 });
 

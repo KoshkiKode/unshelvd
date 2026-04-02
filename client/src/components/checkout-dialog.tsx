@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -7,7 +7,21 @@ import { useToast } from "@/hooks/use-toast";
 import { CreditCard, Shield, Loader2, CheckCircle, Package } from "lucide-react";
 import type { Book } from "@shared/schema";
 
-const PLATFORM_FEE = 0.10; // 10% — roadmap: 10% → 9% → 7.5% → 5%
+const PLATFORM_FEE = 0.10;
+
+// Lazy-load Stripe only when needed
+let stripePromise: Promise<any> | null = null;
+function getStripe() {
+  if (!stripePromise) {
+    const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+    if (key) {
+      import("@stripe/stripe-js").then(({ loadStripe }) => {
+        stripePromise = loadStripe(key);
+      });
+    }
+  }
+  return stripePromise;
+}
 
 interface CheckoutDialogProps {
   book: Book & { seller?: { displayName: string } };
@@ -18,45 +32,98 @@ interface CheckoutDialogProps {
 export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [step, setStep] = useState<"review" | "processing" | "success">("review");
+  const [step, setStep] = useState<"review" | "payment" | "processing" | "success">("review");
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [transactionId, setTransactionId] = useState<number | null>(null);
+  const [stripeReady, setStripeReady] = useState(false);
 
   const price = book.price || 0;
   const fee = Math.round(price * PLATFORM_FEE * 100) / 100;
   const total = price;
 
+  // Initialize Stripe Elements when we get a client secret
+  useEffect(() => {
+    if (clientSecret) {
+      const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+      if (key) {
+        import("@stripe/stripe-js").then(({ loadStripe }) => {
+          loadStripe(key).then(() => setStripeReady(true));
+        });
+      }
+    }
+  }, [clientSecret]);
+
   const checkoutMutation = useMutation({
     mutationFn: async () => {
-      // 1. Create payment intent
       const res = await apiRequest("POST", "/api/payments/checkout", { bookId: book.id });
-      const data = await res.json();
-      
-      // 2. If Stripe is configured, it would redirect to Stripe Elements here
-      // For now (dev mode), auto-confirm the payment
-      if (!data.clientSecret) {
-        // Dev mode — auto confirm
-        await apiRequest("POST", `/api/payments/${data.transactionId}/confirm`);
-      }
-      
-      return data;
+      return await res.json();
     },
-    onSuccess: () => {
-      setStep("success");
-      queryClient.invalidateQueries({ queryKey: [`/api/books/${book.id}`] });
-      queryClient.invalidateQueries({ queryKey: ["/api/payments/transactions"] });
+    onSuccess: (data) => {
+      setTransactionId(data.transactionId);
+
+      if (data.clientSecret && data.stripeConfigured) {
+        // Real Stripe — show payment form
+        setClientSecret(data.clientSecret);
+        setStep("payment");
+      } else {
+        // Dev mode — auto confirm
+        setStep("processing");
+        apiRequest("POST", `/api/payments/${data.transactionId}/confirm`)
+          .then(() => {
+            setStep("success");
+            queryClient.invalidateQueries({ queryKey: [`/api/books/${book.id}`] });
+          })
+          .catch((err) => {
+            toast({ title: "Payment failed", description: err.message, variant: "destructive" });
+            setStep("review");
+          });
+      }
     },
     onError: (err: Error) => {
-      toast({ title: "Payment failed", description: err.message, variant: "destructive" });
-      setStep("review");
+      toast({ title: "Checkout failed", description: err.message, variant: "destructive" });
     },
   });
 
-  const handleCheckout = () => {
+  const handleConfirmStripePayment = async () => {
+    if (!clientSecret || !transactionId) return;
+
     setStep("processing");
-    checkoutMutation.mutate();
+
+    try {
+      const { loadStripe } = await import("@stripe/stripe-js");
+      const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+      const stripe = await loadStripe(key);
+
+      if (!stripe) throw new Error("Stripe failed to load");
+
+      // Use Stripe's built-in payment element confirmation
+      const { error } = await stripe.confirmPayment({
+        clientSecret,
+        confirmParams: {
+          return_url: `${window.location.origin}/#/dashboard`,
+        },
+        redirect: "if_required",
+      });
+
+      if (error) {
+        toast({ title: "Payment failed", description: error.message, variant: "destructive" });
+        setStep("payment");
+        return;
+      }
+
+      // Payment succeeded — confirm on our backend
+      await apiRequest("POST", `/api/payments/${transactionId}/confirm`);
+      setStep("success");
+      queryClient.invalidateQueries({ queryKey: [`/api/books/${book.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/payments/transactions"] });
+    } catch (err: any) {
+      toast({ title: "Payment failed", description: err.message, variant: "destructive" });
+      setStep("payment");
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setStep("review"); }}>
+    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) { setStep("review"); setClientSecret(null); } }}>
       <DialogContent className="max-w-md" data-testid="checkout-dialog">
         {step === "review" && (
           <>
@@ -66,7 +133,6 @@ export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDia
             </DialogHeader>
 
             <div className="space-y-4 py-4">
-              {/* Book info */}
               <div className="flex gap-3">
                 {book.coverUrl ? (
                   <img src={book.coverUrl} alt="" className="w-16 h-24 object-cover rounded" />
@@ -82,7 +148,6 @@ export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDia
                 </div>
               </div>
 
-              {/* Price breakdown */}
               <div className="border rounded-lg p-3 space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span>Book price</span>
@@ -97,7 +162,7 @@ export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDia
                   <span>${(price - fee).toFixed(2)}</span>
                 </div>
                 <div className="border-t pt-2 flex justify-between font-medium">
-                  <span>Total</span>
+                  <span>You pay</span>
                   <span className="text-primary">${total.toFixed(2)}</span>
                 </div>
               </div>
@@ -110,11 +175,37 @@ export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDia
 
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button onClick={handleCheckout} className="gap-2" data-testid="confirm-purchase-btn">
-                <CreditCard className="h-4 w-4" />
+              <Button
+                onClick={() => checkoutMutation.mutate()}
+                disabled={checkoutMutation.isPending}
+                className="gap-2"
+                data-testid="confirm-purchase-btn"
+              >
+                {checkoutMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
                 Pay ${total.toFixed(2)}
               </Button>
             </DialogFooter>
+          </>
+        )}
+
+        {step === "payment" && clientSecret && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="font-serif">Enter Payment Details</DialogTitle>
+              <DialogDescription>Secure payment via Stripe</DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              {/* Stripe Elements would render here when keys are configured */}
+              <div id="stripe-payment-element" className="min-h-[200px] border rounded-lg p-4">
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Stripe payment form loading...
+                </p>
+              </div>
+              <Button onClick={handleConfirmStripePayment} className="w-full mt-4 gap-2">
+                <CreditCard className="h-4 w-4" />
+                Complete Payment — ${total.toFixed(2)}
+              </Button>
+            </div>
           </>
         )}
 
@@ -132,6 +223,7 @@ export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDia
             <p className="font-serif text-xl font-medium mb-2">Purchase Complete</p>
             <p className="text-sm text-muted-foreground mb-4">
               The seller has been notified. They'll ship your book and provide tracking info.
+              Your payment is held securely until you confirm receipt.
             </p>
             <Button onClick={() => onOpenChange(false)}>Done</Button>
           </div>

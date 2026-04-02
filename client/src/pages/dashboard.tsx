@@ -4,11 +4,41 @@ import { Link, Redirect } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, Plus, MessageSquare, DollarSign, FileText, ArrowRight } from "lucide-react";
+import { BookOpen, Plus, MessageSquare, DollarSign, FileText, ArrowRight, CreditCard, CheckCircle, Loader2 } from "lucide-react";
 import type { Book } from "@shared/schema";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { toast } = useToast();
+
+  const { data: sellerStatus } = useQuery<{ connected: boolean; onboarded: boolean }>({
+    queryKey: ["/api/seller/status"],
+    enabled: !!user,
+  });
+
+  const connectMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/seller/connect", {
+        returnUrl: window.location.origin + "/#/dashboard",
+      });
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      if (data.onboardingUrl) {
+        window.open(data.onboardingUrl, "_blank");
+      } else if (data.alreadyOnboarded) {
+        toast({ title: "Already connected", description: "Your bank account is set up and ready to receive payments." });
+      } else if (data.devMode) {
+        toast({ title: "Dev mode", description: "Stripe Connect simulated — you're set up for testing." });
+      }
+    },
+    onError: (err: Error) => {
+      toast({ title: "Connection failed", description: err.message, variant: "destructive" });
+    },
+  });
 
   const { data: books } = useQuery<Book[]>({
     queryKey: [`/api/books/user/${user?.id}`],
@@ -130,6 +160,38 @@ export default function Dashboard() {
           </Button>
         </Link>
       </div>
+
+      {/* Seller Bank Account Connection */}
+      {sellerStatus && !sellerStatus.onboarded && (
+        <Card className="mb-6 border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CreditCard className="h-5 w-5 text-amber-600" />
+                <div>
+                  <p className="font-medium text-sm">Connect your bank account to sell books</p>
+                  <p className="text-xs text-muted-foreground">Set up Stripe to receive payments when your books sell.</p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => connectMutation.mutate()}
+                disabled={connectMutation.isPending}
+                data-testid="connect-stripe-btn"
+              >
+                {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CreditCard className="h-4 w-4 mr-1" />}
+                Connect
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {sellerStatus?.onboarded && (
+        <div className="flex items-center gap-2 mb-4 text-xs text-green-600">
+          <CheckCircle className="h-3.5 w-3.5" />
+          <span>Bank account connected — you'll receive payments when books sell</span>
+        </div>
+      )}
 
       {/* My Listings */}
       <div className="mb-8">

@@ -1,33 +1,27 @@
 /**
- * Unshelv'd — Payment Engine (Stripe)
+ * Unshelv'd — Payment Engine (Stripe Connect)
  * 
- * Flow:
- * 1. Buyer clicks "Buy Now" → creates a Stripe PaymentIntent
- * 2. Buyer completes payment in-app via Stripe Elements
- * 3. Webhook confirms payment → status: "paid"
- * 4. Seller ships and adds tracking → status: "shipped"
- * 5. Buyer confirms receipt → status: "delivered"
- * 6. After 48h (or buyer confirms early) → funds released to seller, status: "completed"
+ * Architecture: Separate Charges + Transfers
+ * - Buyer pays → money goes to Unshelv'd's Stripe account
+ * - Money held until buyer confirms delivery
+ * - Then transferred to seller's connected Stripe account
+ * - Platform fee stays in Unshelv'd's account
  * 
- * Platform fee: 5% of the sale price (configurable)
- * Stripe processing: ~2.9% + $0.30 (Stripe takes this from the total)
- * 
- * Stripe Connect:
- * - Sellers connect their Stripe account to receive payouts
- * - Unshelv'd uses Stripe Connect "destination charges" 
- * - Platform fee is automatically split at payment time
+ * Seller onboarding: Stripe Express accounts
+ * - Stripe handles KYC, identity verification, bank account setup
+ * - Sellers get a Stripe-hosted onboarding page
+ * - One-time setup per seller
  */
 
 import Stripe from "stripe";
 import { db } from "./storage";
 import { transactions, books, users } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
-// Platform fee percentage
-// Roadmap: 10% → 9% → 7.5% → 5% as we grow
+// Platform fee: 10%
 export const PLATFORM_FEE_PERCENT = 0.10;
 
-// Initialize Stripe (will be null if no key configured — graceful degradation)
+// Stripe initialization
 const stripeKey = process.env.STRIPE_SECRET_KEY;
 export const stripe = stripeKey ? new Stripe(stripeKey) : null;
 
@@ -37,11 +31,110 @@ function calculateFees(amount: number) {
   return { platformFee, sellerPayout };
 }
 
+// ═══════════════════════════════════════
+// SELLER ONBOARDING (Stripe Express)
+// ═══════════════════════════════════════
+
 /**
- * Create a payment intent for buying a book
+ * Create a Stripe Express account for a seller and return the onboarding URL.
+ * The seller clicks this link to set up their bank account and verify identity.
+ */
+export async function createSellerAccount(userId: number, returnUrl: string) {
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  if (!user) throw new Error("User not found");
+
+  // Already has a Stripe account
+  if (user.stripeAccountId) {
+    // Check if onboarding is complete
+    if (stripe) {
+      const account = await stripe.accounts.retrieve(user.stripeAccountId);
+      if (account.details_submitted) {
+        await db.update(users).set({ stripeOnboarded: true }).where(eq(users.id, userId));
+        return { alreadyOnboarded: true, accountId: user.stripeAccountId };
+      }
+      // Onboarding incomplete — generate a new link
+      const link = await stripe.accountLinks.create({
+        account: user.stripeAccountId,
+        refresh_url: `${returnUrl}?stripe=refresh`,
+        return_url: `${returnUrl}?stripe=complete`,
+        type: "account_onboarding",
+      });
+      return { onboardingUrl: link.url, accountId: user.stripeAccountId };
+    }
+    return { alreadyOnboarded: true, accountId: user.stripeAccountId };
+  }
+
+  if (!stripe) {
+    // Dev mode — fake it
+    const fakeId = `acct_dev_${userId}`;
+    await db.update(users).set({ stripeAccountId: fakeId, stripeOnboarded: true }).where(eq(users.id, userId));
+    return { alreadyOnboarded: true, accountId: fakeId, devMode: true };
+  }
+
+  // Create new Express account
+  const account = await stripe.accounts.create({
+    type: "express",
+    email: user.email,
+    metadata: { userId: String(userId), username: user.username },
+    capabilities: {
+      card_payments: { requested: true },
+      transfers: { requested: true },
+    },
+  });
+
+  // Save the account ID
+  await db.update(users).set({ stripeAccountId: account.id }).where(eq(users.id, userId));
+
+  // Generate onboarding link
+  const link = await stripe.accountLinks.create({
+    account: account.id,
+    refresh_url: `${returnUrl}?stripe=refresh`,
+    return_url: `${returnUrl}?stripe=complete`,
+    type: "account_onboarding",
+  });
+
+  return { onboardingUrl: link.url, accountId: account.id };
+}
+
+/**
+ * Check if a seller's Stripe account is ready to receive payments
+ */
+export async function checkSellerStatus(userId: number) {
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  if (!user) throw new Error("User not found");
+
+  if (!user.stripeAccountId) {
+    return { connected: false, onboarded: false };
+  }
+
+  if (!stripe) {
+    return { connected: true, onboarded: true, devMode: true };
+  }
+
+  const account = await stripe.accounts.retrieve(user.stripeAccountId);
+  const onboarded = account.details_submitted || false;
+
+  if (onboarded && !user.stripeOnboarded) {
+    await db.update(users).set({ stripeOnboarded: true }).where(eq(users.id, userId));
+  }
+
+  return {
+    connected: true,
+    onboarded,
+    chargesEnabled: account.charges_enabled,
+    payoutsEnabled: account.payouts_enabled,
+  };
+}
+
+// ═══════════════════════════════════════
+// CHECKOUT (Separate Charges)
+// ═══════════════════════════════════════
+
+/**
+ * Create a payment intent. Money goes to Unshelv'd's account (not the seller).
+ * We transfer to the seller later after delivery confirmation.
  */
 export async function createPaymentIntent(buyerId: number, bookId: number, offerId?: number) {
-  // Get the book
   const [book] = await db.select().from(books).where(eq(books.id, bookId));
   if (!book) throw new Error("Book not found");
   if (book.userId === buyerId) throw new Error("Cannot buy your own book");
@@ -49,17 +142,11 @@ export async function createPaymentIntent(buyerId: number, bookId: number, offer
     throw new Error("Book is not for sale");
   }
 
-  // Determine price
   let amount = book.price;
-  if (offerId) {
-    // Check if there's an accepted offer with a different price
-    // For now, use book price; offer integration can refine this
-  }
   if (!amount || amount <= 0) throw new Error("Book has no price set");
 
   const { platformFee, sellerPayout } = calculateFees(amount);
 
-  // Get seller info
   const [seller] = await db.select().from(users).where(eq(users.id, book.userId));
   if (!seller) throw new Error("Seller not found");
 
@@ -75,28 +162,28 @@ export async function createPaymentIntent(buyerId: number, bookId: number, offer
     status: "pending",
   }).returning();
 
-  // Create Stripe PaymentIntent if Stripe is configured
   let clientSecret: string | null = null;
+
   if (stripe) {
+    // Create PaymentIntent on OUR account (not the seller's)
+    // Money comes to us first — we transfer to seller after delivery
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Stripe uses cents
+      amount: Math.round(amount * 100), // cents
       currency: "usd",
       metadata: {
         transactionId: String(transaction.id),
         bookId: String(bookId),
         buyerId: String(buyerId),
         sellerId: String(book.userId),
+        platformFee: String(platformFee),
+        sellerPayout: String(sellerPayout),
       },
-      // With Stripe Connect, you'd add:
-      // transfer_data: {
-      //   destination: seller.stripeAccountId,
-      // },
-      // application_fee_amount: Math.round(platformFee * 100),
+      // Automatic payment methods — supports cards, Apple Pay, Google Pay, etc.
+      automatic_payment_methods: { enabled: true },
     });
 
     clientSecret = paymentIntent.client_secret;
 
-    // Update transaction with Stripe ID
     await db.update(transactions)
       .set({ stripePaymentIntentId: paymentIntent.id })
       .where(eq(transactions.id, transaction.id));
@@ -104,53 +191,39 @@ export async function createPaymentIntent(buyerId: number, bookId: number, offer
 
   return {
     transactionId: transaction.id,
-    clientSecret, // null if Stripe not configured (dev mode)
+    clientSecret,
     amount,
     platformFee,
     sellerPayout,
-    book: {
-      id: book.id,
-      title: book.title,
-      author: book.author,
-      coverUrl: book.coverUrl,
-    },
-    seller: {
-      id: seller.id,
-      displayName: seller.displayName,
-      username: seller.username,
-    },
+    stripeConfigured: !!stripe,
+    book: { id: book.id, title: book.title, author: book.author, coverUrl: book.coverUrl },
+    seller: { id: seller.id, displayName: seller.displayName, username: seller.username },
   };
 }
 
-/**
- * Confirm payment (called after Stripe confirms, or in dev mode)
- */
+// ═══════════════════════════════════════
+// POST-PAYMENT FLOW
+// ═══════════════════════════════════════
+
 export async function confirmPayment(transactionId: number, userId: number) {
   const [tx] = await db.select().from(transactions).where(eq(transactions.id, transactionId));
   if (!tx) throw new Error("Transaction not found");
   if (tx.buyerId !== userId) throw new Error("Not your transaction");
   if (tx.status !== "pending") throw new Error("Transaction already processed");
 
-  // If Stripe is configured, verify the payment intent is succeeded
   if (stripe && tx.stripePaymentIntentId) {
     const pi = await stripe.paymentIntents.retrieve(tx.stripePaymentIntentId);
     if (pi.status !== "succeeded") throw new Error("Payment not confirmed by Stripe");
   }
 
-  await db.update(transactions).set({
-    status: "paid",
-    updatedAt: new Date(),
-  }).where(eq(transactions.id, transactionId));
+  await db.update(transactions).set({ status: "paid", updatedAt: new Date() })
+    .where(eq(transactions.id, transactionId));
 
-  // Mark book as sold (not for sale)
   await db.update(books).set({ status: "not-for-sale" }).where(eq(books.id, tx.bookId));
 
   return { status: "paid" };
 }
 
-/**
- * Seller marks as shipped
- */
 export async function markShipped(transactionId: number, userId: number, carrier?: string, tracking?: string) {
   const [tx] = await db.select().from(transactions).where(eq(transactions.id, transactionId));
   if (!tx) throw new Error("Transaction not found");
@@ -169,13 +242,33 @@ export async function markShipped(transactionId: number, userId: number, carrier
 }
 
 /**
- * Buyer confirms delivery
+ * Buyer confirms delivery → transfer funds to seller's Stripe account
  */
 export async function confirmDelivery(transactionId: number, userId: number) {
   const [tx] = await db.select().from(transactions).where(eq(transactions.id, transactionId));
   if (!tx) throw new Error("Transaction not found");
   if (tx.buyerId !== userId) throw new Error("Not your purchase");
   if (tx.status !== "shipped") throw new Error("Not shipped yet");
+
+  // Transfer seller's payout to their connected Stripe account
+  if (stripe) {
+    const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
+    if (seller?.stripeAccountId) {
+      const transfer = await stripe.transfers.create({
+        amount: Math.round(tx.sellerPayout * 100), // cents
+        currency: "usd",
+        destination: seller.stripeAccountId,
+        metadata: {
+          transactionId: String(tx.id),
+          bookId: String(tx.bookId),
+        },
+      });
+
+      await db.update(transactions)
+        .set({ stripeTransferId: transfer.id })
+        .where(eq(transactions.id, transactionId));
+    }
+  }
 
   await db.update(transactions).set({
     status: "completed",
@@ -184,38 +277,19 @@ export async function confirmDelivery(transactionId: number, userId: number) {
     updatedAt: new Date(),
   }).where(eq(transactions.id, transactionId));
 
-  // Update seller stats
+  // Update stats
   const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
-  if (seller) {
-    await db.update(users).set({
-      totalSales: (seller.totalSales || 0) + 1,
-    }).where(eq(users.id, tx.sellerId));
-  }
-
-  // Update buyer stats
+  if (seller) await db.update(users).set({ totalSales: (seller.totalSales || 0) + 1 }).where(eq(users.id, tx.sellerId));
   const [buyer] = await db.select().from(users).where(eq(users.id, tx.buyerId));
-  if (buyer) {
-    await db.update(users).set({
-      totalPurchases: (buyer.totalPurchases || 0) + 1,
-    }).where(eq(users.id, tx.buyerId));
-  }
+  if (buyer) await db.update(users).set({ totalPurchases: (buyer.totalPurchases || 0) + 1 }).where(eq(users.id, tx.buyerId));
 
   return { status: "completed" };
 }
 
-/**
- * Get transactions for a user
- */
 export async function getUserTransactions(userId: number) {
-  const purchases = await db.select().from(transactions)
-    .where(eq(transactions.buyerId, userId))
-    .orderBy(desc(transactions.id));
+  const purchases = await db.select().from(transactions).where(eq(transactions.buyerId, userId)).orderBy(desc(transactions.id));
+  const sales = await db.select().from(transactions).where(eq(transactions.sellerId, userId)).orderBy(desc(transactions.id));
 
-  const sales = await db.select().from(transactions)
-    .where(eq(transactions.sellerId, userId))
-    .orderBy(desc(transactions.id));
-
-  // Enrich with book and user info
   const enrich = async (tx: typeof transactions.$inferSelect) => {
     const [book] = await db.select().from(books).where(eq(books.id, tx.bookId));
     const [buyer] = await db.select().from(users).where(eq(users.id, tx.buyerId));
