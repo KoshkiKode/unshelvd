@@ -25,27 +25,34 @@ async function seed() {
   // The admin password is set via ADMIN_PASSWORD env var.
   // If not set, generates a random secure password and prints it.
   // ═══════════════════════════════════════
+  // Generate randomized admin credentials
+  const adminUsername = process.env.ADMIN_USERNAME || crypto.randomBytes(4).toString("hex"); // 8 random hex chars
+  const adminEmail = process.env.ADMIN_EMAIL || `${adminUsername}@unshelvd.com`;
   let adminPassword = process.env.ADMIN_PASSWORD;
   if (!adminPassword) {
-    // Generate a secure random password: 16 chars, mixed case, numbers, symbols
     adminPassword = crypto.randomBytes(12).toString("base64url").slice(0, 16) + "!A1";
-    console.log("╔══════════════════════════════════════════════╗");
-    console.log("║  ADMIN CREDENTIALS (save these!)             ║");
-    console.log(`║  Email:    admin@unshelvd.com                 ║`);
-    console.log(`║  Password: ${adminPassword.padEnd(32)}║`);
-    console.log("║  SHA-256:  " + crypto.createHash("sha256").update(adminPassword).digest("hex").slice(0, 30) + "..║");
-    console.log("╚══════════════════════════════════════════════╝");
   }
+
+  console.log("╔══════════════════════════════════════════════════════╗");
+  console.log("║  ADMIN CREDENTIALS — SAVE THESE IMMEDIATELY!         ║");
+  console.log("║  These will NOT be shown again.                      ║");
+  console.log("╠══════════════════════════════════════════════════════╣");
+  console.log(`║  Username: ${adminUsername.padEnd(40)}║`);
+  console.log(`║  Email:    ${adminEmail.padEnd(40)}║`);
+  console.log(`║  Password: ${adminPassword.padEnd(40)}║`);
+  console.log(`║  SHA-256:  ${crypto.createHash("sha256").update(adminPassword).digest("hex").slice(0, 38)}..║`);
+  console.log("╚══════════════════════════════════════════════════════╝");
 
   const adminHash = await bcrypt.hash(adminPassword, 12);
 
   await db.insert(users).values({
-    username: "admin",
+    username: adminUsername,
     displayName: "Unshelv'd Admin",
-    email: "admin@unshelvd.com",
+    email: adminEmail,
     password: adminHash,
     bio: "Platform administrator.",
     location: "Battle Creek, MI",
+    role: "admin",
   });
 
   // ═══════════════════════════════════════

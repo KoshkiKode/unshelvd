@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { BookOpen, Menu, MessageSquare, Search, LayoutDashboard, User, LogOut, Sun, Moon, Info, Globe2 } from "lucide-react";
+import { BookOpen, Menu, MessageSquare, Search, LayoutDashboard, User, LogOut, Sun, Moon, Info, Globe2, Shield } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useI18n } from "@/i18n/use-i18n";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -50,6 +50,8 @@ export default function Navbar() {
           badge: unreadCount,
         },
         { href: `/user/${user.id}`, label: "Profile", icon: User },
+        // Admin link (only visible to admins)
+        ...((user as any).role === "admin" ? [{ href: "/admin", label: "Admin", icon: Shield }] : []),
       ]
     : [];
 

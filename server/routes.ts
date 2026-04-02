@@ -6,6 +6,7 @@ import { db } from "./storage";
 import { eq, and, or, ilike, desc, asc, sql } from "drizzle-orm";
 import { resolveWork, getWorkEditions, updateWorkStats } from "./work-resolver";
 import { createPaymentIntent, confirmPayment, markShipped, confirmDelivery, getUserTransactions, PLATFORM_FEE_PERCENT } from "./payments";
+import { registerAdminRoutes } from "./admin";
 import { validatePassword } from "@shared/password-policy";
 import { sanitizeLikeInput, parseIntParam } from "./security";
 import { z } from "zod";
@@ -800,6 +801,9 @@ export async function registerRoutes(
       return res.status(500).json({ message: "Failed to update offer" });
     }
   });
+
+  // ═══ Admin Routes ═══
+  registerAdminRoutes(app);
 
   return httpServer;
 }

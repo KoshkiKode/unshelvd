@@ -19,6 +19,7 @@ import Offers from "@/pages/offers";
 import { LoginPage, RegisterPage } from "@/pages/auth";
 import WorkPage from "@/pages/work";
 import About from "@/pages/about";
+import AdminDashboard from "@/pages/admin";
 import NotFound from "@/pages/not-found";
 
 function AppRouter() {
@@ -38,6 +39,7 @@ function AppRouter() {
           <Route path="/dashboard/add-book" component={AddBook} />
           <Route path="/dashboard/messages" component={Messages} />
           <Route path="/dashboard/offers" component={Offers} />
+          <Route path="/admin" component={AdminDashboard} />
           <Route path="/login" component={LoginPage} />
           <Route path="/register" component={RegisterPage} />
           <Route component={NotFound} />
