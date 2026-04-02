@@ -21,6 +21,7 @@ import WorkPage from "@/pages/work";
 import About from "@/pages/about";
 import AdminDashboard from "@/pages/admin";
 import NotFound from "@/pages/not-found";
+import ConnectivityGuard from "@/components/connectivity-guard";
 
 function AppRouter() {
   return (
@@ -56,9 +57,11 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Router hook={useHashLocation}>
-            <AuthProvider>
-              <AppRouter />
-            </AuthProvider>
+            <ConnectivityGuard>
+              <AuthProvider>
+                <AppRouter />
+              </AuthProvider>
+            </ConnectivityGuard>
           </Router>
         </TooltipProvider>
       </I18nProvider>

@@ -10,6 +10,14 @@ const app = express();
 // Trust proxy — needed for Cloud Run, secure cookies, and rate limiting
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
+  
+  // Security audit logs on startup
+  if (!process.env.SESSION_SECRET) {
+    console.warn("⚠️  SECURITY WARNING: SESSION_SECRET is not set in production. Using insecure default.");
+  }
+  if (!process.env.DATABASE_URL) {
+    console.error("❌ CRITICAL ERROR: DATABASE_URL is missing! Server will fail start.");
+  }
 }
 
 const httpServer = createServer(app);
@@ -33,13 +41,21 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (same-origin, curl, etc.)
+    // 1. Allow internal/same-origin requests (including same-host browser access)
     if (!origin) return callback(null, true);
+
+    // 2. Explicitly allowed Capacitor and local development origins
     if (allowedOrigins.includes(origin) || origin.endsWith(".run.app")) {
       return callback(null, true);
     }
-    // In dev, allow everything
-    if (process.env.NODE_ENV !== "production") return callback(null, true);
+
+    // 3. For local development, be permissive to aid debugging
+    if (process.env.NODE_ENV !== "production") {
+      return callback(null, true);
+    }
+
+    // 4. In production, maintain strict CORS
+    console.error(`CORS BLOCKED: Rejected origin ${origin}`);
     callback(null, false);
   },
   credentials: true,

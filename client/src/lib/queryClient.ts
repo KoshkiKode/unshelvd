@@ -28,6 +28,12 @@ function getApiBase(): string {
   if (Capacitor?.isNativePlatform()) {
     const envUrl = import.meta.env.VITE_API_URL;
     if (envUrl) return envUrl;
+    
+    // In production builds, this is a serious configuration error
+    if (import.meta.env.PROD) {
+      console.error("FATAL: VITE_API_URL is missing in a production native build!");
+    }
+
     if (Capacitor.getPlatform() === "android") return "http://10.0.2.2:5000";
     return "http://localhost:5000";
   }
@@ -39,7 +45,24 @@ function getApiBase(): string {
   return "";
 }
 
-const API_BASE = getApiBase();
+export const API_BASE = getApiBase();
+
+/**
+ * Performs a simple ping to verify backend connectivity
+ */
+export async function checkBackendHealth(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/me`, {
+      method: "GET",
+      credentials: "include",
+    });
+    // Even a 401 Unauthorized means the server is reachable and responding
+    return res.status === 200 || res.status === 401;
+  } catch (err) {
+    console.error("Backend health check failed:", err);
+    return false;
+  }
+}
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
