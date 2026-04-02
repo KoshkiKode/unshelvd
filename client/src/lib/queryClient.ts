@@ -1,5 +1,13 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { Capacitor } from "@capacitor/core";
+
+// Safe Capacitor import — returns null in browser environments
+let Capacitor: { isNativePlatform: () => boolean; getPlatform: () => string } | null = null;
+try {
+  const cap = await import("@capacitor/core");
+  Capacitor = cap.Capacitor;
+} catch {
+  // Not in a Capacitor environment (normal browser) — that's fine
+}
 
 /**
  * API base URL resolution:
@@ -17,16 +25,15 @@ function getApiBase(): string {
   }
 
   // Running inside a native Capacitor app
-  if (Capacitor.isNativePlatform()) {
-    // Set VITE_API_URL when building for production native
-    // e.g., VITE_API_URL=https://unshelvd-xxxxx-uc.a.run.app npm run build
+  if (Capacitor?.isNativePlatform()) {
     const envUrl = import.meta.env.VITE_API_URL;
     if (envUrl) return envUrl;
-    // Dev fallback — Android emulator uses 10.0.2.2 to reach host machine
     if (Capacitor.getPlatform() === "android") return "http://10.0.2.2:5000";
-    // iOS simulator uses localhost
     return "http://localhost:5000";
   }
+
+  // Check for VITE_API_URL even in browser (useful for testing)
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
 
   // Local web dev — relative URLs hit the same origin
   return "";
