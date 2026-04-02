@@ -69,9 +69,10 @@ export default function About() {
                 that can sustain itself.
               </p>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                But here's the commitment: <strong className="text-foreground">the fee goes down as the community grows.</strong> More
-                users means more transactions, which means I can spread the fixed costs thinner
-                and pass those savings back to you.
+                But here's the commitment: <strong className="text-foreground">the fee goes down as monthly sales volume grows.</strong> Not
+                based on user signups or some vanity number — based on actual books sold per month,
+                because that's what actually covers the costs. More books moving means I can spread
+                the fixed costs thinner and pass those savings directly back to you.
               </p>
             </div>
           </CardContent>
@@ -147,8 +148,9 @@ export default function About() {
             <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
               Currently 10% of each sale. This covers server infrastructure, payment processing
               (Stripe takes ~3%), and development. The fee is on a public roadmap to decrease
-              to 5% as the community grows. Listing books, browsing, messaging, and making
-              offers are all free.
+              to 5% — tied to monthly sales volume. At 500 books sold per month, it drops to 9%.
+              At 2,500 books per month, 7.5%. Long-term target is 5%. Listing books, browsing,
+              messaging, and making offers are all free.
             </AccordionContent>
           </AccordionItem>
 
