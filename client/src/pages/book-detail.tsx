@@ -361,8 +361,8 @@ export default function BookDetail() {
           {/* Other editions of this work */}
           {book.workId && <OtherEditions workId={book.workId} currentBookId={book.id} />}
 
-          {/* Also find on ThriftBooks / AbeBooks / Open Library */}
-          <div className="mt-6 p-4 border rounded-lg bg-muted/30">
+          {/* Also found on ThriftBooks / AbeBooks / Open Library */}
+          <div className="mt-6">
             <AffiliateLinks title={book.title} author={book.author} isbn={book.isbn} />
           </div>
 
