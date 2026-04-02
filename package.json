@@ -16,6 +16,10 @@
     "cap:ios": "npx cap open ios",
     "cap:build:android": "VITE_API_URL=$API_URL npm run build && npx cap sync android",
     "cap:build:ios": "VITE_API_URL=$API_URL npm run build && npx cap sync ios",
+    "build:apk": "bash scripts/build-android.sh",
+    "build:apk:release": "bash scripts/build-android.sh release",
+    "build:ios": "bash scripts/build-ios.sh",
+    "build:ios:archive": "bash scripts/build-ios.sh archive",
     "catalog:seed": "tsx server/catalog-import.ts --api",
     "catalog:import": "tsx server/catalog-import.ts"
   },

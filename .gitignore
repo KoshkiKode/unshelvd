@@ -23,6 +23,8 @@ ios/App/Pods/
 *.apk
 *.aab
 *.ipa
+*.keystore
+*.jks
 
 # Tauri
 src-tauri/target/
