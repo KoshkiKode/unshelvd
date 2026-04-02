@@ -2,6 +2,45 @@ import { pgTable, text, integer, serial, real, boolean, timestamp } from "drizzl
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// ═══════════════════════════════════════════════════════════════
+// WORKS — the abstract literary creation
+// One "work" = one creative work by an author.
+// All editions, translations, printings, and adaptations link here.
+// e.g. "War and Peace" by Leo Tolstoy is ONE work, with 500+ editions.
+// ═══════════════════════════════════════════════════════════════
+
+export const works = pgTable("works", {
+  id: serial("id").primaryKey(),
+  // Canonical identity
+  title: text("title").notNull(),               // canonical English title
+  titleOriginal: text("title_original"),         // title in original language
+  titleOriginalScript: text("title_original_script"), // in native script (e.g. Война и мир)
+  author: text("author").notNull(),              // canonical author name
+  authorOriginal: text("author_original"),       // author in original language
+  authorOriginalScript: text("author_original_script"),
+  // Identifiers
+  openLibraryWorkId: text("open_library_work_id").unique(), // e.g. "/works/OL1168083W"
+  wikidataId: text("wikidata_id"),               // e.g. "Q161531"
+  goodreadsWorkId: text("goodreads_work_id"),
+  // Metadata
+  originalLanguage: text("original_language"),
+  firstPublishedYear: integer("first_published_year"),
+  genre: text("genre"),                          // comma-separated
+  subjects: text("subjects"),                    // comma-separated
+  description: text("description"),
+  coverUrl: text("cover_url"),                   // best available cover
+  // Stats (denormalized for performance)
+  editionCount: integer("edition_count").default(0),
+  translationCount: integer("translation_count").default(0),
+  languageCount: integer("language_count").default(0),
+  listingCount: integer("listing_count").default(0), // active user listings
+  // Provenance
+  source: text("source"),                        // "open_library", "manual"
+  verified: boolean("verified").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
@@ -43,6 +82,7 @@ export const books = pgTable("books", {
   calendarYear: text("calendar_year"),    // year in the specified calendar, e.g. "1444 AH"
   textDirection: text("text_direction"),  // "ltr" or "rtl"
   catalogId: integer("catalog_id"),       // link to canonical book_catalog entry
+  workId: integer("work_id"),              // link to the abstract work
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -93,6 +133,8 @@ export const bookCatalog = pgTable("book_catalog", {
   // Metadata
   coverUrl: text("cover_url"),
   description: text("description"),
+  // Work linkage
+  workId: integer("work_id"),             // link to the abstract work
   // Data provenance
   source: text("source"),                 // "open_library", "manual", "loc", etc.
   sourceId: text("source_id"),            // ID in the source system
@@ -183,6 +225,7 @@ export const insertBookSchema = createInsertSchema(books).omit({
   calendarYear: z.string().nullable().optional(),
   textDirection: z.string().nullable().optional(),
   catalogId: z.number().nullable().optional(),
+  workId: z.number().nullable().optional(),
 });
 
 export const insertCatalogSchema = createInsertSchema(bookCatalog).omit({
@@ -197,6 +240,7 @@ export const insertCatalogSchema = createInsertSchema(bookCatalog).omit({
 
 export type CatalogEntry = typeof bookCatalog.$inferSelect;
 export type InsertCatalogEntry = z.infer<typeof insertCatalogSchema>;
+export type Work = typeof works.$inferSelect;
 
 export const insertBookRequestSchema = createInsertSchema(bookRequests).omit({
   id: true,

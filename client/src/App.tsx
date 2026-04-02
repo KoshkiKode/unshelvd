@@ -16,6 +16,7 @@ import AddBook from "@/pages/add-book";
 import Messages from "@/pages/messages";
 import Offers from "@/pages/offers";
 import { LoginPage, RegisterPage } from "@/pages/auth";
+import WorkPage from "@/pages/work";
 import NotFound from "@/pages/not-found";
 
 function AppRouter() {
@@ -27,6 +28,7 @@ function AppRouter() {
           <Route path="/" component={Home} />
           <Route path="/browse" component={Browse} />
           <Route path="/book/:id" component={BookDetail} />
+          <Route path="/work/:id" component={WorkPage} />
           <Route path="/user/:id" component={UserProfile} />
           <Route path="/requests" component={Requests} />
           <Route path="/dashboard" component={Dashboard} />

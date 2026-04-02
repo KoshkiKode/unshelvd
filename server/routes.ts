@@ -1,9 +1,10 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, loginSchema, insertBookSchema, insertBookRequestSchema, insertMessageSchema, insertOfferSchema, updateOfferSchema, books, bookCatalog } from "@shared/schema";
+import { insertUserSchema, loginSchema, insertBookSchema, insertBookRequestSchema, insertMessageSchema, insertOfferSchema, updateOfferSchema, books, bookCatalog, works } from "@shared/schema";
 import { db } from "./storage";
-import { eq, and, or, ilike, desc, sql } from "drizzle-orm";
+import { eq, and, or, ilike, desc, asc, sql } from "drizzle-orm";
+import { resolveWork, getWorkEditions, updateWorkStats } from "./work-resolver";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
@@ -225,7 +226,28 @@ export async function registerRoutes(
   app.post("/api/books", requireAuth, async (req, res) => {
     try {
       const data = insertBookSchema.parse(req.body);
-      const book = await storage.createBook(req.user!.id, data);
+
+      // Auto-resolve to work (runs in background, doesn't block)
+      let workId: number | null = null;
+      try {
+        const resolved = await resolveWork({
+          title: data.title,
+          author: data.author,
+          isbn: data.isbn || undefined,
+          language: data.language || undefined,
+          originalLanguage: data.originalLanguage || undefined,
+          year: data.year || undefined,
+          coverUrl: data.coverUrl || undefined,
+          genre: data.genre || undefined,
+        });
+        workId = resolved.workId;
+        // Update stats in background
+        updateWorkStats(resolved.workId).catch(() => {});
+      } catch {
+        // Non-fatal: book still gets created even if work resolution fails
+      }
+
+      const book = await storage.createBook(req.user!.id, { ...data, workId });
       return res.json(book);
     } catch (err) {
       if (err instanceof ZodError) {
@@ -441,6 +463,108 @@ export async function registerRoutes(
       return res.json({ total, verified, languageDistribution: langDist });
     } catch (err) {
       return res.status(500).json({ message: "Failed to fetch catalog stats" });
+    }
+  });
+
+  // === WORKS (edition graph) ===
+
+  // Get a work with all its editions grouped by language
+  app.get("/api/works/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [work] = await db.select().from(works).where(eq(works.id, id));
+      if (!work) return res.status(404).json({ message: "Work not found" });
+
+      const editions = await getWorkEditions(id);
+
+      return res.json({ work, ...editions });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch work" });
+    }
+  });
+
+  // Search works
+  app.get("/api/works", async (req, res) => {
+    try {
+      const q = req.query.q as string;
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+      const offset = parseInt(req.query.offset as string) || 0;
+
+      let query = db.select().from(works);
+
+      if (q && q.length >= 2) {
+        const term = `%${q}%`;
+        query = query.where(
+          or(
+            ilike(works.title, term),
+            ilike(works.titleOriginal, term),
+            ilike(works.titleOriginalScript, term),
+            ilike(works.author, term),
+            ilike(works.authorOriginal, term),
+          )
+        ) as any;
+      }
+
+      const results = await query
+        .orderBy(desc(works.listingCount), desc(works.editionCount))
+        .limit(limit)
+        .offset(offset);
+
+      return res.json(results);
+    } catch (err) {
+      return res.status(500).json({ message: "Work search failed" });
+    }
+  });
+
+  // Resolve: given title+author+isbn, find or create the work
+  app.post("/api/works/resolve", async (req, res) => {
+    try {
+      const { title, author, isbn, language, originalLanguage, year, coverUrl, genre } = req.body;
+      if (!title || !author) {
+        return res.status(400).json({ message: "title and author required" });
+      }
+
+      const result = await resolveWork({
+        title, author, isbn, language, originalLanguage, year, coverUrl, genre,
+      });
+
+      // Fetch the work
+      const [work] = await db.select().from(works).where(eq(works.id, result.workId));
+
+      return res.json({ ...result, work });
+    } catch (err) {
+      console.error("Work resolve error:", err);
+      return res.status(500).json({ message: "Failed to resolve work" });
+    }
+  });
+
+  // Get all editions for a work as flat list
+  app.get("/api/works/:id/editions", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const editions = await getWorkEditions(id);
+      return res.json(editions);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch editions" });
+    }
+  });
+
+  // Get user listings for a work
+  app.get("/api/works/:id/listings", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const listings = await db.select().from(books)
+        .where(
+          and(
+            eq(books.workId, id),
+            or(eq(books.status, "for-sale"), eq(books.status, "open-to-offers"))
+          )
+        )
+        .orderBy(asc(books.price));
+
+      return res.json(listings);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch listings" });
     }
   });
 

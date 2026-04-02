@@ -9,9 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { BookOpen, MapPin, Star, MessageSquare, DollarSign, User, ArrowLeft, Globe, Languages, BookType } from "lucide-react";
+import { BookOpen, MapPin, Star, MessageSquare, DollarSign, User, ArrowLeft, Globe, Languages, BookType, BookCopy } from "lucide-react";
 import { useState } from "react";
-import type { Book } from "@shared/schema";
+import type { Book, Work } from "@shared/schema";
+import BookCard from "@/components/book-card";
 
 const conditionLabels: Record<string, { label: string; color: string }> = {
   new: { label: "New", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
@@ -345,8 +346,60 @@ export default function BookDetail() {
               </div>
             </Link>
           )}
+
+          {/* Other editions of this work */}
+          {book.workId && <OtherEditions workId={book.workId} currentBookId={book.id} />}
         </div>
       </div>
+    </div>
+  );
+}
+
+function OtherEditions({ workId, currentBookId }: { workId: number; currentBookId: number }) {
+  const { data } = useQuery<{ work: Work; userListings: Record<string, Book[]>; totalListings: number }>({
+    queryKey: ["/api/works", workId],
+  });
+
+  if (!data) return null;
+
+  const allListings = Object.values(data.userListings)
+    .flat()
+    .filter((b) => b.id !== currentBookId);
+
+  if (allListings.length === 0 && !data.work) return null;
+
+  return (
+    <div className="mt-8 border-t pt-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <BookCopy className="h-4 w-4 text-primary" />
+          <h3 className="font-serif font-medium">Other Editions & Translations</h3>
+        </div>
+        <Link href={`/work/${workId}`}>
+          <Button variant="ghost" size="sm" className="text-xs">
+            View all {data.work.editionCount || 0} editions →
+          </Button>
+        </Link>
+      </div>
+
+      {data.work.description && (
+        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{data.work.description}</p>
+      )}
+
+      {allListings.length > 0 ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {allListings.slice(0, 4).map((listing) => (
+            <BookCard key={listing.id} book={listing} />
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          No other copies currently for sale.
+          <Link href={`/work/${workId}`}>
+            <span className="text-primary ml-1 cursor-pointer">See all known editions →</span>
+          </Link>
+        </p>
+      )}
     </div>
   );
 }
