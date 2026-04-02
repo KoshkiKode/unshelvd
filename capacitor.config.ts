@@ -47,7 +47,7 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: true,  // Allow HTTP in dev
     captureInput: true,
-    webContentsDebuggingEnabled: true,  // Disable this for production APK
+    webContentsDebuggingEnabled: false, // Set true for debugging, false for production
   },
 
   // iOS-specific
