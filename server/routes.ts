@@ -83,7 +83,7 @@ export async function registerRoutes(
           if (!isValid) {
             return done(null, false, { message: "Invalid email or password" });
           }
-          return done(null, user);
+          return done(null, user as any);
         } catch (err) {
           return done(err);
         }
@@ -206,7 +206,7 @@ export async function registerRoutes(
 
   app.get("/api/books/user/:userId", async (req, res) => {
     try {
-      const userId = parseInt(req.params.userId);
+      const userId = parseInt(req.params.userId as string);
       const booksList = await storage.getBooksByUser(userId);
       return res.json(booksList);
     } catch (err) {
@@ -216,7 +216,7 @@ export async function registerRoutes(
 
   app.get("/api/books/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const book = await storage.getBook(id);
       if (!book) return res.status(404).json({ message: "Book not found" });
 
@@ -289,7 +289,7 @@ export async function registerRoutes(
 
   app.delete("/api/books/:id", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const deleted = await storage.deleteBook(id, req.user!.id);
       if (!deleted) return res.status(404).json({ message: "Book not found or not yours" });
       return res.json({ message: "Book deleted" });
@@ -456,7 +456,7 @@ export async function registerRoutes(
 
   app.get("/api/catalog/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const rows = await db.select().from(bookCatalog).where(eq(bookCatalog.id, id));
       if (!rows[0]) return res.status(404).json({ message: "Not found" });
 
@@ -493,7 +493,7 @@ export async function registerRoutes(
   // Get a work with all its editions grouped by language
   app.get("/api/works/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const [work] = await db.select().from(works).where(eq(works.id, id));
       if (!work) return res.status(404).json({ message: "Work not found" });
 
@@ -570,7 +570,7 @@ export async function registerRoutes(
   // Get all editions for a work as flat list
   app.get("/api/works/:id/editions", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const editions = await getWorkEditions(id);
       return res.json(editions);
     } catch (err) {
@@ -581,7 +581,7 @@ export async function registerRoutes(
   // Get user listings for a work
   app.get("/api/works/:id/listings", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const listings = await db.select().from(books)
         .where(
           and(
@@ -661,7 +661,7 @@ export async function registerRoutes(
   // Confirm payment (after Stripe succeeds, or dev mode)
   app.post("/api/payments/:id/confirm", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const result = await confirmPayment(id, req.user!.id);
       return res.json(result);
     } catch (err: any) {
@@ -672,7 +672,7 @@ export async function registerRoutes(
   // Seller marks shipped
   app.post("/api/payments/:id/ship", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const shipSchema = z.object({
         carrier: z.string().max(100).optional(),
         trackingNumber: z.string().max(100).optional(),
@@ -688,7 +688,7 @@ export async function registerRoutes(
   // Buyer confirms delivery
   app.post("/api/payments/:id/deliver", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const result = await confirmDelivery(id, req.user!.id);
       return res.json(result);
     } catch (err: any) {
@@ -736,7 +736,7 @@ export async function registerRoutes(
   // === USER ROUTES ===
   app.get("/api/users/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const user = await storage.getUser(id);
       if (!user) return res.status(404).json({ message: "User not found" });
       const { password, ...safeUser } = user;
@@ -767,7 +767,7 @@ export async function registerRoutes(
 
   app.get("/api/messages/:userId", requireAuth, async (req, res) => {
     try {
-      const otherUserId = parseInt(req.params.userId);
+      const otherUserId = parseInt(req.params.userId as string);
       const msgs = await storage.getMessages(req.user!.id, otherUserId);
       // Mark as read
       await storage.markMessagesRead(req.user!.id, otherUserId);
@@ -823,7 +823,7 @@ export async function registerRoutes(
 
   app.patch("/api/offers/:id", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const data = updateOfferSchema.parse(req.body);
       const offer = await storage.updateOffer(id, req.user!.id, data.status, data.counterAmount);
       if (!offer) return res.status(404).json({ message: "Offer not found or not yours" });

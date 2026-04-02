@@ -78,7 +78,8 @@ export function sanitizeLikeInput(input: string): string {
 /**
  * Validate and parse an integer parameter. Returns null if invalid.
  */
-export function parseIntParam(value: string | undefined): number | null {
+export function parseIntParam(value: string | string[] | undefined): number | null {
+  if (Array.isArray(value)) value = value[0];
   if (!value) return null;
   const parsed = parseInt(value, 10);
   if (isNaN(parsed) || !isFinite(parsed) || parsed < 0) return null;

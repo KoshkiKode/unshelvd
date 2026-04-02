@@ -9,6 +9,7 @@ import { BookOpen, Globe, Languages, Calendar, ArrowLeft, Users, BookCopy } from
 import { Button } from "@/components/ui/button";
 import { getTextDirection, isCJK } from "@/lib/constants";
 import type { Work, Book, CatalogEntry } from "@shared/schema";
+import AffiliateLinks from "@/components/affiliate-links";
 
 interface WorkResponse {
   work: Work;
@@ -127,6 +128,8 @@ export default function WorkPage() {
           {work.description && (
             <p className="text-sm text-muted-foreground line-clamp-3">{work.description}</p>
           )}
+
+          <AffiliateLinks title={work.title} author={work.author} className="mt-3" />
         </div>
       </div>
 

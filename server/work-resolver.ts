@@ -325,7 +325,7 @@ export async function getWorkEditions(workId: number) {
   return {
     catalogEditions: Object.fromEntries(byLanguage),
     userListings: Object.fromEntries(listingsByLanguage),
-    languages: [...new Set([...byLanguage.keys(), ...listingsByLanguage.keys()])],
+    languages: Array.from(new Set([...Array.from(byLanguage.keys()), ...Array.from(listingsByLanguage.keys())])),
     totalEditions: catalogEditions.length,
     totalListings: userListings.length,
   };

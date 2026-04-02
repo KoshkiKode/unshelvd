@@ -167,9 +167,9 @@ export default function Navbar() {
                     >
                       <link.icon className="h-4 w-4 mr-2" />
                       {link.label}
-                      {"badge" in link && link.badge ? (
+                      {"badge" in link && (link as any).badge ? (
                         <span className="ml-auto bg-primary text-primary-foreground text-xs font-bold rounded-full h-5 min-w-5 flex items-center justify-center px-1">
-                          {link.badge}
+                          {(link as any).badge}
                         </span>
                       ) : null}
                     </Button>

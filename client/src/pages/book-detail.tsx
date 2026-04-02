@@ -15,6 +15,7 @@ import type { Book, Work } from "@shared/schema";
 import BookCard from "@/components/book-card";
 import CheckoutDialog from "@/components/checkout-dialog";
 import AdBanner from "@/components/ad-banner";
+import AffiliateLinks from "@/components/affiliate-links";
 
 const conditionLabels: Record<string, { label: string; color: string }> = {
   new: { label: "New", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
@@ -360,8 +361,13 @@ export default function BookDetail() {
           {/* Other editions of this work */}
           {book.workId && <OtherEditions workId={book.workId} currentBookId={book.id} />}
 
+          {/* Also find on ThriftBooks / AbeBooks / Open Library */}
+          <div className="mt-6 p-4 border rounded-lg bg-muted/30">
+            <AffiliateLinks title={book.title} author={book.author} isbn={book.isbn} />
+          </div>
+
           {/* Subtle ad slot */}
-          <div className="mt-8 flex justify-center">
+          <div className="mt-6 flex justify-center">
             <AdBanner size="leaderboard" />
           </div>
         </div>

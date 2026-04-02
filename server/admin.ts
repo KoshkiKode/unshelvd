@@ -181,7 +181,7 @@ export function registerAdminRoutes(app: Express) {
   // ═══ User Detail (admin view) ═══
   app.get("/api/admin/users/:id", requireAdmin, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const [user] = await db.select({
         id: users.id, username: users.username, displayName: users.displayName,
         email: users.email, role: users.role, bio: users.bio, location: users.location,
@@ -206,7 +206,7 @@ export function registerAdminRoutes(app: Express) {
   // ═══ Suspend/Unsuspend User ═══
   app.post("/api/admin/users/:id/suspend", requireAdmin, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const [user] = await db.select().from(users).where(eq(users.id, id));
       if (!user) return res.status(404).json({ message: "User not found" });
       if (user.role === "admin") return res.status(400).json({ message: "Cannot suspend an admin" });
@@ -223,7 +223,7 @@ export function registerAdminRoutes(app: Express) {
   // ═══ Mark transaction as disputed ═══
   app.post("/api/admin/transactions/:id/dispute", requireAdmin, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       await db.update(transactions).set({ status: "disputed", updatedAt: new Date() }).where(eq(transactions.id, id));
       return res.json({ message: "Transaction marked as disputed" });
     } catch (err) {
@@ -234,7 +234,7 @@ export function registerAdminRoutes(app: Express) {
   // ═══ Refund a transaction ═══
   app.post("/api/admin/transactions/:id/refund", requireAdmin, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const [tx] = await db.select().from(transactions).where(eq(transactions.id, id));
       if (!tx) return res.status(404).json({ message: "Transaction not found" });
 

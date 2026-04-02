@@ -228,7 +228,7 @@ export class DatabaseStorage implements IStorage {
 
     // Enrich with user info
     const conversations = [];
-    for (const [, conv] of convMap) {
+    for (const conv of Array.from(convMap.values())) {
       const user = await this.getUser(conv.otherUserId);
       if (user) {
         conversations.push({
