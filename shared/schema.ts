@@ -187,10 +187,13 @@ export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
   password: true,
 }).extend({
-  username: z.string().min(3).max(30),
-  displayName: z.string().min(1).max(50),
-  email: z.string().email(),
-  password: z.string().min(6),
+  // Username: 3-30 chars, Unicode-safe, no whitespace at edges
+  username: z.string().min(3, "Username must be at least 3 characters").max(30).trim()
+    .regex(/^[\p{L}\p{N}_.-]+$/u, "Username can only contain letters, numbers, underscores, dots, and hyphens"),
+  displayName: z.string().min(1, "Display name is required").max(100).trim(),
+  email: z.string().email("Invalid email address"),
+  // Password: 12+ chars — full validation done server-side with context
+  password: z.string().min(12, "Password must be at least 12 characters"),
 });
 
 export const loginSchema = z.object({

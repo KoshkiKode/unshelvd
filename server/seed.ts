@@ -2,8 +2,9 @@ import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { users, books, bookRequests } from "@shared/schema";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 
-// Open Library cover URLs by ISBN (no API call needed, these are static URLs)
+// Open Library cover URLs by ISBN
 const cover = (isbn: string) => `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
 
 async function seed() {
@@ -12,7 +13,6 @@ async function seed() {
 
   console.log("Seeding database...");
 
-  // Check if already seeded
   const existing = await db.select().from(users);
   if (existing.length > 0) {
     console.log("Database already has data, skipping seed.");
@@ -20,14 +20,44 @@ async function seed() {
     return;
   }
 
-  const hashedPassword = await bcrypt.hash("password123", 10);
+  // ═══════════════════════════════════════
+  // ADMIN USER — SHA-256 derived password
+  // The admin password is set via ADMIN_PASSWORD env var.
+  // If not set, generates a random secure password and prints it.
+  // ═══════════════════════════════════════
+  let adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword) {
+    // Generate a secure random password: 16 chars, mixed case, numbers, symbols
+    adminPassword = crypto.randomBytes(12).toString("base64url").slice(0, 16) + "!A1";
+    console.log("╔══════════════════════════════════════════════╗");
+    console.log("║  ADMIN CREDENTIALS (save these!)             ║");
+    console.log(`║  Email:    admin@unshelvd.com                 ║`);
+    console.log(`║  Password: ${adminPassword.padEnd(32)}║`);
+    console.log("║  SHA-256:  " + crypto.createHash("sha256").update(adminPassword).digest("hex").slice(0, 30) + "..║");
+    console.log("╚══════════════════════════════════════════════╝");
+  }
 
-  // Create users
+  const adminHash = await bcrypt.hash(adminPassword, 12);
+
+  await db.insert(users).values({
+    username: "admin",
+    displayName: "Unshelv'd Admin",
+    email: "admin@unshelvd.com",
+    password: adminHash,
+    bio: "Platform administrator.",
+    location: "Battle Creek, MI",
+  });
+
+  // ═══════════════════════════════════════
+  // DEMO USERS (with strong passwords)
+  // ═══════════════════════════════════════
+  const demoHash = await bcrypt.hash("DemoPassword!234", 12);
+
   const [jane] = await db.insert(users).values({
     username: "bookworm",
     displayName: "Jane Reader",
     email: "jane@example.com",
-    password: hashedPassword,
+    password: demoHash,
     bio: "Avid reader and collector. Always looking for rare first editions.",
     location: "Portland, OR",
   }).returning();
@@ -36,12 +66,21 @@ async function seed() {
     username: "alexshelves",
     displayName: "Alex Shelves",
     email: "alex@example.com",
-    password: hashedPassword,
+    password: demoHash,
     bio: "Philosophy and sci-fi enthusiast. My shelves are overflowing.",
     location: "Austin, TX",
   }).returning();
 
-  // Jane's books — real covers via Open Library ISBN lookup
+  const [mirko] = await db.insert(users).values({
+    username: "mirko_knjige",
+    displayName: "Mirko Petrović",
+    email: "mirko@example.com",
+    password: demoHash,
+    bio: "Collector of Yugoslav, Soviet, and Eastern European literature. Originals only, no reprints.",
+    location: "Belgrade, Serbia",
+  }).returning();
+
+  // Jane's books
   await db.insert(books).values([
     { userId: jane.id, title: "Sapiens: A Brief History of Humankind", author: "Yuval Noah Harari", isbn: "9780062316097", coverUrl: cover("9780062316097"), condition: "like-new", status: "for-sale", price: 15.99, genre: "Non-Fiction,History", publisher: "Harper", edition: "1st", year: 2015 },
     { userId: jane.id, title: "Meditations", author: "Marcus Aurelius", isbn: "9780140449334", coverUrl: cover("9780140449334"), condition: "fair", status: "for-sale", price: 12.00, genre: "Philosophy", publisher: "Penguin Classics" },
@@ -53,23 +92,13 @@ async function seed() {
     { userId: jane.id, title: "House of Leaves", author: "Mark Z. Danielewski", isbn: "9780375703768", coverUrl: cover("9780375703768"), condition: "new", status: "wishlist", genre: "Fiction,Horror", year: 2000 },
   ]);
 
-  // Alex's books — mix of English and international
+  // Alex's books
   await db.insert(books).values([
     { userId: alex.id, title: "The Brothers Karamazov", author: "Fyodor Dostoevsky", isbn: "9780374528379", coverUrl: cover("9780374528379"), condition: "fair", status: "for-sale", price: 14.50, genre: "Fiction", publisher: "Farrar, Straus and Giroux", year: 1880, language: "English", originalLanguage: "Russian", countryOfOrigin: "Russian Empire", era: "Antique (Pre-1900)" },
     { userId: alex.id, title: "A Brief History of Time", author: "Stephen Hawking", isbn: "9780553380163", coverUrl: cover("9780553380163"), condition: "new", status: "for-sale", price: 22.00, genre: "Non-Fiction,Science", publisher: "Bantam", year: 1988, language: "English", countryOfOrigin: "United Kingdom", era: "Modern (1970-2000)" },
     { userId: alex.id, title: "1984", author: "George Orwell", isbn: "9780451524935", coverUrl: cover("9780451524935"), condition: "good", status: "for-sale", price: 9.99, genre: "Fiction,Sci-Fi", publisher: "Signet Classics", year: 1949, language: "English", countryOfOrigin: "United Kingdom", era: "Vintage (1900-1970)" },
     { userId: alex.id, title: "The Left Hand of Darkness", author: "Ursula K. Le Guin", isbn: "9780441478125", coverUrl: cover("9780441478125"), condition: "good", status: "open-to-offers", genre: "Sci-Fi", publisher: "Ace", year: 1969, language: "English", countryOfOrigin: "United States", era: "Vintage (1900-1970)" },
   ]);
-
-  // Create a third user focused on international books
-  const [mirko] = await db.insert(users).values({
-    username: "mirko_knjige",
-    displayName: "Mirko Petrović",
-    email: "mirko@example.com",
-    password: hashedPassword,
-    bio: "Collector of Yugoslav, Soviet, and Eastern European literature. Originals only, no reprints.",
-    location: "Belgrade, Serbia",
-  }).returning();
 
   // Mirko's international collection
   await db.insert(books).values([
@@ -92,7 +121,7 @@ async function seed() {
     { userId: mirko.id, title: "We", author: "Yevgeny Zamyatin", description: "Looking for an original Russian edition (Мы). Any Soviet-era print.", maxPrice: 100, language: "Russian", countryOfOrigin: "USSR / Soviet Union" },
   ]);
 
-  console.log("Seed complete: 3 users, 20 books (international + historical), 5 requests.");
+  console.log("Seed complete: 1 admin + 3 demo users, 20 books, 5 requests.");
   await pool.end();
 }
 

@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { BookOpen, Loader2 } from "lucide-react";
+import { BookOpen, Loader2, Check, X } from "lucide-react";
 import { Link } from "wouter";
+import { getPasswordStrength } from "@shared/password-policy";
+import { useI18n } from "@/i18n/use-i18n";
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -145,11 +147,52 @@ export function RegisterPage() {
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="At least 6 characters"
+                placeholder="At least 12 characters"
                 required
-                minLength={6}
+                minLength={12}
                 data-testid="register-password"
               />
+              {/* Password strength + requirements */}
+              {form.password.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <div className="flex gap-1">
+                    {[0, 1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className={`h-1 flex-1 rounded-full transition-colors ${
+                          i < getPasswordStrength(form.password).score
+                            ? "bg-primary" : "bg-muted"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <p className={`text-[10px] ${getPasswordStrength(form.password).color}`}>
+                    {getPasswordStrength(form.password).label}
+                  </p>
+                  <ul className="text-[10px] text-muted-foreground space-y-0.5">
+                    <li className={form.password.length >= 12 ? "text-green-600" : ""}>
+                      {form.password.length >= 12 ? <Check className="h-2.5 w-2.5 inline mr-1" /> : <X className="h-2.5 w-2.5 inline mr-1" />}
+                      12+ characters
+                    </li>
+                    <li className={/[A-Z\p{Lu}]/u.test(form.password) ? "text-green-600" : ""}>
+                      {/[A-Z\p{Lu}]/u.test(form.password) ? <Check className="h-2.5 w-2.5 inline mr-1" /> : <X className="h-2.5 w-2.5 inline mr-1" />}
+                      Uppercase letter
+                    </li>
+                    <li className={/[a-z\p{Ll}]/u.test(form.password) ? "text-green-600" : ""}>
+                      {/[a-z\p{Ll}]/u.test(form.password) ? <Check className="h-2.5 w-2.5 inline mr-1" /> : <X className="h-2.5 w-2.5 inline mr-1" />}
+                      Lowercase letter
+                    </li>
+                    <li className={/\d/.test(form.password) ? "text-green-600" : ""}>
+                      {/\d/.test(form.password) ? <Check className="h-2.5 w-2.5 inline mr-1" /> : <X className="h-2.5 w-2.5 inline mr-1" />}
+                      Number
+                    </li>
+                    <li className={/[^a-zA-Z0-9\s]/.test(form.password) ? "text-green-600" : ""}>
+                      {/[^a-zA-Z0-9\s]/.test(form.password) ? <Check className="h-2.5 w-2.5 inline mr-1" /> : <X className="h-2.5 w-2.5 inline mr-1" />}
+                      Symbol (!@#$%^&*)
+                    </li>
+                  </ul>
+                </div>
+              )}
             </div>
             <Button type="submit" className="w-full" disabled={loading} data-testid="register-submit">
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

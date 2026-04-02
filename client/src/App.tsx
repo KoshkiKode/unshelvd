@@ -5,6 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
+import { I18nProvider } from "@/i18n/use-i18n";
 import Navbar from "@/components/layout/navbar";
 import Home from "@/pages/home";
 import Browse from "@/pages/browse";
@@ -49,14 +50,16 @@ function AppRouter() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router hook={useHashLocation}>
-          <AuthProvider>
-            <AppRouter />
-          </AuthProvider>
-        </Router>
-      </TooltipProvider>
+      <I18nProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router hook={useHashLocation}>
+            <AuthProvider>
+              <AppRouter />
+            </AuthProvider>
+          </Router>
+        </TooltipProvider>
+      </I18nProvider>
     </QueryClientProvider>
   );
 }

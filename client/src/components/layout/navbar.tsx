@@ -3,14 +3,18 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { BookOpen, Menu, MessageSquare, Search, LayoutDashboard, User, LogOut, Sun, Moon, Info } from "lucide-react";
+import { BookOpen, Menu, MessageSquare, Search, LayoutDashboard, User, LogOut, Sun, Moon, Info, Globe2 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useI18n } from "@/i18n/use-i18n";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import type { Locale } from "@/i18n/translations";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dark, setDark] = useState(false);
+  const { t, locale, setLocale, locales } = useI18n();
 
   useEffect(() => {
     const stored = document.documentElement.classList.contains("dark");
@@ -76,6 +80,26 @@ export default function Navbar() {
         </div>
 
         <div className="hidden md:flex items-center gap-1">
+          {/* Language selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" data-testid="language-selector">
+                <Globe2 className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+              {(Object.entries(locales) as [Locale, string][]).map(([code, name]) => (
+                <DropdownMenuItem
+                  key={code}
+                  onClick={() => setLocale(code)}
+                  className={locale === code ? "font-medium bg-muted" : ""}
+                >
+                  {name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button variant="ghost" size="icon" onClick={toggleDark} className="h-8 w-8" data-testid="theme-toggle">
             {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>

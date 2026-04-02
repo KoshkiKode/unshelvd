@@ -6,6 +6,7 @@ import { db } from "./storage";
 import { eq, and, or, ilike, desc, asc, sql } from "drizzle-orm";
 import { resolveWork, getWorkEditions, updateWorkStats } from "./work-resolver";
 import { createPaymentIntent, confirmPayment, markShipped, confirmDelivery, getUserTransactions, PLATFORM_FEE_PERCENT } from "./payments";
+import { validatePassword } from "@shared/password-policy";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
@@ -111,6 +112,15 @@ export async function registerRoutes(
     try {
       const data = insertUserSchema.parse(req.body);
 
+      // Full password policy validation with name context
+      const pwResult = validatePassword(data.password, {
+        username: data.username,
+        displayName: data.displayName,
+      });
+      if (!pwResult.valid) {
+        return res.status(400).json({ message: pwResult.errors[0] });
+      }
+
       // Check uniqueness
       const existingEmail = await storage.getUserByEmail(data.email);
       if (existingEmail) {
@@ -121,7 +131,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Username already taken" });
       }
 
-      const hashedPassword = await bcrypt.hash(data.password, 10);
+      // Hash with bcrypt (12 rounds)
+      const hashedPassword = await bcrypt.hash(data.password, 12);
       const user = await storage.createUser({ ...data, password: hashedPassword });
 
       // Auto-login after registration
