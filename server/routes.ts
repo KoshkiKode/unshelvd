@@ -5,6 +5,7 @@ import { insertUserSchema, loginSchema, insertBookSchema, insertBookRequestSchem
 import { db } from "./storage";
 import { eq, and, or, ilike, desc, asc, sql } from "drizzle-orm";
 import { resolveWork, getWorkEditions, updateWorkStats } from "./work-resolver";
+import { createPaymentIntent, confirmPayment, markShipped, confirmDelivery, getUserTransactions, PLATFORM_FEE_PERCENT } from "./payments";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
@@ -565,6 +566,94 @@ export async function registerRoutes(
       return res.json(listings);
     } catch (err) {
       return res.status(500).json({ message: "Failed to fetch listings" });
+    }
+  });
+
+  // === PAYMENTS ===
+
+  // Get fee info
+  app.get("/api/payments/fee-info", (_req, res) => {
+    return res.json({
+      platformFeePercent: PLATFORM_FEE_PERCENT * 100,
+      description: `Unshelv'd charges a ${PLATFORM_FEE_PERCENT * 100}% platform fee on each sale.`,
+      stripeConfigured: !!process.env.STRIPE_SECRET_KEY,
+    });
+  });
+
+  // Create checkout / payment intent
+  app.post("/api/payments/checkout", requireAuth, async (req, res) => {
+    try {
+      const { bookId, offerId } = req.body;
+      if (!bookId) return res.status(400).json({ message: "bookId required" });
+
+      const result = await createPaymentIntent(req.user!.id, bookId, offerId);
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message || "Checkout failed" });
+    }
+  });
+
+  // Confirm payment (after Stripe succeeds, or dev mode)
+  app.post("/api/payments/:id/confirm", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const result = await confirmPayment(id, req.user!.id);
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message || "Confirmation failed" });
+    }
+  });
+
+  // Seller marks shipped
+  app.post("/api/payments/:id/ship", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { carrier, trackingNumber } = req.body;
+      const result = await markShipped(id, req.user!.id, carrier, trackingNumber);
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message || "Update failed" });
+    }
+  });
+
+  // Buyer confirms delivery
+  app.post("/api/payments/:id/deliver", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const result = await confirmDelivery(id, req.user!.id);
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message || "Confirmation failed" });
+    }
+  });
+
+  // Get user's transactions
+  app.get("/api/payments/transactions", requireAuth, async (req, res) => {
+    try {
+      const result = await getUserTransactions(req.user!.id);
+      return res.json(result);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch transactions" });
+    }
+  });
+
+  // Stripe webhook (handles payment confirmations)
+  app.post("/api/webhooks/stripe", async (req, res) => {
+    // In production, verify the webhook signature:
+    // const sig = req.headers['stripe-signature'];
+    // const event = stripe.webhooks.constructEvent(req.rawBody, sig, webhookSecret);
+    try {
+      const event = req.body;
+      if (event.type === "payment_intent.succeeded") {
+        const transactionId = parseInt(event.data.object.metadata.transactionId);
+        const buyerId = parseInt(event.data.object.metadata.buyerId);
+        if (transactionId && buyerId) {
+          await confirmPayment(transactionId, buyerId);
+        }
+      }
+      return res.json({ received: true });
+    } catch (err) {
+      return res.status(400).json({ message: "Webhook failed" });
     }
   });
 

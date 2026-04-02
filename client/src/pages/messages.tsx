@@ -38,7 +38,7 @@ export default function Messages() {
   const { data: threadMessages, isLoading: threadLoading } = useQuery<Message[]>({
     queryKey: [`/api/messages/${selectedUserId}`],
     enabled: !!user && !!selectedUserId,
-    refetchInterval: 5000,
+    refetchInterval: 3000,
   });
 
   const { data: selectedUserInfo } = useQuery<any>({

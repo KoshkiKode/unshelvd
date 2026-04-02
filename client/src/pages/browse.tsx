@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import BookCard from "@/components/book-card";
+import AdBanner from "@/components/ad-banner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -158,6 +159,11 @@ export default function Browse() {
           <p className="text-sm text-muted-foreground">Try adjusting your search or filters</p>
         </div>
       )}
+
+      {/* Subtle ad */}
+      <div className="mt-8 flex justify-center">
+        <AdBanner size="leaderboard" />
+      </div>
     </div>
   );
 }

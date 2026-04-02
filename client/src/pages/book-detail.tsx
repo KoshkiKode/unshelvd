@@ -9,10 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { BookOpen, MapPin, Star, MessageSquare, DollarSign, User, ArrowLeft, Globe, Languages, BookType, BookCopy } from "lucide-react";
+import { BookOpen, MapPin, Star, MessageSquare, DollarSign, User, ArrowLeft, Globe, Languages, BookType, BookCopy, CreditCard, ShoppingCart } from "lucide-react";
 import { useState } from "react";
 import type { Book, Work } from "@shared/schema";
 import BookCard from "@/components/book-card";
+import CheckoutDialog from "@/components/checkout-dialog";
+import AdBanner from "@/components/ad-banner";
 
 const conditionLabels: Record<string, { label: string; color: string }> = {
   new: { label: "New", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
@@ -32,6 +34,7 @@ export default function BookDetail() {
   const [offerOpen, setOfferOpen] = useState(false);
   const [messageContent, setMessageContent] = useState("");
   const [messageOpen, setMessageOpen] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   const { data: book, isLoading } = useQuery<Book & { seller: any }>({
     queryKey: [`/api/books/${id}`],
@@ -229,7 +232,14 @@ export default function BookDetail() {
 
           {/* Action buttons */}
           {user && book.seller && user.id !== book.seller.id && (
-            <div className="flex gap-2 mb-8">
+            <div className="flex gap-2 flex-wrap mb-8">
+              {/* Buy Now button for for-sale books */}
+              {book.status === "for-sale" && book.price != null && (
+                <Button onClick={() => setCheckoutOpen(true)} className="gap-1.5" data-testid="buy-now-btn">
+                  <ShoppingCart className="h-4 w-4" />
+                  Buy Now — ${book.price.toFixed(2)}
+                </Button>
+              )}
               {(book.status === "open-to-offers" || book.status === "for-sale") && (
                 <Dialog open={offerOpen} onOpenChange={setOfferOpen}>
                   <DialogTrigger asChild>
@@ -349,8 +359,18 @@ export default function BookDetail() {
 
           {/* Other editions of this work */}
           {book.workId && <OtherEditions workId={book.workId} currentBookId={book.id} />}
+
+          {/* Subtle ad slot */}
+          <div className="mt-8 flex justify-center">
+            <AdBanner size="leaderboard" />
+          </div>
         </div>
       </div>
+
+      {/* Checkout dialog */}
+      {book.price != null && (
+        <CheckoutDialog book={book} open={checkoutOpen} onOpenChange={setCheckoutOpen} />
+      )}
     </div>
   );
 }

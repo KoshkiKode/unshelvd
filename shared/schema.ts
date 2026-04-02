@@ -242,6 +242,41 @@ export type CatalogEntry = typeof bookCatalog.$inferSelect;
 export type InsertCatalogEntry = z.infer<typeof insertCatalogSchema>;
 export type Work = typeof works.$inferSelect;
 
+// ═══════════════════════════════════════════════════════════════
+// TRANSACTIONS — payment/escrow for book purchases
+// Flow: buyer pays → funds held → seller ships → buyer confirms → funds released
+// ═══════════════════════════════════════════════════════════════
+
+export const transactions = pgTable("transactions", {
+  id: serial("id").primaryKey(),
+  // Parties
+  buyerId: integer("buyer_id").notNull(),
+  sellerId: integer("seller_id").notNull(),
+  bookId: integer("book_id").notNull(),
+  offerId: integer("offer_id"),              // if from an accepted offer
+  // Money
+  amount: real("amount").notNull(),           // what the buyer pays
+  platformFee: real("platform_fee").notNull(), // Unshelv'd cut
+  sellerPayout: real("seller_payout").notNull(), // what seller receives
+  currency: text("currency").default("usd"),
+  // Stripe
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  stripeTransferId: text("stripe_transfer_id"),  // payout to seller
+  // Status flow: pending → paid → shipped → delivered → completed | disputed | refunded
+  status: text("status").default("pending"),
+  // Tracking
+  shippingCarrier: text("shipping_carrier"),
+  trackingNumber: text("tracking_number"),
+  shippedAt: timestamp("shipped_at"),
+  deliveredAt: timestamp("delivered_at"),
+  completedAt: timestamp("completed_at"),
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type Transaction = typeof transactions.$inferSelect;
+
 export const insertBookRequestSchema = createInsertSchema(bookRequests).omit({
   id: true,
   userId: true,
