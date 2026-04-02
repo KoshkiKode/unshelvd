@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CreditCard, Shield, Loader2, CheckCircle, Package } from "lucide-react";
 import type { Book } from "@shared/schema";
 
-const PLATFORM_FEE = 0.05; // 5%
+const PLATFORM_FEE = 0.10; // 10% — roadmap: 10% → 9% → 7.5% → 5%
 
 interface CheckoutDialogProps {
   book: Book & { seller?: { displayName: string } };
@@ -89,7 +89,7 @@ export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDia
                   <span>${price.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground text-xs">
-                  <span>Platform fee (5%)</span>
+                  <span>Platform fee (10%)</span>
                   <span>${fee.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground">

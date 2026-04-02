@@ -23,8 +23,9 @@ import { db } from "./storage";
 import { transactions, books, users } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 
-// Platform fee percentage (5%)
-export const PLATFORM_FEE_PERCENT = 0.05;
+// Platform fee percentage
+// Roadmap: 10% → 9% → 7.5% → 5% as we grow
+export const PLATFORM_FEE_PERCENT = 0.10;
 
 // Initialize Stripe (will be null if no key configured — graceful degradation)
 const stripeKey = process.env.STRIPE_SECRET_KEY;

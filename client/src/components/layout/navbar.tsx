@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { BookOpen, Menu, MessageSquare, Search, LayoutDashboard, User, LogOut, Sun, Moon } from "lucide-react";
+import { BookOpen, Menu, MessageSquare, Search, LayoutDashboard, User, LogOut, Sun, Moon, Info } from "lucide-react";
 import { useState, useEffect } from "react";
 
 export default function Navbar() {
@@ -33,6 +33,7 @@ export default function Navbar() {
   const navLinks = [
     { href: "/browse", label: "Browse", icon: Search },
     { href: "/requests", label: "Requests", icon: BookOpen },
+    { href: "/about", label: "About", icon: Info },
   ];
 
   const authLinks = user
