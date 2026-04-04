@@ -24,6 +24,8 @@ RUN npm ci --omit=dev
 
 # Copy built output
 COPY --from=builder /app/dist ./dist
+COPY drizzle.config.ts ./
+COPY shared ./shared
 
 # Expose port
 ENV PORT=8080
