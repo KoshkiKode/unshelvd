@@ -27,11 +27,12 @@ jobs:
         run: npm ci
 
       - name: Build web app
-        run: npx vite build
+        run: npm run build
         env:
           VITE_API_URL: ${{ vars.API_URL || '' }}
           VITE_TARGET: ios
           NODE_ENV: production
+          SKIP_ENV_VERIFY: "true"
 
       - name: Sync Capacitor
         run: npx cap sync ios
@@ -74,11 +75,12 @@ jobs:
         run: npm ci
 
       - name: Build web app (production)
-        run: npx vite build
+        run: npm run build
         env:
           VITE_API_URL: ${{ vars.API_URL }}
           VITE_TARGET: ios
           NODE_ENV: production
+          SKIP_ENV_VERIFY: "true"
 
       - name: Sync Capacitor
         run: npx cap sync ios

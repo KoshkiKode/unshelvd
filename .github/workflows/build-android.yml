@@ -34,12 +34,13 @@ jobs:
         run: npm ci
 
       - name: Build web app
-        run: npx vite build
+        run: npm run build
         env:
           # Point to the production API; falls back to relative if unset
           VITE_API_URL: ${{ vars.API_URL || '' }}
           VITE_TARGET: android
           NODE_ENV: production
+          SKIP_ENV_VERIFY: "true"
 
       - name: Sync Capacitor
         run: npx cap sync android
@@ -63,6 +64,8 @@ jobs:
     name: Release AAB
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -84,17 +87,18 @@ jobs:
         run: npm ci
 
       - name: Build web app (production)
-        run: npx vite build
+        run: npm run build
         env:
           VITE_API_URL: ${{ vars.API_URL }}
           VITE_TARGET: android
           NODE_ENV: production
+          SKIP_ENV_VERIFY: "true"
 
       - name: Sync Capacitor
         run: npx cap sync android
 
       - name: Decode release keystore
-        if: secrets.ANDROID_KEYSTORE_BASE64 != ''
+        if: env.HAS_KEYSTORE == 'true'
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/unshelvd-release.keystore
 
       - name: Make gradlew executable
