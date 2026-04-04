@@ -5,22 +5,9 @@ const config: CapacitorConfig = {
   appName: "Unshelv'd",
   webDir: "dist/public",
 
-  // Server config — how the native WebView loads the app
   server: {
-    // In production builds, the app loads from bundled files in webDir.
-    // The frontend's queryClient.ts handles API routing to your Cloud Run server
-    // via the VITE_API_URL env var (set at build time).
-    //
-    // For local dev with live reload, uncomment one of these:
-    // Android Emulator (10.0.2.2 maps to host machine's localhost):
-    //   url: "http://10.0.2.2:5000",
-    // Physical device on same network:
-    //   url: "http://192.168.1.YOUR_IP:5000",
-    // iOS Simulator:
-    //   url: "http://localhost:5000",
     androidScheme: "https",
     iosScheme: "https",
-    // Allow mixed content for dev (HTTP API calls from HTTPS webview)
     allowNavigation: ["*"],
   },
 
@@ -34,27 +21,37 @@ const config: CapacitorConfig = {
       showSpinner: false,
     },
     StatusBar: {
-      style: "LIGHT",
-      backgroundColor: "#FAF8F3",
+      style: "DEFAULT",         // let the app control status bar style
+      backgroundColor: "#00000000", // fully transparent
+      overlaysWebView: true,    // status bar overlays the WebView (edge-to-edge)
     },
     Keyboard: {
       resize: "body",
       resizeOnFullScreen: true,
     },
+    EdgeToEdge: {
+      enabled: true,            // Capacitor 6+ edge-to-edge plugin if present
+    },
   },
 
   // Android-specific
   android: {
-    allowMixedContent: true,  // Allow HTTP in dev
+    allowMixedContent: true,
     captureInput: true,
-    webContentsDebuggingEnabled: false, // Set true for debugging, false for production
+    webContentsDebuggingEnabled: false,
+    // Edge-to-edge: WebView draws behind system bars
+    // Handled via styles.xml transparent status/nav bar colors
   },
 
   // iOS-specific
   ios: {
-    contentInset: "automatic",
+    // "none" = don't inset — the app fills the whole screen including safe area
+    // The web app handles safe-area-inset via CSS env() variables
+    contentInset: "never",
     allowsLinkPreview: true,
     scrollEnabled: true,
+    // Allow the WKWebView to extend under the status bar / home indicator
+    preferredContentMode: "mobile",
   },
 };
 
