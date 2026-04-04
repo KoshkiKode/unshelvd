@@ -136,7 +136,7 @@ async function importFromDump(filePath: string) {
       batch.push(entry);
 
       if (batch.length >= BATCH_SIZE) {
-        await db.insert(bookCatalog).values(batch).onConflictDoNothing();
+        await db.insert(bookCatalog).values(batch).onConflictDoNothing({ target: bookCatalog.openLibraryId });
         count += batch.length;
         batch = [];
         if (count % 10000 === 0) {
@@ -150,7 +150,7 @@ async function importFromDump(filePath: string) {
 
   // Insert remaining
   if (batch.length > 0) {
-    await db.insert(bookCatalog).values(batch).onConflictDoNothing();
+    await db.insert(bookCatalog).values(batch).onConflictDoNothing({ target: bookCatalog.openLibraryId });
     count += batch.length;
   }
 
@@ -187,7 +187,7 @@ async function seedFromAPI(queries: string[]) {
       }));
 
       if (entries.length > 0) {
-        await db.insert(bookCatalog).values(entries).onConflictDoNothing();
+        await db.insert(bookCatalog).values(entries).onConflictDoNothing({ target: bookCatalog.openLibraryId });
         console.log(`  "${query}": ${entries.length} entries`);
       }
 

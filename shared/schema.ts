@@ -108,7 +108,7 @@ export const bookCatalog = pgTable("book_catalog", {
   isbn13: text("isbn_13"),
   oclc: text("oclc"),                       // WorldCat number
   lccn: text("lccn"),                       // Library of Congress number
-  openLibraryId: text("open_library_id"),   // Open Library work ID
+  openLibraryId: text("open_library_id").unique(),   // Open Library work ID — unique for dedup
   goodreadsId: text("goodreads_id"),
   // Publication
   publisher: text("publisher"),

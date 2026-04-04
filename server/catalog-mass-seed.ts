@@ -203,7 +203,7 @@ async function searchAndInsert(query: string): Promise<number> {
 
     if (entries.length > 0) {
       // Use ON CONFLICT DO NOTHING to skip duplicates
-      await db.insert(bookCatalog).values(entries).onConflictDoNothing();
+      await db.insert(bookCatalog).values(entries).onConflictDoNothing({ target: bookCatalog.openLibraryId });
     }
 
     return entries.length;
