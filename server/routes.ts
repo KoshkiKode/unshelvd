@@ -182,20 +182,24 @@ export async function registerRoutes(
   // === BOOKS ROUTES ===
   app.get("/api/books", async (req, res) => {
     try {
+      const rawLimit = parseInt(req.query.limit as string);
+      const rawOffset = parseInt(req.query.offset as string);
+      const rawMinPrice = parseFloat(req.query.minPrice as string);
+      const rawMaxPrice = parseFloat(req.query.maxPrice as string);
       const filters = {
         search: req.query.search as string | undefined,
         genre: req.query.genre as string | undefined,
         condition: req.query.condition as string | undefined,
         status: req.query.status as string | undefined,
-        minPrice: req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined,
-        maxPrice: req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : undefined,
+        minPrice: Number.isFinite(rawMinPrice) && rawMinPrice >= 0 ? rawMinPrice : undefined,
+        maxPrice: Number.isFinite(rawMaxPrice) && rawMaxPrice >= 0 ? rawMaxPrice : undefined,
         language: req.query.language as string | undefined,
         countryOfOrigin: req.query.countryOfOrigin as string | undefined,
         era: req.query.era as string | undefined,
         script: req.query.script as string | undefined,
         sort: req.query.sort as string | undefined,
-        limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
-        offset: req.query.offset ? parseInt(req.query.offset as string) : undefined,
+        limit: Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 100) : undefined,
+        offset: Number.isFinite(rawOffset) ? Math.max(rawOffset, 0) : undefined,
       };
       const booksList = await storage.getBooks(filters);
       return res.json(booksList);
@@ -206,7 +210,8 @@ export async function registerRoutes(
 
   app.get("/api/books/user/:userId", async (req, res) => {
     try {
-      const userId = parseInt(req.params.userId as string);
+      const userId = parseIntParam(req.params.userId);
+      if (!userId) return res.status(400).json({ message: "Invalid user ID" });
       const booksList = await storage.getBooksByUser(userId);
       return res.json(booksList);
     } catch (err) {
@@ -216,7 +221,8 @@ export async function registerRoutes(
 
   app.get("/api/books/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id as string);
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid book ID" });
       const book = await storage.getBook(id);
       if (!book) return res.status(404).json({ message: "Book not found" });
 
@@ -289,7 +295,8 @@ export async function registerRoutes(
 
   app.delete("/api/books/:id", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id as string);
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid book ID" });
       const deleted = await storage.deleteBook(id, req.user!.id);
       if (!deleted) return res.status(404).json({ message: "Book not found or not yours" });
       return res.json({ message: "Book deleted" });
@@ -454,23 +461,6 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/catalog/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id as string);
-      const rows = await db.select().from(bookCatalog).where(eq(bookCatalog.id, id));
-      if (!rows[0]) return res.status(404).json({ message: "Not found" });
-
-      // Also fetch user listings linked to this catalog entry
-      const listings = await db.select().from(books).where(
-        and(eq(books.catalogId, id), or(eq(books.status, "for-sale"), eq(books.status, "open-to-offers")))
-      );
-
-      return res.json({ ...rows[0], listings });
-    } catch (err) {
-      return res.status(500).json({ message: "Failed to fetch catalog entry" });
-    }
-  });
-
   app.get("/api/catalog/stats", async (_req, res) => {
     try {
       const [{ count: total }] = await db.select({ count: sql<number>`count(*)::int` }).from(bookCatalog);
@@ -488,12 +478,31 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/catalog/:id", async (req, res) => {
+    try {
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid catalog ID" });
+      const rows = await db.select().from(bookCatalog).where(eq(bookCatalog.id, id));
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+
+      // Also fetch user listings linked to this catalog entry
+      const listings = await db.select().from(books).where(
+        and(eq(books.catalogId, id), or(eq(books.status, "for-sale"), eq(books.status, "open-to-offers")))
+      );
+
+      return res.json({ ...rows[0], listings });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch catalog entry" });
+    }
+  });
+
   // === WORKS (edition graph) ===
 
   // Get a work with all its editions grouped by language
   app.get("/api/works/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id as string);
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid work ID" });
       const [work] = await db.select().from(works).where(eq(works.id, id));
       if (!work) return res.status(404).json({ message: "Work not found" });
 
@@ -570,7 +579,8 @@ export async function registerRoutes(
   // Get all editions for a work as flat list
   app.get("/api/works/:id/editions", async (req, res) => {
     try {
-      const id = parseInt(req.params.id as string);
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid work ID" });
       const editions = await getWorkEditions(id);
       return res.json(editions);
     } catch (err) {
@@ -581,7 +591,8 @@ export async function registerRoutes(
   // Get user listings for a work
   app.get("/api/works/:id/listings", async (req, res) => {
     try {
-      const id = parseInt(req.params.id as string);
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid work ID" });
       const listings = await db.select().from(books)
         .where(
           and(
@@ -661,7 +672,8 @@ export async function registerRoutes(
   // Confirm payment (after Stripe succeeds, or dev mode)
   app.post("/api/payments/:id/confirm", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id as string);
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid transaction ID" });
       const result = await confirmPayment(id, req.user!.id);
       return res.json(result);
     } catch (err: any) {
@@ -672,7 +684,8 @@ export async function registerRoutes(
   // Seller marks shipped
   app.post("/api/payments/:id/ship", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id as string);
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid transaction ID" });
       const shipSchema = z.object({
         carrier: z.string().max(100).optional(),
         trackingNumber: z.string().max(100).optional(),
@@ -688,7 +701,8 @@ export async function registerRoutes(
   // Buyer confirms delivery
   app.post("/api/payments/:id/deliver", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id as string);
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid transaction ID" });
       const result = await confirmDelivery(id, req.user!.id);
       return res.json(result);
     } catch (err: any) {
@@ -736,7 +750,8 @@ export async function registerRoutes(
   // === USER ROUTES ===
   app.get("/api/users/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id as string);
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid user ID" });
       const user = await storage.getUser(id);
       if (!user) return res.status(404).json({ message: "User not found" });
       const { password, ...safeUser } = user;
@@ -767,7 +782,8 @@ export async function registerRoutes(
 
   app.get("/api/messages/:userId", requireAuth, async (req, res) => {
     try {
-      const otherUserId = parseInt(req.params.userId as string);
+      const otherUserId = parseIntParam(req.params.userId);
+      if (!otherUserId) return res.status(400).json({ message: "Invalid user ID" });
       const msgs = await storage.getMessages(req.user!.id, otherUserId);
       // Mark as read
       await storage.markMessagesRead(req.user!.id, otherUserId);
@@ -823,7 +839,8 @@ export async function registerRoutes(
 
   app.patch("/api/offers/:id", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id as string);
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid offer ID" });
       const data = updateOfferSchema.parse(req.body);
       const offer = await storage.updateOffer(id, req.user!.id, data.status, data.counterAmount);
       if (!offer) return res.status(404).json({ message: "Offer not found or not yours" });

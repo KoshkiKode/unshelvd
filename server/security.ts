@@ -70,9 +70,9 @@ export function applySecurityMiddleware(app: Express) {
  */
 export function sanitizeLikeInput(input: string): string {
   return input
+    .replace(/\\/g, "\\\\")
     .replace(/%/g, "\\%")
-    .replace(/_/g, "\\_")
-    .replace(/\\/g, "\\\\");
+    .replace(/_/g, "\\_");
 }
 
 /**
