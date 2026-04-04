@@ -11,7 +11,7 @@ RUN npm ci
 COPY . .
 
 # Build frontend + backend
-RUN npm run build
+RUN SKIP_ENV_VERIFY=true npm run build
 
 # Generate migrations (schema snapshot for auto-migrate on startup)
 RUN npx drizzle-kit generate --config=drizzle.config.ts || true

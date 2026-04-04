@@ -14,6 +14,12 @@ console.log(`\n🔍 Verifying environment for target: ${target} [${isProduction 
 
 const errors: string[] = [];
 
+// Allow CI pipelines to bypass this check during compilation steps
+if (process.env.SKIP_ENV_VERIFY === "true") {
+  console.log("⚠️ Skipping environment verification (CI bypass)");
+  process.exit(0);
+}
+
 // 1. Check for VITE_API_URL on native platforms
 if (target === "android" || target === "ios") {
   if (!process.env.VITE_API_URL) {
