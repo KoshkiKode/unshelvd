@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import BookCard from "@/components/book-card";
-import { BookOpen, Globe, Languages, Calendar, ArrowLeft, Users, BookCopy } from "lucide-react";
+import { BookOpen, Globe, Languages, Calendar, ArrowLeft, Users, BookCopy, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getTextDirection, isCJK } from "@/lib/constants";
 import type { Work, Book, CatalogEntry } from "@shared/schema";
@@ -129,7 +129,19 @@ export default function WorkPage() {
             <p className="text-sm text-muted-foreground line-clamp-3">{work.description}</p>
           )}
 
-          <AffiliateLinks title={work.title} author={work.author} className="mt-3" />
+          <AffiliateLinks
+                title={work.title}
+                author={work.author}
+                isbn={
+                  // Use the best ISBN from English catalog editions first, then any edition
+                  Object.values(catalogEditions).flat().find(e => e.language === "English" && (e.isbn13 || e.isbn10))?.isbn13 ||
+                  Object.values(catalogEditions).flat().find(e => e.isbn13 || e.isbn10)?.isbn13 ||
+                  Object.values(catalogEditions).flat().find(e => e.isbn10)?.isbn10 ||
+                  null
+                }
+                language={work.originalLanguage}
+                className="mt-3"
+              />
         </div>
       </div>
 
@@ -222,6 +234,18 @@ export default function WorkPage() {
                               {ed.script && ` · ${ed.script}`}
                             </p>
                           </div>
+                          {/* Per-edition ThriftBooks link when we have an ISBN */}
+                          {(ed.isbn13 || ed.isbn10) && (
+                            <a
+                              href={`https://www.thriftbooks.com/browse/?b.search=${encodeURIComponent((ed.isbn13 || ed.isbn10)!.replace(/[^0-9X]/gi, ""))}${import.meta.env?.VITE_THRIFTBOOKS_AFF_ID ? `&ref=${import.meta.env.VITE_THRIFTBOOKS_AFF_ID}` : ""}`}
+                              target="_blank"
+                              rel="noopener noreferrer sponsored"
+                              className="flex-shrink-0 inline-flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors"
+                              title="Search on ThriftBooks"
+                            >
+                              TB <ExternalLink className="h-2.5 w-2.5" />
+                            </a>
+                          )}
                         </CardContent>
                       </Card>
                     ))}

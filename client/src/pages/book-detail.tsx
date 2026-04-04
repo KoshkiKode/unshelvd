@@ -363,7 +363,7 @@ export default function BookDetail() {
 
           {/* Also found on ThriftBooks / AbeBooks / Open Library */}
           <div className="mt-6">
-            <AffiliateLinks title={book.title} author={book.author} isbn={book.isbn} />
+            <AffiliateLinks title={book.title} author={book.author} isbn={book.isbn} language={book.language} script={book.script} />
           </div>
 
           {/* Subtle ad slot */}
