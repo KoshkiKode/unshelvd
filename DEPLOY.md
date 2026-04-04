@@ -75,27 +75,53 @@ gcloud artifacts repositories create unshelvd \
   --location=us-central1
 ```
 
-### 4. Deploy
+### 4. Store secrets in Secret Manager
+
+Cloud Run reads `DATABASE_URL` and `SESSION_SECRET` from Secret Manager at runtime
+(via `--set-secrets` in the deploy command).  Store them once before your first deploy:
 
 ```bash
-# Build and deploy (uses cloudbuild.yaml)
-gcloud builds submit --config=cloudbuild.yaml
+# Build the Cloud SQL socket-path DATABASE_URL
+# Format: postgresql://USER:PASSWORD@/DB_NAME?host=/cloudsql/PROJECT:REGION:INSTANCE
+DB_URL="postgresql://unshelvd:YOUR_USER_PASSWORD@/unshelvd?host=/cloudsql/YOUR_PROJECT_ID:us-central1:unshelvd-db"
 
-# Set environment variables on Cloud Run
-gcloud run services update unshelvd \
-  --region=us-central1 \
-  --set-env-vars="DATABASE_URL=postgresql://unshelvd:YOUR_USER_PASSWORD@/unshelvd?host=/cloudsql/YOUR_PROJECT_ID:us-central1:unshelvd-db" \
-  --set-env-vars="SESSION_SECRET=$(openssl rand -hex 32)" \
-  --add-cloudsql-instances=YOUR_PROJECT_ID:us-central1:unshelvd-db
+# Create secrets (first time only)
+echo -n "$DB_URL" | gcloud secrets create DATABASE_URL \
+  --replication-policy=automatic --data-file=-
 
-# Push the schema
-DATABASE_URL="..." npm run db:push
+echo -n "$(openssl rand -hex 32)" | gcloud secrets create SESSION_SECRET \
+  --replication-policy=automatic --data-file=-
 
-# Seed initial data (optional)
-DATABASE_URL="..." npm run db:seed
+# Grant Cloud Run's service account access to read the secrets
+# (replace PROJECT_NUMBER with yours: gcloud projects describe YOUR_PROJECT_ID --format='value(projectNumber)')
+gcloud secrets add-iam-policy-binding DATABASE_URL \
+  --member="serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+
+gcloud secrets add-iam-policy-binding SESSION_SECRET \
+  --member="serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
 ```
 
-### 5. Custom Domain (Optional)
+To update a secret later:
+```bash
+echo -n "NEW_VALUE" | gcloud secrets versions add DATABASE_URL --data-file=-
+```
+
+### 5. Deploy
+
+```bash
+# Build and deploy (uses cloudbuild.yaml — secrets are injected at runtime)
+gcloud builds submit --config=cloudbuild.yaml
+
+# Push the schema (run once after first deploy, or after migrations)
+DATABASE_URL="$DB_URL" npm run db:push
+
+# Seed initial data (optional)
+DATABASE_URL="$DB_URL" npm run db:seed
+```
+
+### 6. Custom Domain (Optional)
 
 ```bash
 gcloud run domain-mappings create \

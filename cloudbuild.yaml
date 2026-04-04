@@ -49,7 +49,7 @@ steps:
       - "--min-instances=0"
       - "--max-instances=3"
       - "--set-env-vars=NODE_ENV=production"
-      - "--add-cloudsql-instances=unshelvd:us-central1:unshelvd"
+      - "--add-cloudsql-instances=${PROJECT_ID}:us-central1:unshelvd-db"
       - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest"
 
 images:
