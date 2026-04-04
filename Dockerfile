@@ -13,6 +13,9 @@ COPY . .
 # Build frontend + backend
 RUN npm run build
 
+# Generate migrations (schema snapshot for auto-migrate on startup)
+RUN npx drizzle-kit generate --config=drizzle.config.ts || true
+
 # ---- Production Stage ----
 FROM node:20-alpine AS runner
 
@@ -24,6 +27,11 @@ RUN npm ci --omit=dev
 
 # Copy built output
 COPY --from=builder /app/dist ./dist
+
+# Copy migrations so runMigrations() can apply them on startup
+COPY --from=builder /app/migrations ./migrations
+
+# Copy schema config (needed by drizzle at runtime)
 COPY drizzle.config.ts ./
 COPY shared ./shared
 

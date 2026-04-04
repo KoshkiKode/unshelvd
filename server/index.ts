@@ -4,6 +4,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import cors from "cors";
 import { applySecurityMiddleware } from "./security";
+import { runMigrations } from "./migrate";
 
 const app = express();
 
@@ -112,6 +113,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Run DB migrations before anything else (no-op in dev if migrations/ doesn't exist)
+  await runMigrations();
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
