@@ -15,10 +15,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { existsSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import { join } from "path";
 
 export async function runMigrations(): Promise<void> {
   if (!process.env.DATABASE_URL) {
@@ -26,8 +23,8 @@ export async function runMigrations(): Promise<void> {
     return;
   }
 
-  // Resolve migrations folder relative to this file
-  const migrationsFolder = join(__dirname, "..", "migrations");
+  // Resolve migrations folder strictly relative to execution root
+  const migrationsFolder = join(process.cwd(), "migrations");
 
   if (!existsSync(migrationsFolder)) {
     console.warn(
