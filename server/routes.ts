@@ -19,6 +19,9 @@ import { resolveWork, getWorkEditions, updateWorkStats } from "./work-resolver";
 import {
   createPaymentIntent,
   confirmPayment,
+  failPayment,
+  handleSellerAccountUpdated,
+  handleTransferFailed,
   markShipped,
   confirmDelivery,
   getUserTransactions,
@@ -924,34 +927,66 @@ export async function registerRoutes(
 
   // Stripe webhook (handles payment confirmations)
   app.post("/api/webhooks/stripe", async (req, res) => {
-    try {
-      let event = req.body;
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    let event: Record<string, any>;
 
-      // Verify webhook signature in production
-      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-      if (webhookSecret && (req as any).rawBody) {
-        const { stripe } = await import("./payments");
-        if (stripe) {
-          const sig = req.headers["stripe-signature"] as string;
-          event = stripe.webhooks.constructEvent(
-            (req as any).rawBody,
-            sig,
-            webhookSecret,
-          );
-        }
+    if (webhookSecret) {
+      // Production: require valid Stripe signature
+      const sig = req.headers["stripe-signature"] as string;
+      const rawBody = req.rawBody;
+      if (!sig || !rawBody) {
+        return res.status(400).json({ message: "Missing stripe-signature header or raw body" });
       }
-      if (event.type === "payment_intent.succeeded") {
-        const transactionId = parseInt(
-          event.data.object.metadata.transactionId,
-        );
-        const buyerId = parseInt(event.data.object.metadata.buyerId);
-        if (transactionId && buyerId) {
-          await confirmPayment(transactionId, buyerId);
+      try {
+        const { stripe } = await import("./payments");
+        if (!stripe) return res.status(500).json({ message: "Stripe not configured" });
+        event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+      } catch (err) {
+        console.error("[webhook] Signature verification failed:", err);
+        return res.status(400).json({ message: "Webhook signature invalid" });
+      }
+    } else {
+      // Dev mode: trust the body as-is (no secret configured)
+      event = req.body;
+    }
+
+    console.log(`[webhook] ${event.type}`);
+
+    try {
+      switch (event.type) {
+        case "payment_intent.succeeded": {
+          const pi = event.data.object;
+          const transactionId = parseInt(pi.metadata?.transactionId);
+          const buyerId = parseInt(pi.metadata?.buyerId);
+          if (transactionId && buyerId) await confirmPayment(transactionId, buyerId);
+          break;
         }
+        case "payment_intent.payment_failed": {
+          const pi = event.data.object;
+          if (pi.id) await failPayment(pi.id);
+          break;
+        }
+        case "account.updated": {
+          const account = event.data.object;
+          await handleSellerAccountUpdated(
+            account.id,
+            account.details_submitted ?? false,
+            account.charges_enabled ?? false,
+          );
+          break;
+        }
+        case "transfer.failed": {
+          const transfer = event.data.object;
+          if (transfer.id) await handleTransferFailed(transfer.id);
+          break;
+        }
+        default:
+          console.log(`[webhook] Unhandled event type: ${event.type}`);
       }
       return res.json({ received: true });
     } catch (err) {
-      return res.status(400).json({ message: "Webhook failed" });
+      console.error(`[webhook] Error handling ${event.type}:`, err);
+      return res.status(500).json({ message: "Webhook handler error" });
     }
   });
 

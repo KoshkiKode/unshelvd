@@ -286,6 +286,52 @@ export async function confirmDelivery(transactionId: number, userId: number) {
   return { status: "completed" };
 }
 
+/**
+ * Called by webhook: payment failed (card declined, etc.)
+ * Re-opens the book for sale so the seller isn't stuck.
+ */
+export async function failPayment(paymentIntentId: string) {
+  const [tx] = await db.select().from(transactions)
+    .where(eq(transactions.stripePaymentIntentId, paymentIntentId));
+  if (!tx || tx.status !== "pending") return;
+
+  await db.update(transactions)
+    .set({ status: "failed", updatedAt: new Date() })
+    .where(eq(transactions.id, tx.id));
+
+  await db.update(books).set({ status: "for-sale" }).where(eq(books.id, tx.bookId));
+}
+
+/**
+ * Called by webhook: seller completed Stripe onboarding.
+ * Updates stripeOnboarded without requiring a page refresh.
+ */
+export async function handleSellerAccountUpdated(
+  stripeAccountId: string,
+  detailsSubmitted: boolean,
+  chargesEnabled: boolean,
+) {
+  if (detailsSubmitted && chargesEnabled) {
+    await db.update(users)
+      .set({ stripeOnboarded: true })
+      .where(eq(users.stripeAccountId, stripeAccountId));
+  }
+}
+
+/**
+ * Called by webhook: a transfer to a seller's account failed.
+ * Flags the transaction as disputed so ops can investigate.
+ */
+export async function handleTransferFailed(transferId: string) {
+  const [tx] = await db.select().from(transactions)
+    .where(eq(transactions.stripeTransferId, transferId));
+  if (!tx) return;
+
+  await db.update(transactions)
+    .set({ status: "disputed", updatedAt: new Date() })
+    .where(eq(transactions.id, tx.id));
+}
+
 export async function getUserTransactions(userId: number) {
   const purchases = await db.select().from(transactions).where(eq(transactions.buyerId, userId)).orderBy(desc(transactions.id));
   const sales = await db.select().from(transactions).where(eq(transactions.sellerId, userId)).orderBy(desc(transactions.id));
