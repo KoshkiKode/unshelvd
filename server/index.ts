@@ -119,10 +119,9 @@ app.use((req, res, next) => {
 
 (async () => {
   // Run DB migrations before anything else (no-op in dev if migrations/ doesn't exist)
-  await runMigrations();
+  // await runMigrations(); // Disabled: We push schema manually in production to avoid schema creation permission errors
 
   await registerRoutes(httpServer, app);
-
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
