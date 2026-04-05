@@ -34,6 +34,8 @@ COPY --from=builder /app/migrations ./migrations
 # Copy schema config (needed by drizzle at runtime)
 COPY drizzle.config.ts ./
 COPY shared ./shared
+COPY script/bootstrap.js ./script/bootstrap.js
+COPY script/seed.js ./script/seed.js
 
 # Expose port
 ENV PORT=8080
