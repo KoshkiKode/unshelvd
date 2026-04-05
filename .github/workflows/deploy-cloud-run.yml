@@ -66,6 +66,7 @@ jobs:
       - name: Build Docker image
         run: |
           docker build \
+            --build-arg VITE_THRIFTBOOKS_AFF_ID=${{ vars.VITE_THRIFTBOOKS_AFF_ID }} \
             -t ${{ env.IMAGE }}:${{ github.sha }} \
             -t ${{ env.IMAGE }}:latest \
             .
@@ -131,6 +132,7 @@ jobs:
         run: npm run build
         env:
           VITE_API_URL: ${{ needs.deploy.outputs.url }}
+          VITE_THRIFTBOOKS_AFF_ID: ${{ vars.VITE_THRIFTBOOKS_AFF_ID }}
           VITE_TARGET: android
           NODE_ENV: production
           SKIP_ENV_VERIFY: "true"

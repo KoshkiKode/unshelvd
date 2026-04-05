@@ -10,6 +10,10 @@ RUN npm ci
 # Copy source
 COPY . .
 
+# Accept affiliate ID at build time
+ARG VITE_THRIFTBOOKS_AFF_ID
+ENV VITE_THRIFTBOOKS_AFF_ID=$VITE_THRIFTBOOKS_AFF_ID
+
 # Build frontend + backend
 RUN SKIP_ENV_VERIFY=true npm run build
 
