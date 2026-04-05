@@ -9,11 +9,13 @@
  */
 import { db } from "./storage";
 import { bookCatalog } from "@shared/schema";
-import { isNull } from "drizzle-orm";
+import { isNull, eq } from "drizzle-orm";
 import { resolveWork, updateWorkStats } from "./work-resolver";
 
 async function main() {
-  console.log("🔗 Starting work resolution for all unlinked catalog entries...");
+  console.log(
+    "🔗 Starting work resolution for all unlinked catalog entries...",
+  );
 
   const unlinkedEntries = await db
     .select()
@@ -27,7 +29,9 @@ async function main() {
   for (const entry of unlinkedEntries) {
     count++;
     try {
-      console.log(`[${count}/${total}] Resolving: "${entry.title}" by ${entry.author}`);
+      console.log(
+        `[${count}/${total}] Resolving: "${entry.title}" by ${entry.author}`,
+      );
       const result = await resolveWork({
         title: entry.title,
         author: entry.author,
@@ -46,7 +50,6 @@ async function main() {
 
       // Update the work's denormalized stats
       await updateWorkStats(result.workId);
-
     } catch (err: any) {
       console.error(`Failed to resolve "${entry.title}":`, err.message);
     }
