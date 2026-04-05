@@ -4,10 +4,10 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - '*.md'
-      - 'docs/**'
-      - 'android/**'
-      - 'ios/**'
+      - "*.md"
+      - "docs/**"
+      - "android/**"
+      - "ios/**"
   workflow_dispatch:
 
 # Prevent concurrent deploys to the same environment
@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write   # needed for Workload Identity Federation
+      id-token: write # needed for Workload Identity Federation
     outputs:
       url: ${{ steps.deploy.outputs.url }}
 
@@ -66,6 +66,7 @@ jobs:
       - name: Build Docker image
         run: |
           docker build \
+            --build-arg VITE_THRIFTBOOKS_AFF_ID=${{ vars.VITE_THRIFTBOOKS_AFF_ID }} \
             -t ${{ env.IMAGE }}:${{ github.sha }} \
             -t ${{ env.IMAGE }}:latest \
             .
@@ -85,7 +86,7 @@ jobs:
           image: ${{ env.IMAGE }}:${{ github.sha }}
           flags: |
             --platform=managed
-            --allow-unauthenticated  # Public web app — app-level auth is handled by Express/Passport
+            --allow-unauthenticated
             --port=8080
             --memory=512Mi
             --cpu=1
@@ -114,15 +115,15 @@ jobs:
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
       - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'gradle'
+          distribution: "temurin"
+          java-version: "21"
+          cache: "gradle"
 
       - name: Install dependencies
         run: npm ci
@@ -131,6 +132,7 @@ jobs:
         run: npm run build
         env:
           VITE_API_URL: ${{ needs.deploy.outputs.url }}
+          VITE_THRIFTBOOKS_AFF_ID: ${{ vars.VITE_THRIFTBOOKS_AFF_ID }}
           VITE_TARGET: android
           NODE_ENV: production
           SKIP_ENV_VERIFY: "true"

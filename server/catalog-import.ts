@@ -78,7 +78,10 @@ function detectScript(lang: string): string | null {
 }
 
 async function importFromDump(filePath: string) {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({ 
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  });
   const db = drizzle(pool);
 
   console.log(`Importing from ${filePath}...`);
@@ -160,7 +163,10 @@ async function importFromDump(filePath: string) {
 
 // Quick seed from Open Library API (for small initial dataset)
 async function seedFromAPI(queries: string[]) {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({ 
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  });
   const db = drizzle(pool);
 
   console.log("Seeding catalog from Open Library API...");

@@ -10,6 +10,10 @@ RUN npm ci
 # Copy source
 COPY . .
 
+# Accept affiliate ID at build time
+ARG VITE_THRIFTBOOKS_AFF_ID
+ENV VITE_THRIFTBOOKS_AFF_ID=$VITE_THRIFTBOOKS_AFF_ID
+
 # Build frontend + backend
 RUN SKIP_ENV_VERIFY=true npm run build
 
@@ -34,6 +38,8 @@ COPY --from=builder /app/migrations ./migrations
 # Copy schema config (needed by drizzle at runtime)
 COPY drizzle.config.ts ./
 COPY shared ./shared
+COPY script/bootstrap.js ./script/bootstrap.js
+COPY script/seed.js ./script/seed.js
 
 # Expose port
 ENV PORT=8080

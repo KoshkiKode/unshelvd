@@ -102,6 +102,20 @@ function buildOpenLibraryUrl(title: string, author: string, isbn?: string | null
   return `https://openlibrary.org/search?q=${encodeURIComponent(`${title} ${author}`)}`;
 }
 
+function buildAmazonUrl(title: string, author: string, isbn?: string | null): string {
+  const searchTerm = isbn
+    ? isbn.replace(/[^0-9X]/gi, "")
+    : `${title} ${author}`.trim();
+  return `https://www.amazon.com/s?k=${encodeURIComponent(searchTerm)}`;
+}
+
+function buildBNUrl(title: string, author: string, isbn?: string | null): string {
+  const searchTerm = isbn
+    ? isbn.replace(/[^0-9X]/gi, "")
+    : `${title} ${author}`.trim();
+  return `https://www.barnesandnoble.com/s/${encodeURIComponent(searchTerm)}`;
+}
+
 export default function AffiliateLinks({
   title,
   author,
@@ -120,6 +134,18 @@ export default function AffiliateLinks({
 
   const secondaryLinks = [
     {
+      name: "Amazon",
+      url: buildAmazonUrl(title, author, isbn),
+      color: "text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300",
+      show: true,
+    },
+    {
+      name: "Barnes & Noble",
+      url: buildBNUrl(title, author, isbn),
+      color: "text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300",
+      show: true,
+    },
+    {
       name: "AbeBooks",
       url: buildAbeUrl(title, author, isbn),
       color: "text-red-700 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300",
@@ -132,7 +158,6 @@ export default function AffiliateLinks({
       show: true,
     },
   ].filter((l) => l.show);
-
   // If nothing to show (e.g. unsupported script, no ISBN), still show AbeBooks + OL
   const showPrimarySection = showThriftBooks;
 

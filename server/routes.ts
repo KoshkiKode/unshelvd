@@ -1,11 +1,31 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, loginSchema, insertBookSchema, insertBookRequestSchema, insertMessageSchema, insertOfferSchema, updateOfferSchema, books, bookCatalog, works } from "@shared/schema";
+import {
+  insertUserSchema,
+  loginSchema,
+  insertBookSchema,
+  insertBookRequestSchema,
+  insertMessageSchema,
+  insertOfferSchema,
+  updateOfferSchema,
+  books,
+  bookCatalog,
+  works,
+} from "@shared/schema";
 import { db } from "./storage";
 import { eq, and, or, ilike, desc, asc, sql } from "drizzle-orm";
 import { resolveWork, getWorkEditions, updateWorkStats } from "./work-resolver";
-import { createPaymentIntent, confirmPayment, markShipped, confirmDelivery, getUserTransactions, PLATFORM_FEE_PERCENT, createSellerAccount, checkSellerStatus } from "./payments";
+import {
+  createPaymentIntent,
+  confirmPayment,
+  markShipped,
+  confirmDelivery,
+  getUserTransactions,
+  PLATFORM_FEE_PERCENT,
+  createSellerAccount,
+  checkSellerStatus,
+} from "./payments";
 import { registerAdminRoutes } from "./admin";
 import { validatePassword } from "@shared/password-policy";
 import { sanitizeLikeInput, parseIntParam } from "./security";
@@ -50,7 +70,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
 
 export async function registerRoutes(
   httpServer: Server,
-  app: Express
+  app: Express,
 ): Promise<Server> {
   // Session setup
   app.use(
@@ -66,7 +86,7 @@ export async function registerRoutes(
       },
       // Trust the first proxy (Cloud Run, nginx, etc.)
       proxy: process.env.NODE_ENV === "production",
-    })
+    }),
   );
 
   // Passport setup
@@ -87,8 +107,8 @@ export async function registerRoutes(
         } catch (err) {
           return done(err);
         }
-      }
-    )
+      },
+    ),
   );
 
   passport.serializeUser((user: any, done) => {
@@ -136,17 +156,25 @@ export async function registerRoutes(
 
       // Hash with bcrypt (12 rounds)
       const hashedPassword = await bcrypt.hash(data.password, 12);
-      const user = await storage.createUser({ ...data, password: hashedPassword });
+      const user = await storage.createUser({
+        ...data,
+        password: hashedPassword,
+      });
 
       // Auto-login after registration
       const { password, ...safeUser } = user;
       req.login(safeUser as any, (err) => {
-        if (err) return res.status(500).json({ message: "Login failed after registration" });
+        if (err)
+          return res
+            .status(500)
+            .json({ message: "Login failed after registration" });
         return res.json(safeUser);
       });
     } catch (err) {
       if (err instanceof ZodError) {
-        return res.status(400).json({ message: err.errors[0]?.message || "Validation error" });
+        return res
+          .status(400)
+          .json({ message: err.errors[0]?.message || "Validation error" });
       }
       return res.status(500).json({ message: "Registration failed" });
     }
@@ -155,7 +183,10 @@ export async function registerRoutes(
   app.post("/api/auth/login", (req, res, next) => {
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) return next(err);
-      if (!user) return res.status(401).json({ message: info?.message || "Invalid credentials" });
+      if (!user)
+        return res
+          .status(401)
+          .json({ message: info?.message || "Invalid credentials" });
 
       req.login(user, (err) => {
         if (err) return next(err);
@@ -191,14 +222,22 @@ export async function registerRoutes(
         genre: req.query.genre as string | undefined,
         condition: req.query.condition as string | undefined,
         status: req.query.status as string | undefined,
-        minPrice: Number.isFinite(rawMinPrice) && rawMinPrice >= 0 ? rawMinPrice : undefined,
-        maxPrice: Number.isFinite(rawMaxPrice) && rawMaxPrice >= 0 ? rawMaxPrice : undefined,
+        minPrice:
+          Number.isFinite(rawMinPrice) && rawMinPrice >= 0
+            ? rawMinPrice
+            : undefined,
+        maxPrice:
+          Number.isFinite(rawMaxPrice) && rawMaxPrice >= 0
+            ? rawMaxPrice
+            : undefined,
         language: req.query.language as string | undefined,
         countryOfOrigin: req.query.countryOfOrigin as string | undefined,
         era: req.query.era as string | undefined,
         script: req.query.script as string | undefined,
         sort: req.query.sort as string | undefined,
-        limit: Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 100) : undefined,
+        limit: Number.isFinite(rawLimit)
+          ? Math.min(Math.max(rawLimit, 1), 100)
+          : undefined,
         offset: Number.isFinite(rawOffset) ? Math.max(rawOffset, 0) : undefined,
       };
       const booksList = await storage.getBooks(filters);
@@ -228,15 +267,17 @@ export async function registerRoutes(
 
       // Enrich with seller info
       const seller = await storage.getUser(book.userId);
-      const sellerInfo = seller ? {
-        id: seller.id,
-        username: seller.username,
-        displayName: seller.displayName,
-        avatarUrl: seller.avatarUrl,
-        rating: seller.rating,
-        totalSales: seller.totalSales,
-        location: seller.location,
-      } : null;
+      const sellerInfo = seller
+        ? {
+            id: seller.id,
+            username: seller.username,
+            displayName: seller.displayName,
+            avatarUrl: seller.avatarUrl,
+            rating: seller.rating,
+            totalSales: seller.totalSales,
+            location: seller.location,
+          }
+        : null;
 
       return res.json({ ...book, seller: sellerInfo });
     } catch (err) {
@@ -272,7 +313,9 @@ export async function registerRoutes(
       return res.json(book);
     } catch (err) {
       if (err instanceof ZodError) {
-        return res.status(400).json({ message: err.errors[0]?.message || "Validation error" });
+        return res
+          .status(400)
+          .json({ message: err.errors[0]?.message || "Validation error" });
       }
       return res.status(500).json({ message: "Failed to create book" });
     }
@@ -285,10 +328,12 @@ export async function registerRoutes(
       // Validate update data with partial book schema
       const data = insertBookSchema.partial().parse(req.body);
       const book = await storage.updateBook(id, req.user!.id, data);
-      if (!book) return res.status(404).json({ message: "Book not found or not yours" });
+      if (!book)
+        return res.status(404).json({ message: "Book not found or not yours" });
       return res.json(book);
     } catch (err) {
-      if (err instanceof ZodError) return res.status(400).json({ message: err.errors[0]?.message });
+      if (err instanceof ZodError)
+        return res.status(400).json({ message: err.errors[0]?.message });
       return res.status(500).json({ message: "Failed to update book" });
     }
   });
@@ -298,10 +343,114 @@ export async function registerRoutes(
       const id = parseIntParam(req.params.id);
       if (!id) return res.status(400).json({ message: "Invalid book ID" });
       const deleted = await storage.deleteBook(id, req.user!.id);
-      if (!deleted) return res.status(404).json({ message: "Book not found or not yours" });
+      if (!deleted)
+        return res.status(404).json({ message: "Book not found or not yours" });
       return res.json({ message: "Book deleted" });
     } catch (err) {
       return res.status(500).json({ message: "Failed to delete book" });
+    }
+  });
+
+  // === CATALOG ROUTES ===
+  app.get("/api/catalog", async (req, res) => {
+    try {
+      const {
+        q,
+        limit: limitStr,
+        offset: offsetStr,
+        lang,
+        country,
+      } = req.query as { [key: string]: string };
+      const limit = Math.min(parseInt(limitStr) || 24, 100);
+      const offset = parseInt(offsetStr) || 0;
+
+      const conditions = [];
+      if (q && q.length >= 2) {
+        const term = `%${sanitizeLikeInput(q)}%`;
+        conditions.push(
+          or(
+            ilike(bookCatalog.title, term),
+            ilike(bookCatalog.titleNative, term),
+            ilike(bookCatalog.author, term),
+            ilike(bookCatalog.authorNative, term),
+            eq(bookCatalog.isbn13, q.replace(/[^0-9X]/gi, "")),
+          ),
+        );
+      }
+      if (lang)
+        conditions.push(
+          ilike(bookCatalog.language, `%${sanitizeLikeInput(lang)}%`),
+        );
+      if (country)
+        conditions.push(
+          ilike(bookCatalog.countryOfOrigin, `%${sanitizeLikeInput(country)}%`),
+        );
+
+      let query = db.select().from(bookCatalog);
+      if (conditions.length > 0) query = query.where(and(...conditions)) as any;
+      query = query
+        .orderBy(desc(bookCatalog.id))
+        .limit(limit)
+        .offset(offset) as any;
+
+      const results = await query;
+
+      // Also get total count for pagination
+      let countQuery = db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(bookCatalog);
+      if (conditions.length > 0)
+        countQuery = countQuery.where(and(...conditions)) as any;
+      const [{ count: total }] = await countQuery;
+
+      return res.json({ books: results, total });
+    } catch (err) {
+      console.error("Catalog search error:", err);
+      return res.status(500).json({ message: "Catalog search failed" });
+    }
+  });
+
+  // Get catalog stats
+  app.get("/api/catalog/stats", async (req, res) => {
+    try {
+      const [{ count: total }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(bookCatalog);
+      const [{ count: verified }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(bookCatalog)
+        .where(eq(bookCatalog.verified, true));
+
+      // Language distribution
+      const langDist = await db
+        .select({
+          language: bookCatalog.language,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(bookCatalog)
+        .groupBy(bookCatalog.language)
+        .orderBy(desc(sql`count(*)`))
+        .limit(20);
+
+      return res.json({ total, verified, languageDistribution: langDist });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch catalog stats" });
+    }
+  });
+
+  // Get a single catalog entry
+  app.get("/api/catalog/:id", async (req, res) => {
+    try {
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid ID" });
+      const rows = await db
+        .select()
+        .from(bookCatalog)
+        .where(eq(bookCatalog.id, id));
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      return res.json(rows[0]);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch catalog entry" });
     }
   });
 
@@ -309,7 +458,9 @@ export async function registerRoutes(
   app.get("/api/requests", async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
-      const requests = await storage.getBookRequests(status ? { status } : undefined);
+      const requests = await storage.getBookRequests(
+        status ? { status } : undefined,
+      );
 
       // Enrich with user info
       const enriched = await Promise.all(
@@ -317,9 +468,16 @@ export async function registerRoutes(
           const user = await storage.getUser(r.userId);
           return {
             ...r,
-            user: user ? { id: user.id, username: user.username, displayName: user.displayName, avatarUrl: user.avatarUrl } : null,
+            user: user
+              ? {
+                  id: user.id,
+                  username: user.username,
+                  displayName: user.displayName,
+                  avatarUrl: user.avatarUrl,
+                }
+              : null,
           };
-        })
+        }),
       );
 
       return res.json(enriched);
@@ -335,7 +493,9 @@ export async function registerRoutes(
       return res.json(request);
     } catch (err) {
       if (err instanceof ZodError) {
-        return res.status(400).json({ message: err.errors[0]?.message || "Validation error" });
+        return res
+          .status(400)
+          .json({ message: err.errors[0]?.message || "Validation error" });
       }
       return res.status(500).json({ message: "Failed to create request" });
     }
@@ -347,10 +507,14 @@ export async function registerRoutes(
       if (!id) return res.status(400).json({ message: "Invalid request ID" });
       const data = insertBookRequestSchema.partial().parse(req.body);
       const updated = await storage.updateBookRequest(id, req.user!.id, data);
-      if (!updated) return res.status(404).json({ message: "Request not found or not yours" });
+      if (!updated)
+        return res
+          .status(404)
+          .json({ message: "Request not found or not yours" });
       return res.json(updated);
     } catch (err) {
-      if (err instanceof ZodError) return res.status(400).json({ message: err.errors[0]?.message });
+      if (err instanceof ZodError)
+        return res.status(400).json({ message: err.errors[0]?.message });
       return res.status(500).json({ message: "Failed to update request" });
     }
   });
@@ -363,10 +527,11 @@ export async function registerRoutes(
         return res.json([]);
       }
 
-      const fields = "title,author_name,first_publish_year,publisher,isbn,cover_i,subject,edition_count";
+      const fields =
+        "title,author_name,first_publish_year,publisher,isbn,cover_i,subject,edition_count";
       const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=10&fields=${fields}`;
       const response = await fetch(url);
-      const data = await response.json() as any;
+      const data = (await response.json()) as any;
 
       const results = (data.docs || []).map((doc: any) => ({
         title: doc.title || "",
@@ -394,7 +559,7 @@ export async function registerRoutes(
       const isbn = req.params.isbn.replace(/[^0-9X]/gi, "");
       const url = `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`;
       const response = await fetch(url);
-      const data = await response.json() as any;
+      const data = (await response.json()) as any;
 
       const key = `ISBN:${isbn}`;
       if (!data[key]) {
@@ -437,21 +602,33 @@ export async function registerRoutes(
             ilike(bookCatalog.author, term),
             ilike(bookCatalog.authorNative, term),
             eq(bookCatalog.isbn13, q.replace(/[^0-9X]/gi, "")),
-          )
+          ),
         );
       }
-      if (lang) conditions.push(ilike(bookCatalog.language, `%${sanitizeLikeInput(lang)}%`));
-      if (country) conditions.push(ilike(bookCatalog.countryOfOrigin, `%${sanitizeLikeInput(country)}%`));
+      if (lang)
+        conditions.push(
+          ilike(bookCatalog.language, `%${sanitizeLikeInput(lang)}%`),
+        );
+      if (country)
+        conditions.push(
+          ilike(bookCatalog.countryOfOrigin, `%${sanitizeLikeInput(country)}%`),
+        );
 
       let query = db.select().from(bookCatalog);
       if (conditions.length > 0) query = query.where(and(...conditions)) as any;
-      query = query.orderBy(desc(bookCatalog.id)).limit(limit).offset(offset) as any;
+      query = query
+        .orderBy(desc(bookCatalog.id))
+        .limit(limit)
+        .offset(offset) as any;
 
       const results = await query;
 
       // Count total for pagination
-      let countQuery = db.select({ count: sql<number>`count(*)::int` }).from(bookCatalog);
-      if (conditions.length > 0) countQuery = countQuery.where(and(...conditions)) as any;
+      let countQuery = db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(bookCatalog);
+      if (conditions.length > 0)
+        countQuery = countQuery.where(and(...conditions)) as any;
       const [{ count: total }] = await countQuery;
 
       return res.json({ results, total, limit, offset });
@@ -463,14 +640,24 @@ export async function registerRoutes(
 
   app.get("/api/catalog/stats", async (_req, res) => {
     try {
-      const [{ count: total }] = await db.select({ count: sql<number>`count(*)::int` }).from(bookCatalog);
-      const [{ count: verified }] = await db.select({ count: sql<number>`count(*)::int` }).from(bookCatalog).where(eq(bookCatalog.verified, true));
+      const [{ count: total }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(bookCatalog);
+      const [{ count: verified }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(bookCatalog)
+        .where(eq(bookCatalog.verified, true));
 
       // Language distribution
-      const langDist = await db.select({
-        language: bookCatalog.language,
-        count: sql<number>`count(*)::int`,
-      }).from(bookCatalog).groupBy(bookCatalog.language).orderBy(desc(sql`count(*)`)).limit(20);
+      const langDist = await db
+        .select({
+          language: bookCatalog.language,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(bookCatalog)
+        .groupBy(bookCatalog.language)
+        .orderBy(desc(sql`count(*)`))
+        .limit(20);
 
       return res.json({ total, verified, languageDistribution: langDist });
     } catch (err) {
@@ -482,13 +669,25 @@ export async function registerRoutes(
     try {
       const id = parseIntParam(req.params.id);
       if (!id) return res.status(400).json({ message: "Invalid catalog ID" });
-      const rows = await db.select().from(bookCatalog).where(eq(bookCatalog.id, id));
+      const rows = await db
+        .select()
+        .from(bookCatalog)
+        .where(eq(bookCatalog.id, id));
       if (!rows[0]) return res.status(404).json({ message: "Not found" });
 
       // Also fetch user listings linked to this catalog entry
-      const listings = await db.select().from(books).where(
-        and(eq(books.catalogId, id), or(eq(books.status, "for-sale"), eq(books.status, "open-to-offers")))
-      );
+      const listings = await db
+        .select()
+        .from(books)
+        .where(
+          and(
+            eq(books.catalogId, id),
+            or(
+              eq(books.status, "for-sale"),
+              eq(books.status, "open-to-offers"),
+            ),
+          ),
+        );
 
       return res.json({ ...rows[0], listings });
     } catch (err) {
@@ -532,7 +731,7 @@ export async function registerRoutes(
             ilike(works.titleOriginalScript, term),
             ilike(works.author, term),
             ilike(works.authorOriginal, term),
-          )
+          ),
         ) as any;
       }
 
@@ -560,14 +759,33 @@ export async function registerRoutes(
         coverUrl: z.string().url().nullable().optional(),
         genre: z.string().max(200).nullable().optional(),
       });
-      const { title, author, isbn, language, originalLanguage, year, coverUrl, genre } = resolveSchema.parse(req.body);
+      const {
+        title,
+        author,
+        isbn,
+        language,
+        originalLanguage,
+        year,
+        coverUrl,
+        genre,
+      } = resolveSchema.parse(req.body);
 
       const result = await resolveWork({
-        title, author, isbn, language, originalLanguage, year, coverUrl, genre,
+        title,
+        author,
+        isbn,
+        language,
+        originalLanguage,
+        year,
+        coverUrl,
+        genre,
       });
 
       // Fetch the work
-      const [work] = await db.select().from(works).where(eq(works.id, result.workId));
+      const [work] = await db
+        .select()
+        .from(works)
+        .where(eq(works.id, result.workId));
 
       return res.json({ ...result, work });
     } catch (err) {
@@ -593,12 +811,17 @@ export async function registerRoutes(
     try {
       const id = parseIntParam(req.params.id);
       if (!id) return res.status(400).json({ message: "Invalid work ID" });
-      const listings = await db.select().from(books)
+      const listings = await db
+        .select()
+        .from(books)
         .where(
           and(
             eq(books.workId, id),
-            or(eq(books.status, "for-sale"), eq(books.status, "open-to-offers"))
-          )
+            or(
+              eq(books.status, "for-sale"),
+              eq(books.status, "open-to-offers"),
+            ),
+          ),
         )
         .orderBy(asc(books.price));
 
@@ -613,11 +836,15 @@ export async function registerRoutes(
   // Start or resume Stripe Connect onboarding
   app.post("/api/seller/connect", requireAuth, async (req, res) => {
     try {
-      const returnUrl = req.body.returnUrl || `${req.protocol}://${req.get("host")}/#/dashboard`;
+      const returnUrl =
+        req.body.returnUrl ||
+        `${req.protocol}://${req.get("host")}/#/dashboard`;
       const result = await createSellerAccount(req.user!.id, returnUrl);
       return res.json(result);
     } catch (err: any) {
-      return res.status(400).json({ message: err.message || "Failed to create seller account" });
+      return res
+        .status(400)
+        .json({ message: err.message || "Failed to create seller account" });
     }
   });
 
@@ -627,7 +854,9 @@ export async function registerRoutes(
       const result = await checkSellerStatus(req.user!.id);
       return res.json(result);
     } catch (err: any) {
-      return res.status(400).json({ message: err.message || "Failed to check status" });
+      return res
+        .status(400)
+        .json({ message: err.message || "Failed to check status" });
     }
   });
 
@@ -665,7 +894,9 @@ export async function registerRoutes(
       const result = await createPaymentIntent(req.user!.id, bookId, offerId);
       return res.json(result);
     } catch (err: any) {
-      return res.status(400).json({ message: err.message || "Checkout failed" });
+      return res
+        .status(400)
+        .json({ message: err.message || "Checkout failed" });
     }
   });
 
@@ -673,11 +904,14 @@ export async function registerRoutes(
   app.post("/api/payments/:id/confirm", requireAuth, async (req, res) => {
     try {
       const id = parseIntParam(req.params.id);
-      if (!id) return res.status(400).json({ message: "Invalid transaction ID" });
+      if (!id)
+        return res.status(400).json({ message: "Invalid transaction ID" });
       const result = await confirmPayment(id, req.user!.id);
       return res.json(result);
     } catch (err: any) {
-      return res.status(400).json({ message: err.message || "Confirmation failed" });
+      return res
+        .status(400)
+        .json({ message: err.message || "Confirmation failed" });
     }
   });
 
@@ -685,13 +919,19 @@ export async function registerRoutes(
   app.post("/api/payments/:id/ship", requireAuth, async (req, res) => {
     try {
       const id = parseIntParam(req.params.id);
-      if (!id) return res.status(400).json({ message: "Invalid transaction ID" });
+      if (!id)
+        return res.status(400).json({ message: "Invalid transaction ID" });
       const shipSchema = z.object({
         carrier: z.string().max(100).optional(),
         trackingNumber: z.string().max(100).optional(),
       });
       const { carrier, trackingNumber } = shipSchema.parse(req.body);
-      const result = await markShipped(id, req.user!.id, carrier, trackingNumber);
+      const result = await markShipped(
+        id,
+        req.user!.id,
+        carrier,
+        trackingNumber,
+      );
       return res.json(result);
     } catch (err: any) {
       return res.status(400).json({ message: err.message || "Update failed" });
@@ -702,11 +942,14 @@ export async function registerRoutes(
   app.post("/api/payments/:id/deliver", requireAuth, async (req, res) => {
     try {
       const id = parseIntParam(req.params.id);
-      if (!id) return res.status(400).json({ message: "Invalid transaction ID" });
+      if (!id)
+        return res.status(400).json({ message: "Invalid transaction ID" });
       const result = await confirmDelivery(id, req.user!.id);
       return res.json(result);
     } catch (err: any) {
-      return res.status(400).json({ message: err.message || "Confirmation failed" });
+      return res
+        .status(400)
+        .json({ message: err.message || "Confirmation failed" });
     }
   });
 
@@ -731,11 +974,17 @@ export async function registerRoutes(
         const { stripe } = await import("./payments");
         if (stripe) {
           const sig = req.headers["stripe-signature"] as string;
-          event = stripe.webhooks.constructEvent((req as any).rawBody, sig, webhookSecret);
+          event = stripe.webhooks.constructEvent(
+            (req as any).rawBody,
+            sig,
+            webhookSecret,
+          );
         }
       }
       if (event.type === "payment_intent.succeeded") {
-        const transactionId = parseInt(event.data.object.metadata.transactionId);
+        const transactionId = parseInt(
+          event.data.object.metadata.transactionId,
+        );
         const buyerId = parseInt(event.data.object.metadata.buyerId);
         if (transactionId && buyerId) {
           await confirmPayment(transactionId, buyerId);
@@ -783,7 +1032,8 @@ export async function registerRoutes(
   app.get("/api/messages/:userId", requireAuth, async (req, res) => {
     try {
       const otherUserId = parseIntParam(req.params.userId);
-      if (!otherUserId) return res.status(400).json({ message: "Invalid user ID" });
+      if (!otherUserId)
+        return res.status(400).json({ message: "Invalid user ID" });
       const msgs = await storage.getMessages(req.user!.id, otherUserId);
       // Mark as read
       await storage.markMessagesRead(req.user!.id, otherUserId);
@@ -800,7 +1050,9 @@ export async function registerRoutes(
       return res.json(message);
     } catch (err) {
       if (err instanceof ZodError) {
-        return res.status(400).json({ message: err.errors[0]?.message || "Validation error" });
+        return res
+          .status(400)
+          .json({ message: err.errors[0]?.message || "Validation error" });
       }
       return res.status(500).json({ message: "Failed to send message" });
     }
@@ -822,16 +1074,23 @@ export async function registerRoutes(
       // Get the book to find the seller
       const book = await storage.getBook(data.bookId);
       if (!book) return res.status(404).json({ message: "Book not found" });
-      if (book.userId === req.user!.id) return res.status(400).json({ message: "Cannot make offer on your own book" });
+      if (book.userId === req.user!.id)
+        return res
+          .status(400)
+          .json({ message: "Cannot make offer on your own book" });
       if (book.status !== "open-to-offers" && book.status !== "for-sale") {
-        return res.status(400).json({ message: "This book is not accepting offers" });
+        return res
+          .status(400)
+          .json({ message: "This book is not accepting offers" });
       }
 
       const offer = await storage.createOffer(req.user!.id, book.userId, data);
       return res.json(offer);
     } catch (err) {
       if (err instanceof ZodError) {
-        return res.status(400).json({ message: err.errors[0]?.message || "Validation error" });
+        return res
+          .status(400)
+          .json({ message: err.errors[0]?.message || "Validation error" });
       }
       return res.status(500).json({ message: "Failed to create offer" });
     }
@@ -842,12 +1101,22 @@ export async function registerRoutes(
       const id = parseIntParam(req.params.id);
       if (!id) return res.status(400).json({ message: "Invalid offer ID" });
       const data = updateOfferSchema.parse(req.body);
-      const offer = await storage.updateOffer(id, req.user!.id, data.status, data.counterAmount);
-      if (!offer) return res.status(404).json({ message: "Offer not found or not yours" });
+      const offer = await storage.updateOffer(
+        id,
+        req.user!.id,
+        data.status,
+        data.counterAmount,
+      );
+      if (!offer)
+        return res
+          .status(404)
+          .json({ message: "Offer not found or not yours" });
       return res.json(offer);
     } catch (err) {
       if (err instanceof ZodError) {
-        return res.status(400).json({ message: err.errors[0]?.message || "Validation error" });
+        return res
+          .status(400)
+          .json({ message: err.errors[0]?.message || "Validation error" });
       }
       return res.status(500).json({ message: "Failed to update offer" });
     }

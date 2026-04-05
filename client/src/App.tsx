@@ -8,7 +8,7 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { I18nProvider } from "@/i18n/use-i18n";
 import Navbar from "@/components/layout/navbar";
 import Home from "@/pages/home";
-import Browse from "@/pages/browse";
+import Catalog from "@/pages/catalog";
 import BookDetail from "@/pages/book-detail";
 import UserProfile from "@/pages/user-profile";
 import Requests from "@/pages/requests";
@@ -30,7 +30,7 @@ function AppRouter() {
       <main>
         <Switch>
           <Route path="/" component={Home} />
-          <Route path="/browse" component={Browse} />
+          <Route path="/browse" component={Catalog} />
           <Route path="/book/:id" component={BookDetail} />
           <Route path="/work/:id" component={WorkPage} />
           <Route path="/about" component={About} />

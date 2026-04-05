@@ -1,32 +1,84 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, Shield, Loader2, CheckCircle, Package } from "lucide-react";
+import { CreditCard, Shield, Loader2, CheckCircle, Package, Lock } from "lucide-react";
 import type { Book } from "@shared/schema";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
 const PLATFORM_FEE = 0.10;
 
-// Lazy-load Stripe only when needed
-let stripePromise: Promise<any> | null = null;
-function getStripe() {
-  if (!stripePromise) {
-    const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-    if (key) {
-      import("@stripe/stripe-js").then(({ loadStripe }) => {
-        stripePromise = loadStripe(key);
-      });
-    }
-  }
-  return stripePromise;
-}
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
 
 interface CheckoutDialogProps {
   book: Book & { seller?: { displayName: string } };
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+// Inner form — must live inside <Elements> provider so it can call useStripe/useElements
+interface StripePaymentFormProps {
+  total: number;
+  transactionId: number;
+  onSuccess: () => void;
+  onError: (message: string) => void;
+  onBack: () => void;
+}
+
+function StripePaymentForm({ total, transactionId, onSuccess, onError, onBack }: StripePaymentFormProps) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [processing, setProcessing] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!stripe || !elements) return;
+    setProcessing(true);
+
+    const { error } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: `${window.location.origin}/#/dashboard`,
+      },
+      redirect: "if_required",
+    });
+
+    if (error) {
+      onError(error.message ?? "Payment failed");
+      setProcessing(false);
+      return;
+    }
+
+    try {
+      await apiRequest("POST", `/api/payments/${transactionId}/confirm`);
+      onSuccess();
+    } catch (err: any) {
+      onError(err.message ?? "Failed to confirm payment");
+      setProcessing(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <PaymentElement options={{ layout: "tabs" }} />
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Lock className="h-3 w-3" />
+        <span>Secured by Stripe — your card details are never stored by us</span>
+      </div>
+      <div className="flex gap-2 pt-1">
+        <Button variant="outline" onClick={onBack} disabled={processing} className="flex-1">
+          Back
+        </Button>
+        <Button onClick={handleSubmit} disabled={processing || !stripe || !elements} className="flex-1 gap-2">
+          {processing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+          Pay ${total.toFixed(2)}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDialogProps) {
@@ -35,23 +87,19 @@ export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDia
   const [step, setStep] = useState<"review" | "payment" | "processing" | "success">("review");
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [transactionId, setTransactionId] = useState<number | null>(null);
-  const [stripeReady, setStripeReady] = useState(false);
 
   const price = book.price || 0;
   const fee = Math.round(price * PLATFORM_FEE * 100) / 100;
   const total = price;
 
-  // Initialize Stripe Elements when we get a client secret
-  useEffect(() => {
-    if (clientSecret) {
-      const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-      if (key) {
-        import("@stripe/stripe-js").then(({ loadStripe }) => {
-          loadStripe(key).then(() => setStripeReady(true));
-        });
-      }
+  const handleClose = (v: boolean) => {
+    onOpenChange(v);
+    if (!v) {
+      setStep("review");
+      setClientSecret(null);
+      setTransactionId(null);
     }
-  }, [clientSecret]);
+  };
 
   const checkoutMutation = useMutation({
     mutationFn: async () => {
@@ -60,18 +108,17 @@ export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDia
     },
     onSuccess: (data) => {
       setTransactionId(data.transactionId);
-
       if (data.clientSecret && data.stripeConfigured) {
-        // Real Stripe — show payment form
         setClientSecret(data.clientSecret);
         setStep("payment");
       } else {
-        // Dev mode — auto confirm
+        // Dev / no-Stripe mode — auto-confirm immediately
         setStep("processing");
         apiRequest("POST", `/api/payments/${data.transactionId}/confirm`)
           .then(() => {
             setStep("success");
             queryClient.invalidateQueries({ queryKey: [`/api/books/${book.id}`] });
+            queryClient.invalidateQueries({ queryKey: ["/api/payments/transactions"] });
           })
           .catch((err) => {
             toast({ title: "Payment failed", description: err.message, variant: "destructive" });
@@ -84,54 +131,28 @@ export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDia
     },
   });
 
-  const handleConfirmStripePayment = async () => {
-    if (!clientSecret || !transactionId) return;
+  const handlePaymentSuccess = () => {
+    setStep("success");
+    queryClient.invalidateQueries({ queryKey: [`/api/books/${book.id}`] });
+    queryClient.invalidateQueries({ queryKey: ["/api/payments/transactions"] });
+  };
 
-    setStep("processing");
-
-    try {
-      const { loadStripe } = await import("@stripe/stripe-js");
-      const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-      const stripe = await loadStripe(key);
-
-      if (!stripe) throw new Error("Stripe failed to load");
-
-      // Use Stripe's built-in payment element confirmation
-      const { error } = await stripe.confirmPayment({
-        clientSecret,
-        confirmParams: {
-          return_url: `${window.location.origin}/#/dashboard`,
-        },
-        redirect: "if_required",
-      });
-
-      if (error) {
-        toast({ title: "Payment failed", description: error.message, variant: "destructive" });
-        setStep("payment");
-        return;
-      }
-
-      // Payment succeeded — confirm on our backend
-      await apiRequest("POST", `/api/payments/${transactionId}/confirm`);
-      setStep("success");
-      queryClient.invalidateQueries({ queryKey: [`/api/books/${book.id}`] });
-      queryClient.invalidateQueries({ queryKey: ["/api/payments/transactions"] });
-    } catch (err: any) {
-      toast({ title: "Payment failed", description: err.message, variant: "destructive" });
-      setStep("payment");
-    }
+  const handlePaymentError = (message: string) => {
+    toast({ title: "Payment failed", description: message, variant: "destructive" });
+    setStep("payment");
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) { setStep("review"); setClientSecret(null); } }}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md" data-testid="checkout-dialog">
+
+        {/* Step 1 — Review order */}
         {step === "review" && (
           <>
             <DialogHeader>
               <DialogTitle className="font-serif">Buy This Book</DialogTitle>
-              <DialogDescription>Review your purchase</DialogDescription>
+              <DialogDescription>Review your order before paying</DialogDescription>
             </DialogHeader>
-
             <div className="space-y-4 py-4">
               <div className="flex gap-3">
                 {book.coverUrl ? (
@@ -145,6 +166,9 @@ export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDia
                   <p className="font-serif font-medium">{book.title}</p>
                   <p className="text-sm text-muted-foreground">{book.author}</p>
                   <p className="text-xs text-muted-foreground capitalize mt-1">{book.condition} condition</p>
+                  {book.seller?.displayName && (
+                    <p className="text-xs text-muted-foreground mt-0.5">Sold by {book.seller.displayName}</p>
+                  )}
                 </div>
               </div>
 
@@ -161,54 +185,68 @@ export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDia
                   <span>Seller receives</span>
                   <span>${(price - fee).toFixed(2)}</span>
                 </div>
-                <div className="border-t pt-2 flex justify-between font-medium">
-                  <span>You pay</span>
+                <div className="border-t pt-2 flex justify-between font-semibold">
+                  <span>You pay today</span>
                   <span className="text-primary">${total.toFixed(2)}</span>
                 </div>
               </div>
 
               <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
-                <Shield className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                <p>Your payment is held securely until you confirm receipt of the book. If there's an issue, you can open a dispute.</p>
+                <Shield className="h-4 w-4 flex-shrink-0 mt-0.5 text-green-600" />
+                <p>Your payment is held securely in escrow until you confirm the book arrived. If there's an issue, contact us to open a dispute.</p>
               </div>
             </div>
-
             <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button variant="outline" onClick={() => handleClose(false)}>Cancel</Button>
               <Button
                 onClick={() => checkoutMutation.mutate()}
                 disabled={checkoutMutation.isPending}
                 className="gap-2"
                 data-testid="confirm-purchase-btn"
               >
-                {checkoutMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                Pay ${total.toFixed(2)}
+                {checkoutMutation.isPending
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <CreditCard className="h-4 w-4" />}
+                {checkoutMutation.isPending ? "Setting up..." : `Pay $${total.toFixed(2)}`}
               </Button>
             </DialogFooter>
           </>
         )}
 
+        {/* Step 2 — Stripe payment form */}
         {step === "payment" && clientSecret && (
           <>
             <DialogHeader>
               <DialogTitle className="font-serif">Enter Payment Details</DialogTitle>
-              <DialogDescription>Secure payment via Stripe</DialogDescription>
+              <DialogDescription>Secure payment processed by Stripe</DialogDescription>
             </DialogHeader>
             <div className="py-4">
-              {/* Stripe Elements would render here when keys are configured */}
-              <div id="stripe-payment-element" className="min-h-[200px] border rounded-lg p-4">
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Stripe payment form loading...
-                </p>
-              </div>
-              <Button onClick={handleConfirmStripePayment} className="w-full mt-4 gap-2">
-                <CreditCard className="h-4 w-4" />
-                Complete Payment — ${total.toFixed(2)}
-              </Button>
+              {stripePromise ? (
+                <Elements
+                  stripe={stripePromise}
+                  options={{
+                    clientSecret,
+                    appearance: { theme: "stripe", variables: { borderRadius: "8px" } },
+                  }}
+                >
+                  <StripePaymentForm
+                    total={total}
+                    transactionId={transactionId!}
+                    onSuccess={handlePaymentSuccess}
+                    onError={handlePaymentError}
+                    onBack={() => setStep("review")}
+                  />
+                </Elements>
+              ) : (
+                <div className="text-center py-6 text-sm text-muted-foreground">
+                  Stripe is not configured. Contact support.
+                </div>
+              )}
             </div>
           </>
         )}
 
+        {/* Step 3 — Processing */}
         {step === "processing" && (
           <div className="py-12 text-center">
             <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary mb-4" />
@@ -217,15 +255,16 @@ export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDia
           </div>
         )}
 
+        {/* Step 4 — Success */}
         {step === "success" && (
           <div className="py-12 text-center">
             <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
-            <p className="font-serif text-xl font-medium mb-2">Purchase Complete</p>
-            <p className="text-sm text-muted-foreground mb-4">
-              The seller has been notified. They'll ship your book and provide tracking info.
-              Your payment is held securely until you confirm receipt.
+            <p className="font-serif text-xl font-medium mb-2">Purchase Complete!</p>
+            <p className="text-sm text-muted-foreground mb-6">
+              The seller has been notified and will ship your book soon.
+              Your payment is held securely — you'll release it once the book arrives.
             </p>
-            <Button onClick={() => onOpenChange(false)}>Done</Button>
+            <Button onClick={() => handleClose(false)}>View My Purchases</Button>
           </div>
         )}
       </DialogContent>

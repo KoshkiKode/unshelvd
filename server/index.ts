@@ -11,13 +11,17 @@ const app = express();
 // Trust proxy — needed for Cloud Run, secure cookies, and rate limiting
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
-  
+
   // Security audit logs on startup
   if (!process.env.SESSION_SECRET) {
-    console.warn("⚠️  SECURITY WARNING: SESSION_SECRET is not set in production. Using insecure default.");
+    console.warn(
+      "⚠️  SECURITY WARNING: SESSION_SECRET is not set in production. Using insecure default.",
+    );
   }
   if (!process.env.DATABASE_URL) {
-    console.error("❌ CRITICAL ERROR: DATABASE_URL is missing! Server will fail start.");
+    console.error(
+      "❌ CRITICAL ERROR: DATABASE_URL is missing! Server will fail start.",
+    );
   }
 }
 
@@ -36,31 +40,32 @@ const allowedOrigins = [
   "http://localhost",
   "http://localhost:5000",
   "http://10.0.2.2:5000",
-  // Add your production domain here when you have one:
-  // "https://unshelvd.com",
+  "https://unshelvd.koshkikode.com",
 ];
 
-app.use(cors({
-  origin: (origin, callback) => {
-    // 1. Allow internal/same-origin requests (including same-host browser access)
-    if (!origin) return callback(null, true);
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // 1. Allow internal/same-origin requests (including same-host browser access)
+      if (!origin) return callback(null, true);
 
-    // 2. Explicitly allowed Capacitor and local development origins
-    if (allowedOrigins.includes(origin) || origin.endsWith(".run.app")) {
-      return callback(null, true);
-    }
+      // 2. Explicitly allowed Capacitor and local development origins
+      if (allowedOrigins.includes(origin) || origin.endsWith(".run.app")) {
+        return callback(null, true);
+      }
 
-    // 3. For local development, be permissive to aid debugging
-    if (process.env.NODE_ENV !== "production") {
-      return callback(null, true);
-    }
+      // 3. For local development, be permissive to aid debugging
+      if (process.env.NODE_ENV !== "production") {
+        return callback(null, true);
+      }
 
-    // 4. In production, maintain strict CORS
-    console.error(`CORS BLOCKED: Rejected origin ${origin}`);
-    callback(null, false);
-  },
-  credentials: true,
-}));
+      // 4. In production, maintain strict CORS
+      console.error(`CORS BLOCKED: Rejected origin ${origin}`);
+      callback(null, false);
+    },
+    credentials: true,
+  }),
+);
 
 app.use(
   express.json({
@@ -114,10 +119,9 @@ app.use((req, res, next) => {
 
 (async () => {
   // Run DB migrations before anything else (no-op in dev if migrations/ doesn't exist)
-  await runMigrations();
+  // await runMigrations(); // Disabled: We push schema manually in production to avoid schema creation permission errors
 
   await registerRoutes(httpServer, app);
-
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
