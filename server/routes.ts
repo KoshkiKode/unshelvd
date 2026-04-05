@@ -358,11 +358,14 @@ export async function registerRoutes(
         q,
         limit: limitStr,
         offset: offsetStr,
+        page: pageStr,
         lang,
         country,
       } = req.query as { [key: string]: string };
       const limit = Math.min(parseInt(limitStr) || 24, 100);
-      const offset = parseInt(offsetStr) || 0;
+      // Support both offset and page-based pagination
+      const page = parseInt(pageStr) || 1;
+      const offset = parseInt(offsetStr) || (page - 1) * limit;
 
       const conditions = [];
       if (q && q.length >= 2) {
@@ -407,50 +410,6 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Catalog search error:", err);
       return res.status(500).json({ message: "Catalog search failed" });
-    }
-  });
-
-  // Get catalog stats
-  app.get("/api/catalog/stats", async (req, res) => {
-    try {
-      const [{ count: total }] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(bookCatalog);
-      const [{ count: verified }] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(bookCatalog)
-        .where(eq(bookCatalog.verified, true));
-
-      // Language distribution
-      const langDist = await db
-        .select({
-          language: bookCatalog.language,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(bookCatalog)
-        .groupBy(bookCatalog.language)
-        .orderBy(desc(sql`count(*)`))
-        .limit(20);
-
-      return res.json({ total, verified, languageDistribution: langDist });
-    } catch (err) {
-      return res.status(500).json({ message: "Failed to fetch catalog stats" });
-    }
-  });
-
-  // Get a single catalog entry
-  app.get("/api/catalog/:id", async (req, res) => {
-    try {
-      const id = parseIntParam(req.params.id);
-      if (!id) return res.status(400).json({ message: "Invalid ID" });
-      const rows = await db
-        .select()
-        .from(bookCatalog)
-        .where(eq(bookCatalog.id, id));
-      if (!rows[0]) return res.status(404).json({ message: "Not found" });
-      return res.json(rows[0]);
-    } catch (err) {
-      return res.status(500).json({ message: "Failed to fetch catalog entry" });
     }
   });
 
