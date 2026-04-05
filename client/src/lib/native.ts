@@ -57,7 +57,7 @@ export async function hapticMedium(): Promise<void> {
  * Used for errors or important alerts.
  */
 export async function hapticNotification(
-  type: "SUCCESS" | "WARNING" | "ERROR" = "SUCCESS"
+  type: "Success" | "Warning" | "Error" = "Success",
 ): Promise<void> {
   if (!isNative()) return;
   try {
@@ -71,7 +71,9 @@ export async function hapticNotification(
 // ─── Status bar ───────────────────────────────────────────────────────────
 
 /** Set the status bar to a light (white icons) or dark (black icons) style. */
-export async function setStatusBarStyle(style: "LIGHT" | "DARK"): Promise<void> {
+export async function setStatusBarStyle(
+  style: "LIGHT" | "DARK",
+): Promise<void> {
   if (!isNative()) return;
   try {
     const { StatusBar, Style } = await import("@capacitor/status-bar");
@@ -129,7 +131,7 @@ export interface PhotoResult {
  * Falls back to a plain <input type="file"> on web.
  */
 export async function pickPhoto(
-  source: "CAMERA" | "PHOTOS" = "PHOTOS"
+  source: "CAMERA" | "PHOTOS" = "PHOTOS",
 ): Promise<PhotoResult | null> {
   if (!isNative()) {
     // Browser fallback — open a file picker
@@ -169,7 +171,10 @@ export async function pickPhoto(
     return { base64: image.base64String, format: "image/jpeg" };
   } catch (err: any) {
     // User cancelled or permission denied — not an error we need to surface
-    if (err?.message?.includes("cancelled") || err?.message?.includes("denied")) {
+    if (
+      err?.message?.includes("cancelled") ||
+      err?.message?.includes("denied")
+    ) {
       return null;
     }
     throw err;
