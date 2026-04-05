@@ -40,11 +40,13 @@ export default function BookCard({ book, size = "medium" }: BookCardProps) {
             </div>
           )}
           {/* Condition badge */}
-          <div className="absolute top-2 right-2">
-            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${conditionColors[book.condition] || ""}`}>
-              {book.condition}
-            </span>
-          </div>
+          {book.condition && (
+            <div className="absolute top-2 right-2">
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${conditionColors[book.condition] || ""}`}>
+                {book.condition}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Info */}
@@ -71,9 +73,9 @@ export default function BookCard({ book, size = "medium" }: BookCardProps) {
               <span className="font-semibold text-sm text-primary" data-testid="book-price">${book.price.toFixed(2)}</span>
             ) : book.status === "open-to-offers" ? (
               <Badge variant="outline" className="text-[10px]">Open to Offers</Badge>
-            ) : (
+            ) : book.status ? (
               <span className="text-xs text-muted-foreground capitalize">{book.status.replace("-", " ")}</span>
-            )}
+            ) : null}
           </div>
         </div>
       </article>
