@@ -70,6 +70,7 @@ export default function AddBook() {
     publisher: "",
     edition: "",
     year: "",
+    // Advanced
     language: "",
     originalLanguage: "",
     countryOfOrigin: "",
@@ -78,6 +79,8 @@ export default function AddBook() {
     script: "",
     calendarSystem: "",
     calendarYear: "",
+    textDirection: "",
+  });
   });
 
   // Debounced search
