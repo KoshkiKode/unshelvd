@@ -76,13 +76,6 @@ jobs:
           docker push ${{ env.IMAGE }}:${{ github.sha }}
           docker push ${{ env.IMAGE }}:latest
 
-      - name: Push Database Schema
-        run: |
-          npm ci
-          npm run db:push
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
       # ── Deploy to Cloud Run ───────────────────────────────────────────────
       - name: Deploy to Cloud Run
         id: deploy
