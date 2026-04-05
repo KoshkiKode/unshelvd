@@ -1,23 +1,60 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Link, Redirect } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, Plus, MessageSquare, DollarSign, FileText, ArrowRight, CreditCard, CheckCircle, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  BookOpen, Plus, MessageSquare, DollarSign, FileText, ArrowRight,
+  CreditCard, CheckCircle, Loader2, Truck, Package, Clock, AlertCircle,
+  ExternalLink, ShoppingBag, TrendingUp, Banknote,
+} from "lucide-react";
 import type { Book } from "@shared/schema";
-import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useEffect, useState, type ReactNode } from "react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const { data: sellerStatus } = useQuery<{ connected: boolean; onboarded: boolean }>({
+  // State for "Mark as Shipped" dialog
+  const [shipDialogOpen, setShipDialogOpen] = useState(false);
+  const [shipTxId, setShipTxId] = useState<number | null>(null);
+  const [carrier, setCarrier] = useState("");
+  const [tracking, setTracking] = useState("");
+
+  const { data: sellerStatus, isLoading: sellerLoading } = useQuery<{
+    connected: boolean;
+    onboarded: boolean;
+    chargesEnabled?: boolean;
+    payoutsEnabled?: boolean;
+  }>({
     queryKey: ["/api/seller/status"],
     enabled: !!user,
   });
+
+  // Handle returning from Stripe onboarding
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes("stripe=complete")) {
+      queryClient.invalidateQueries({ queryKey: ["/api/seller/status"] });
+      toast({ title: "🎉 Stripe setup complete!", description: "Your bank account is connected. You'll receive payouts when your books sell." });
+      window.history.replaceState(null, "", window.location.pathname + "#/dashboard");
+    } else if (hash.includes("stripe=refresh")) {
+      queryClient.invalidateQueries({ queryKey: ["/api/seller/status"] });
+      toast({ title: "Let's finish your setup", description: "Click 'Continue Setup' to complete your Stripe account." });
+      window.history.replaceState(null, "", window.location.pathname + "#/dashboard");
+    }
+  }, []);
 
   const connectMutation = useMutation({
     mutationFn: async () => {
@@ -28,10 +65,12 @@ export default function Dashboard() {
     },
     onSuccess: (data) => {
       if (data.onboardingUrl) {
-        window.open(data.onboardingUrl, "_blank");
+        window.location.href = data.onboardingUrl;
       } else if (data.alreadyOnboarded) {
+        queryClient.invalidateQueries({ queryKey: ["/api/seller/status"] });
         toast({ title: "Already connected", description: "Your bank account is set up and ready to receive payments." });
       } else if (data.devMode) {
+        queryClient.invalidateQueries({ queryKey: ["/api/seller/status"] });
         toast({ title: "Dev mode", description: "Stripe Connect simulated — you're set up for testing." });
       }
     },
@@ -60,12 +99,52 @@ export default function Dashboard() {
     enabled: !!user,
   });
 
+  const { data: transactions, isLoading: txLoading } = useQuery<{ purchases: any[]; sales: any[] }>({
+    queryKey: ["/api/payments/transactions"],
+    enabled: !!user,
+  });
+
+  const shipMutation = useMutation({
+    mutationFn: async ({ id, carrier, tracking }: { id: number; carrier: string; tracking: string }) => {
+      const res = await apiRequest("POST", `/api/payments/${id}/ship`, { carrier, trackingNumber: tracking });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/payments/transactions"] });
+      toast({ title: "Marked as shipped!", description: "The buyer has been notified." });
+      setShipDialogOpen(false);
+      setCarrier("");
+      setTracking("");
+      setShipTxId(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to update", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deliverMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/payments/${id}/deliver`);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/payments/transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/seller/status"] });
+      toast({ title: "Delivery confirmed!", description: "The seller's payout has been released. Thanks for completing the transaction." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to confirm", description: err.message, variant: "destructive" });
+    },
+  });
+
   if (!user) return <Redirect to="/login" />;
 
   const activeListings = books?.filter((b) => b.status === "for-sale" || b.status === "open-to-offers").length || 0;
   const pendingOffers = offers?.received.filter((o) => o.status === "pending").length || 0;
   const unreadMessages = unread?.count || 0;
   const myRequests = requests?.filter((r) => r.userId === user.id && r.status === "open").length || 0;
+  const activeTxCount = (transactions?.purchases.filter(t => t.status !== "completed" && t.status !== "refunded").length || 0)
+    + (transactions?.sales.filter(t => t.status !== "completed" && t.status !== "refunded").length || 0);
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8" data-testid="dashboard-page">
@@ -161,35 +240,90 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      {/* Seller Bank Account Connection */}
-      {sellerStatus && !sellerStatus.onboarded && (
-        <Card className="mb-6 border-amber-200 bg-amber-50 dark:bg-amber-950/20">
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <CreditCard className="h-5 w-5 text-amber-600" />
-                <div>
-                  <p className="font-medium text-sm">Connect your bank account to sell books</p>
-                  <p className="text-xs text-muted-foreground">Set up Stripe to receive payments when your books sell.</p>
+      {/* ── Seller Payout Setup ── */}
+      <SellerOnboardingCard
+        status={sellerStatus}
+        loading={sellerLoading}
+        onConnect={() => connectMutation.mutate()}
+        connecting={connectMutation.isPending}
+      />
+
+      {/* ── Transactions ── */}
+      {((transactions?.purchases?.length ?? 0) > 0 || (transactions?.sales?.length ?? 0) > 0 || txLoading) && (
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-serif text-xl font-semibold flex items-center gap-2">
+              Orders
+              {activeTxCount > 0 && (
+                <Badge variant="destructive" className="text-[10px] h-5 px-1.5">{activeTxCount}</Badge>
+              )}
+            </h2>
+          </div>
+
+          <Tabs defaultValue="purchases">
+            <TabsList className="mb-4">
+              <TabsTrigger value="purchases" className="gap-1.5">
+                <ShoppingBag className="h-3.5 w-3.5" />
+                Purchases
+                {(transactions?.purchases?.filter(t => t.status !== "completed").length ?? 0) > 0 && (
+                  <Badge variant="secondary" className="text-[10px] h-4 px-1 ml-0.5">
+                    {transactions!.purchases.filter(t => t.status !== "completed").length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="sales" className="gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5" />
+                Sales
+                {(transactions?.sales?.filter(t => t.status !== "completed").length ?? 0) > 0 && (
+                  <Badge variant="secondary" className="text-[10px] h-4 px-1 ml-0.5">
+                    {transactions!.sales.filter(t => t.status !== "completed").length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="purchases">
+              {txLoading ? (
+                <div className="space-y-2">{[1, 2].map(i => <Skeleton key={i} className="h-20 w-full" />)}</div>
+              ) : transactions?.purchases.length === 0 ? (
+                <EmptyTransactions message="You haven't bought any books yet." />
+              ) : (
+                <div className="space-y-3">
+                  {transactions!.purchases.map((tx) => (
+                    <TransactionCard
+                      key={tx.id}
+                      tx={tx}
+                      role="buyer"
+                      onConfirmDelivery={() => deliverMutation.mutate(tx.id)}
+                      confirming={deliverMutation.isPending && deliverMutation.variables === tx.id}
+                    />
+                  ))}
                 </div>
-              </div>
-              <Button
-                size="sm"
-                onClick={() => connectMutation.mutate()}
-                disabled={connectMutation.isPending}
-                data-testid="connect-stripe-btn"
-              >
-                {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CreditCard className="h-4 w-4 mr-1" />}
-                Connect
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      {sellerStatus?.onboarded && (
-        <div className="flex items-center gap-2 mb-4 text-xs text-green-600">
-          <CheckCircle className="h-3.5 w-3.5" />
-          <span>Bank account connected — you'll receive payments when books sell</span>
+              )}
+            </TabsContent>
+
+            <TabsContent value="sales">
+              {txLoading ? (
+                <div className="space-y-2">{[1, 2].map(i => <Skeleton key={i} className="h-20 w-full" />)}</div>
+              ) : transactions?.sales.length === 0 ? (
+                <EmptyTransactions message="No sales yet — list some books to get started!" />
+              ) : (
+                <div className="space-y-3">
+                  {transactions!.sales.map((tx) => (
+                    <TransactionCard
+                      key={tx.id}
+                      tx={tx}
+                      role="seller"
+                      onMarkShipped={() => {
+                        setShipTxId(tx.id);
+                        setShipDialogOpen(true);
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       )}
 
@@ -240,6 +374,221 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Mark as Shipped dialog */}
+      <Dialog open={shipDialogOpen} onOpenChange={(v) => { setShipDialogOpen(v); if (!v) { setCarrier(""); setTracking(""); setShipTxId(null); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif">Mark as Shipped</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Add tracking info so the buyer knows their book is on the way. (Optional but recommended.)
+            </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="carrier">Carrier</Label>
+              <Input
+                id="carrier"
+                placeholder="e.g. USPS, UPS, FedEx"
+                value={carrier}
+                onChange={(e) => setCarrier(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tracking">Tracking number</Label>
+              <Input
+                id="tracking"
+                placeholder="e.g. 9400111899223456789012"
+                value={tracking}
+                onChange={(e) => setTracking(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShipDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => shipTxId && shipMutation.mutate({ id: shipTxId, carrier, tracking })}
+              disabled={shipMutation.isPending}
+              className="gap-1.5"
+            >
+              {shipMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
+              Confirm Shipment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── Sub-components ──────────────────────────────────────────────
+
+function SellerOnboardingCard({
+  status,
+  loading,
+  onConnect,
+  connecting,
+}: {
+  status: { connected: boolean; onboarded: boolean; chargesEnabled?: boolean } | undefined;
+  loading: boolean;
+  onConnect: () => void;
+  connecting: boolean;
+}) {
+  if (loading) {
+    return <Skeleton className="h-24 w-full mb-6 rounded-xl" />;
+  }
+
+  // Fully onboarded ✓
+  if (status?.onboarded && status?.chargesEnabled !== false) {
+    return (
+      <div className="flex items-center gap-2 mb-6 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg px-4 py-3">
+        <CheckCircle className="h-4 w-4 flex-shrink-0" />
+        <span>Payout account connected — you'll receive funds automatically when buyers confirm delivery.</span>
+      </div>
+    );
+  }
+
+  // Account created but onboarding not complete
+  if (status?.connected && !status?.onboarded) {
+    return (
+      <Card className="mb-6 border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+        <CardContent className="py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-sm">Finish setting up payouts</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Your Stripe account was created but isn't complete. Continue where you left off.
+                </p>
+              </div>
+            </div>
+            <Button size="sm" onClick={onConnect} disabled={connecting} className="shrink-0">
+              {connecting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <ExternalLink className="h-4 w-4 mr-1" />}
+              Continue
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Not connected at all — show the full pitch
+  return (
+    <Card className="mb-6 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/0">
+      <CardContent className="py-5">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <Banknote className="h-5 w-5 text-primary" />
+              <p className="font-semibold text-sm">Become a Seller — Connect Your Bank Account</p>
+            </div>
+            <p className="text-xs text-muted-foreground mb-3">
+              Set up Stripe once to receive secure payouts every time a book sells. Stripe handles bank verification — we never see your details.
+            </p>
+            <ul className="text-xs text-muted-foreground space-y-1">
+              <li className="flex items-center gap-1.5"><CheckCircle className="h-3 w-3 text-green-600" /> Funds held in escrow until buyer confirms delivery</li>
+              <li className="flex items-center gap-1.5"><CheckCircle className="h-3 w-3 text-green-600" /> 90% of sale price paid directly to your bank</li>
+              <li className="flex items-center gap-1.5"><CheckCircle className="h-3 w-3 text-green-600" /> One-time setup — all future sales pay out automatically</li>
+            </ul>
+          </div>
+          <Button
+            onClick={onConnect}
+            disabled={connecting}
+            className="gap-1.5 shrink-0"
+            data-testid="connect-stripe-btn"
+          >
+            {connecting
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <CreditCard className="h-4 w-4" />}
+            {connecting ? "Redirecting..." : "Set Up Payouts"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+const TX_STATUS: Record<string, { label: string; color: string; icon: ReactNode }> = {
+  pending:   { label: "Awaiting payment",     color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300", icon: <Clock className="h-3 w-3" /> },
+  paid:      { label: "Payment confirmed",    color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",         icon: <CreditCard className="h-3 w-3" /> },
+  shipped:   { label: "Shipped",              color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300", icon: <Truck className="h-3 w-3" /> },
+  completed: { label: "Completed",            color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",     icon: <CheckCircle className="h-3 w-3" /> },
+  disputed:  { label: "Disputed",             color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",             icon: <AlertCircle className="h-3 w-3" /> },
+  refunded:  { label: "Refunded",             color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",           icon: <Package className="h-3 w-3" /> },
+};
+
+function TransactionCard({
+  tx,
+  role,
+  onMarkShipped,
+  onConfirmDelivery,
+  confirming,
+}: {
+  tx: any;
+  role: "buyer" | "seller";
+  onMarkShipped?: () => void;
+  onConfirmDelivery?: () => void;
+  confirming?: boolean;
+}) {
+  const status = TX_STATUS[tx.status] ?? { label: tx.status, color: "", icon: null };
+
+  return (
+    <div className="flex items-start gap-3 p-3 border rounded-lg bg-card">
+      {/* Cover */}
+      <div className="h-14 w-10 rounded bg-muted flex items-center justify-center flex-shrink-0">
+        {tx.book?.coverUrl ? (
+          <img src={tx.book.coverUrl} alt="" className="h-14 w-10 rounded object-cover" />
+        ) : (
+          <BookOpen className="h-4 w-4 text-muted-foreground/40" />
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <p className="font-serif text-sm font-medium truncate">{tx.book?.title ?? "Unknown book"}</p>
+        <p className="text-xs text-muted-foreground">
+          {role === "buyer" ? `Seller: ${tx.seller?.displayName}` : `Buyer: ${tx.buyer?.displayName}`}
+          {" · "}${tx.amount.toFixed(2)}
+        </p>
+        {tx.status === "shipped" && tx.trackingNumber && (
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {tx.shippingCarrier && `${tx.shippingCarrier} · `}Tracking: <span className="font-mono">{tx.trackingNumber}</span>
+          </p>
+        )}
+        <div className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-1 ${status.color}`}>
+          {status.icon}
+          {status.label}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex flex-col gap-1.5 items-end shrink-0">
+        {role === "seller" && tx.status === "paid" && onMarkShipped && (
+          <Button size="sm" variant="outline" onClick={onMarkShipped} className="text-xs h-7 gap-1">
+            <Truck className="h-3 w-3" />
+            Ship
+          </Button>
+        )}
+        {role === "buyer" && tx.status === "shipped" && onConfirmDelivery && (
+          <Button size="sm" onClick={onConfirmDelivery} disabled={confirming} className="text-xs h-7 gap-1">
+            {confirming ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
+            Got it!
+          </Button>
+        )}
+        {tx.status === "completed" && role === "buyer" && (
+          <span className="text-[10px] text-green-600 font-medium">✓ Payout sent</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EmptyTransactions({ message }: { message: string }) {
+  return (
+    <div className="text-center py-8 border rounded-lg bg-card">
+      <Package className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+      <p className="text-sm text-muted-foreground">{message}</p>
     </div>
   );
 }
