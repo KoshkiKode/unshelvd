@@ -11,6 +11,8 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 
 interface StatCardProps {
   title: string;
@@ -33,9 +35,33 @@ function StatCard({ title, value, icon: Icon, color }: StatCardProps) {
   );
 }
 
+interface AdminOverview {
+  users: number;
+  newUsersLast7Days: number;
+  books: number;
+  activeListings: number;
+  catalog: number;
+  works: number;
+  requests: number;
+  messages: number;
+  transactions: {
+    total: number;
+    completed: number;
+    pending: number;
+    paid: number;
+    shipped: number;
+    disputed: number;
+  };
+  revenue: {
+    totalSales: string;
+    platformFees: string;
+    sellerPayouts: string;
+  };
+}
+
 export default function AdminDashboard() {
   const { user } = useAuth();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<AdminOverview>({
     queryKey: ["/api/admin/overview"],
     enabled: user?.role === "admin",
   });
