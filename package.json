@@ -13,7 +13,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "node script/seed.js",
-    "db:bootstrap": "node script/bootstrap.js",
+    "db:bootstrap": "drizzle-kit push",
     "cap:sync": "npm run verify:env && npm run build && npx cap sync",
     "cap:android": "npx cap open android",
     "cap:ios": "npx cap open ios",
