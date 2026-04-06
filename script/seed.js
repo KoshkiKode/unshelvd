@@ -101,6 +101,7 @@ async function seed() {
         ['Sapiens: A Brief History of Humankind', 'Yuval Noah Harari', '9780099590088', 'English', 'Vintage', 2015, cover('9780099590088'), wid('Sapiens: A Brief History of Humankind', 'Yuval Noah Harari')],
         // Meditations
         ['Meditations', 'Marcus Aurelius', '9780140449334', 'English', 'Penguin Classics', 2006, cover('9780140449334'), wid('Meditations', 'Marcus Aurelius')],
+        ['Meditations', 'Marcus Aurelius', '9780486298238', 'English', 'Dover', 1997, cover('9780486298238'), wid('Meditations', 'Marcus Aurelius')],
         // Blood Meridian
         ['Blood Meridian, or the Evening Redness in the West', 'Cormac McCarthy', '9780679728757', 'English', 'Vintage', 1992, cover('9780679728757'), wid('Blood Meridian', 'Cormac McCarthy')],
         // Dune
@@ -117,15 +118,19 @@ async function seed() {
         ['House of Leaves', 'Mark Z. Danielewski', '9780375703768', 'English', 'Pantheon', 2000, cover('9780375703768'), wid('House of Leaves', 'Mark Z. Danielewski')],
         // The Brothers Karamazov
         ['The Brothers Karamazov', 'Fyodor Dostoevsky', '9780374528379', 'English', 'Farrar, Straus and Giroux', 2002, cover('9780374528379'), wid('The Brothers Karamazov', 'Fyodor Dostoevsky')],
+        ['Братья Карамазовы', 'Фёдор Достоевский', '9785699015832', 'Russian', 'Eksmo', 2008, coverById(8409928), wid('The Brothers Karamazov', 'Fyodor Dostoevsky')],
         // Master and Margarita
         ['The Master and Margarita', 'Mikhail Bulgakov', '9780141180144', 'English', 'Penguin Classics', 1997, cover('9780141180144'), wid('The Master and Margarita', 'Mikhail Bulgakov')],
         ['Мастер и Маргарита', 'Михаил Булгаков', '9785170977871', 'Russian', 'AST', 2019, cover('9785170977871'), wid('The Master and Margarita', 'Mikhail Bulgakov')],
         // Roadside Picnic
         ['Roadside Picnic', 'Arkady and Boris Strugatsky', '9781613743416', 'English', 'Chicago Review Press', 2012, coverById(8443792), wid('Roadside Picnic', 'Arkady and Boris Strugatsky')],
+        ['Пикник на обочине', 'Аркадий и Борис Стругацкие', null, 'Russian', 'Молодая гвардия', 1972, null, wid('Roadside Picnic', 'Arkady and Boris Strugatsky')],
         // Crime and Punishment
         ['Crime and Punishment', 'Fyodor Dostoevsky', '9780143058144', 'English', 'Penguin Classics', 2003, coverById(8479260), wid('Crime and Punishment', 'Fyodor Dostoevsky')],
+        ['Преступление и наказание', 'Фёдор Достоевский', null, 'Russian', 'Eksmo', 2005, null, wid('Crime and Punishment', 'Fyodor Dostoevsky')],
         // War and Peace
         ['War and Peace', 'Leo Tolstoy', '9780140447934', 'English', 'Penguin Classics', 1982, coverById(8228691), wid('War and Peace', 'Leo Tolstoy')],
+        ['Война и мир', 'Лев Толстой', null, 'Russian', 'Азбука', 2012, null, wid('War and Peace', 'Leo Tolstoy')],
         // Bridge on the Drina
         ['The Bridge on the Drina', 'Ivo Andrić', '9780226020457', 'English', 'University of Chicago Press', 1977, cover('9780226020457'), wid('The Bridge on the Drina', 'Ivo Andrić')],
         ['Na Drini ćuprija', 'Ivo Andrić', '9788652118038', 'Serbian', 'Prosveta', 1945, cover('9788652118038'), wid('The Bridge on the Drina', 'Ivo Andrić')],
@@ -137,6 +142,7 @@ async function seed() {
         ['Prokleta avlija', 'Ivo Andrić', null, 'Serbian', 'Prosveta', 1954, null, wid('The Damned Yard', 'Ivo Andrić')],
         // A Brief History of Time
         ['A Brief History of Time', 'Stephen Hawking', '9780553380163', 'English', 'Bantam', 1988, cover('9780553380163'), wid('A Brief History of Time', 'Stephen Hawking')],
+        ['A Brief History of Time (Updated Edition)', 'Stephen Hawking', '9780553804577', 'English', 'Bantam', 1998, cover('9780553804577'), wid('A Brief History of Time', 'Stephen Hawking')],
         // 1984
         ['1984', 'George Orwell', '9780451524935', 'English', 'Signet Classics', 1950, cover('9780451524935'), wid('1984', 'George Orwell')],
         ['Nineteen Eighty-Four', 'George Orwell', '9780141036144', 'English', 'Penguin Modern Classics', 2004, cover('9780141036144'), wid('1984', 'George Orwell')],
@@ -144,15 +150,18 @@ async function seed() {
         ['The Left Hand of Darkness', 'Ursula K. Le Guin', '9780441478125', 'English', 'Ace', 1969, cover('9780441478125'), wid('The Left Hand of Darkness', 'Ursula K. Le Guin')],
         // Kafka Diaries
         ["The Diaries of Franz Kafka", 'Franz Kafka', '9780805209068', 'English', 'Schocken', 1988, cover('9780805209068'), wid('The Diaries of Franz Kafka', 'Franz Kafka')],
+        ['Tagebücher', 'Franz Kafka', null, 'German', 'S. Fischer Verlag', 1954, null, wid('The Diaries of Franz Kafka', 'Franz Kafka')],
         // One Hundred Years of Solitude
         ['One Hundred Years of Solitude', 'Gabriel García Márquez', '9780060883287', 'English', 'Harper Perennial Modern Classics', 2006, coverById(8411716), wid('One Hundred Years of Solitude', 'Gabriel García Márquez')],
         ['Cien años de soledad', 'Gabriel García Márquez', '9788497592208', 'Spanish', 'Cátedra', 2007, null, wid('One Hundred Years of Solitude', 'Gabriel García Márquez')],
         // Don Quixote
         ['Don Quixote', 'Miguel de Cervantes', '9780060934347', 'English', 'Harper Perennial Modern Classics', 2003, coverById(8416816), wid('Don Quixote', 'Miguel de Cervantes')],
+        ['El ingenioso hidalgo don Quijote de la Mancha', 'Miguel de Cervantes', null, 'Spanish', 'Real Academia Española', 2004, null, wid('Don Quixote', 'Miguel de Cervantes')],
         // Things Fall Apart
         ['Things Fall Apart', 'Chinua Achebe', '9780385474542', 'English', 'Anchor', 1994, coverById(8468612), wid('Things Fall Apart', 'Chinua Achebe')],
         // The Divine Comedy
         ['The Divine Comedy', 'Dante Alighieri', '9780142437223', 'English', 'Penguin Classics', 2003, coverById(8470260), wid('The Divine Comedy', 'Dante Alighieri')],
+        ['La Divina Commedia', 'Dante Alighieri', null, 'Italian', 'Einaudi', 2014, null, wid('The Divine Comedy', 'Dante Alighieri')],
         // Hamlet
         ['Hamlet', 'William Shakespeare', '9780743477123', 'English', 'Simon & Schuster', 2003, coverById(8471820), wid('Hamlet', 'William Shakespeare')],
       ];
