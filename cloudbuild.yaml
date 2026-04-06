@@ -33,7 +33,7 @@ steps:
       - "--command=npm"
       - "--args=run,db:bootstrap"
       - "--region=${_REGION}"
-      - "--add-cloudsql-instances=${PROJECT_ID}:us-central1:unshelvd-db"
+      - "--set-cloudsql-instances=${PROJECT_ID}:us-central1:unshelvd-db"
       - "--set-secrets=DATABASE_URL=DATABASE_URL:latest"
       - "--execute-now"
       - "--wait"
@@ -53,7 +53,7 @@ steps:
       - "--cpu=1"
       - "--min-instances=0"
       - "--max-instances=3"
-      - "--add-cloudsql-instances=${PROJECT_ID}:us-central1:unshelvd-db"
+      - "--set-cloudsql-instances=${PROJECT_ID}:us-central1:unshelvd-db"
       - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest"
       - "--set-env-vars=NODE_ENV=production"
 
