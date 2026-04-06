@@ -22,8 +22,7 @@ steps:
       - "--all-tags"
       - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE_NAME}"
 
-  # 3. Deploy and Run the Bootstrap Job (to fix DB perms)
-  # This MUST run before the main service because the main service tries to migrate on boot.
+  # 3. Bootstrap Job — uses Cloud SQL connector (no VPC needed for public IP instance)
   - name: "gcr.io/cloud-builders/gcloud"
     args:
       - "run"
@@ -34,9 +33,7 @@ steps:
       - "--command=npm"
       - "--args=run,db:bootstrap"
       - "--region=${_REGION}"
-      - "--network=unshelvd"
-      - "--subnet=unshelvd"
-      - "--vpc-egress=private-ranges-only"
+      - "--add-cloudsql-instances=${PROJECT_ID}:us-central1:unshelvd-db"
       - "--set-secrets=DATABASE_URL=DATABASE_URL:latest"
       - "--execute-now"
       - "--wait"
@@ -57,10 +54,8 @@ steps:
       - "--min-instances=0"
       - "--max-instances=3"
       - "--add-cloudsql-instances=${PROJECT_ID}:us-central1:unshelvd-db"
-      - "--network=unshelvd"
-      - "--subnet=unshelvd"
-      - "--vpc-egress=private-ranges-only"
       - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest"
+      - "--set-env-vars=NODE_ENV=production"
 
 images:
   - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE_NAME}"
