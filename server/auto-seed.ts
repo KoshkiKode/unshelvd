@@ -30,7 +30,7 @@ export async function runAutoSeed(): Promise<void> {
 
     // Works definitions (used for both insertion and catalog linking)
     const worksValues = [
-      { title: "Sapiens: A Brief History of Humankind", author: "Yuval Noah Harari", originalLanguage: "Hebrew" as const, firstPublishedYear: 2011, genre: "Non-Fiction,History", coverUrl: cover("9780062316097"), source: "manual", verified: true },
+      { title: "Sapiens: A Brief History of Humankind", author: "Yuval Noah Harari", originalLanguage: "Hebrew", firstPublishedYear: 2011, genre: "Non-Fiction,History", coverUrl: cover("9780062316097"), source: "manual", verified: true },
       { title: "Meditations", author: "Marcus Aurelius", originalLanguage: "Ancient Greek", firstPublishedYear: 180, genre: "Philosophy", coverUrl: cover("9780140449334"), source: "manual", verified: true },
       { title: "Blood Meridian", author: "Cormac McCarthy", originalLanguage: "English", firstPublishedYear: 1985, genre: "Fiction", coverUrl: cover("9780679728757"), source: "manual", verified: true },
       { title: "Dune", author: "Frank Herbert", originalLanguage: "English", firstPublishedYear: 1965, genre: "Sci-Fi,Fiction", coverUrl: cover("9780441172719"), source: "manual", verified: true },
@@ -45,7 +45,7 @@ export async function runAutoSeed(): Promise<void> {
       { title: "War and Peace", author: "Leo Tolstoy", titleOriginal: "Война и мир", titleOriginalScript: "Война и мир", originalLanguage: "Russian", firstPublishedYear: 1869, genre: "Fiction,History", coverUrl: coverById(8228691), source: "manual", verified: true },
       { title: "The Bridge on the Drina", author: "Ivo Andrić", titleOriginal: "Na Drini ćuprija", originalLanguage: "Serbian", firstPublishedYear: 1945, genre: "Fiction,History", coverUrl: cover("9780226020457"), source: "manual", verified: true },
       { title: "Death and the Dervish", author: "Meša Selimović", titleOriginal: "Derviš i smrt", originalLanguage: "Bosnian", firstPublishedYear: 1966, genre: "Fiction,Philosophy", coverUrl: coverById(13127483), source: "manual", verified: true },
-      { title: "The Damned Yard", author: "Ivo Andrić", titleOriginal: "Prokleta avlija", originalLanguage: "Serbian", firstPublishedYear: 1954, genre: "Fiction", source: "manual", verified: true },
+      { title: "The Damned Yard", author: "Ivo Andrić", titleOriginal: "Prokleta avlija", originalLanguage: "Serbian", firstPublishedYear: 1954, genre: "Fiction", coverUrl: coverById(8394082), source: "manual", verified: true },
       { title: "A Brief History of Time", author: "Stephen Hawking", originalLanguage: "English", firstPublishedYear: 1988, genre: "Non-Fiction,Science", coverUrl: cover("9780553380163"), source: "manual", verified: true },
       { title: "1984", author: "George Orwell", titleOriginal: "Nineteen Eighty-Four", originalLanguage: "English", firstPublishedYear: 1949, genre: "Fiction,Sci-Fi", coverUrl: cover("9780451524935"), source: "manual", verified: true },
       { title: "The Left Hand of Darkness", author: "Ursula K. Le Guin", originalLanguage: "English", firstPublishedYear: 1969, genre: "Sci-Fi", coverUrl: cover("9780441478125"), source: "manual", verified: true },

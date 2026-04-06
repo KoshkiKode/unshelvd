@@ -222,10 +222,7 @@ async function seed() {
         ['House of Leaves', 'Mark Z. Danielewski', '9780375703768', 'new', 'wishlist', null, 'Fiction,Horror', null],
       ];
       for (const [title, author, isbn, condition, status, price, genre, publisher] of janeBooks) {
-        const workId = await getWorkId(title, author) || await getWorkId(
-          title === 'Kafka on the Shore' ? 'Kafka on the Shore' : title,
-          author
-        );
+        const workId = await getWorkId(title, author);
         await client.query(
           'INSERT INTO books (user_id, title, author, isbn, cover_url, condition, status, price, genre, publisher, work_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
           [janeId, title, author, isbn, isbn ? cover(isbn) : null, condition, status, price, genre, publisher, workId]
