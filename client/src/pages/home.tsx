@@ -10,7 +10,7 @@ const genres = ["Fiction", "Non-Fiction", "Textbooks", "Sci-Fi", "Mystery", "Bio
 
 export default function Home() {
   const { data: books, isLoading: booksLoading } = useQuery<Book[]>({
-    queryKey: ["/api/books"],
+    queryKey: ["/api/books?limit=10"],
   });
 
   const { data: requests, isLoading: requestsLoading } = useQuery<(BookRequest & { user: any })[]>({
