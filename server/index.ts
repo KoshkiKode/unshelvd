@@ -5,6 +5,7 @@ import { createServer } from "http";
 import cors from "cors";
 import { applySecurityMiddleware } from "./security";
 import { runMigrations } from "./migrate";
+import { runAutoSeed } from "./auto-seed";
 
 const app = express();
 
@@ -122,6 +123,9 @@ app.use((req, res, next) => {
   // The bootstrap Cloud Run job (script/bootstrap.js) runs first to fix permissions,
   // then this applies the schema from migrations/ so all tables are created.
   await runMigrations();
+
+  // Auto-seed works + catalog on first run (no-op if already populated)
+  await runAutoSeed();
 
   await registerRoutes(httpServer, app);
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
