@@ -9,9 +9,11 @@ import { Pool } from "pg";
 import { eq, and, or, like, desc, asc, gte, lte, sql, ilike } from "drizzle-orm";
 import { sanitizeLikeInput } from "./security";
 
+// Unix socket connections (Cloud SQL) don't use SSL
+const isUnixSocket = (process.env.DATABASE_URL || "").includes("host=/");
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  ssl: isUnixSocket ? false : (process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false),
 });
 
 export const db = drizzle(pool);

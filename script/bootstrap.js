@@ -7,10 +7,11 @@ async function bootstrap() {
     process.exit(1);
   }
 
-  // Use SSL since the DB is ENCRYPTED_ONLY
+  // Unix socket connections (Cloud SQL) don't use SSL
+  const isUnixSocket = process.env.DATABASE_URL.includes("host=/");
   const client = new Client({ 
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: isUnixSocket ? false : { rejectUnauthorized: false }
   });
   
   try {

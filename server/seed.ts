@@ -11,9 +11,11 @@ const cover = (isbn: string) => `https://covers.openlibrary.org/b/isbn/${isbn}-L
 const coverById = (id: number) => `https://covers.openlibrary.org/b/id/${id}-L.jpg`;
 
 async function seed() {
+  // Unix socket connections (Cloud SQL) don't use SSL
+  const isUnixSocket = (process.env.DATABASE_URL || "").includes("host=/");
   const pool = new Pool({ 
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+    ssl: isUnixSocket ? false : (process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false),
   });
   const db = drizzle(pool);
 
