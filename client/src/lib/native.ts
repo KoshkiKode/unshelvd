@@ -72,7 +72,7 @@ export async function hapticNotification(
 
 /** Set the status bar to a light (white icons) or dark (black icons) style. */
 export async function setStatusBarStyle(
-  style: "LIGHT" | "DARK",
+  style: "Light" | "Dark",
 ): Promise<void> {
   if (!isNative()) return;
   try {
