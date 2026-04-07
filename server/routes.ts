@@ -657,6 +657,35 @@ export async function registerRoutes(
     }
   });
 
+  // === GENRES ===
+
+  // Get distinct genres from works and books (splits comma-separated values)
+  app.get("/api/genres", async (_req, res) => {
+    try {
+      // Pull raw comma-separated genre strings from works and books tables
+      const workGenres = await db
+        .select({ genre: works.genre })
+        .from(works)
+        .where(sql`${works.genre} IS NOT NULL AND ${works.genre} != ''`);
+      const bookGenres = await db
+        .select({ genre: books.genre })
+        .from(books)
+        .where(sql`${books.genre} IS NOT NULL AND ${books.genre} != ''`);
+
+      // Split, trim, deduplicate, and sort
+      const allRaw = [...workGenres, ...bookGenres].map((r) => r.genre!);
+      const unique = Array.from(
+        new Set(
+          allRaw.flatMap((g) => g.split(",").map((s) => s.trim()).filter(Boolean)),
+        ),
+      ).sort((a, b) => a.localeCompare(b));
+
+      return res.json(unique);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch genres" });
+    }
+  });
+
   // === WORKS (edition graph) ===
 
   // Get a work with all its editions grouped by language

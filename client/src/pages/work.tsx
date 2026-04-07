@@ -14,6 +14,7 @@ import {
   Users,
   BookCopy,
   ExternalLink,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getTextDirection, isCJK } from "@/lib/constants";
@@ -160,6 +161,20 @@ export default function WorkPage() {
               </Badge>
             )}
           </div>
+
+          {/* Genre badges */}
+          {work.genre && (
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              {work.genre.split(",").map((g) => g.trim()).filter(Boolean).map((g) => (
+                <Link key={g} href={`/browse?genre=${encodeURIComponent(g)}`}>
+                  <Badge variant="secondary" className="gap-1 cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors">
+                    <Tag className="h-3 w-3" />
+                    {g}
+                  </Badge>
+                </Link>
+              ))}
+            </div>
+          )}
 
           {work.description && (
             <p className="text-sm text-muted-foreground line-clamp-3">
