@@ -89,10 +89,11 @@ jobs:
             --region=${{ env.REGION }} \
             --set-cloudsql-instances=${{ vars.GCP_PROJECT_ID }}:${{ env.REGION }}:${{ env.DB_INSTANCE_NAME }} \
             --set-secrets=DATABASE_URL=DATABASE_URL:latest \
-            --max-retries=1 \
+            --max-retries=0 \
             --task-timeout=120s
 
       - name: Execute migration job
+        continue-on-error: true
         run: |
           gcloud run jobs execute unshelvd-migrate \
             --region=${{ env.REGION }} \
