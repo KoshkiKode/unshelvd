@@ -90,7 +90,7 @@ jobs:
             --set-cloudsql-instances=${{ vars.GCP_PROJECT_ID }}:${{ env.REGION }}:${{ env.DB_INSTANCE_NAME }} \
             --set-secrets=DATABASE_URL=DATABASE_URL:latest \
             --max-retries=1 \
-            --task-timeout=120
+            --task-timeout=120s
 
       - name: Execute migration job
         run: |
