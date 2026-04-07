@@ -14,6 +14,13 @@ const isUnixSocket = (process.env.DATABASE_URL || "").includes("host=/");
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: isUnixSocket ? false : (process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false),
+  connectionTimeoutMillis: 10_000,
+});
+
+// Prevent unhandled pool errors from crashing the process
+// (pg docs: "It is important to attach an error listener to your pool")
+pool.on("error", (err) => {
+  console.error("Unexpected pool error on idle client:", err.message);
 });
 
 export const db = drizzle(pool);
