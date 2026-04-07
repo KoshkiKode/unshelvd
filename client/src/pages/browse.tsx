@@ -1,14 +1,20 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearch } from "wouter";
+import { useSearch, Link } from "wouter";
 import BookCard from "@/components/book-card";
+import CatalogCard from "@/components/catalog-card";
 import AdBanner from "@/components/ad-banner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, BookOpen, SlidersHorizontal } from "lucide-react";
-import type { Book } from "@shared/schema";
+import { Search, BookOpen, SlidersHorizontal, ArrowRight } from "lucide-react";
+import type { Book, CatalogEntry } from "@shared/schema";
+
+interface CatalogResponse {
+  books: CatalogEntry[];
+  total: number;
+}
 
 const genres = ["Fiction", "Non-Fiction", "Textbooks", "Sci-Fi", "Mystery", "Biography", "Poetry", "Philosophy", "History", "Rare"];
 const conditions = ["new", "like-new", "good", "fair", "poor"];
@@ -34,6 +40,14 @@ export default function Browse() {
   const { data: books, isLoading } = useQuery<Book[]>({
     queryKey: [`/api/books?${queryParams.toString()}`],
   });
+
+  // Fetch catalog entries as fallback when no user listings exist
+  const { data: catalogData, isLoading: catalogLoading } = useQuery<CatalogResponse>({
+    queryKey: ["/api/catalog?limit=24"],
+    enabled: !isLoading && (!books || books.length === 0),
+  });
+
+  const catalogBooks = catalogData?.books || [];
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8" data-testid="browse-page">
@@ -153,11 +167,44 @@ export default function Browse() {
           ))}
         </div>
       ) : (
-        <div className="text-center py-20 border rounded-lg bg-card">
-          <BookOpen className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-          <h3 className="font-serif text-lg font-medium mb-1">No books found</h3>
-          <p className="text-sm text-muted-foreground">Try adjusting your search or filters</p>
-        </div>
+        <>
+          {catalogLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-52 rounded-lg" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+              ))}
+            </div>
+          ) : catalogBooks.length > 0 ? (
+            <div>
+              <div className="flex items-center justify-between mb-4 p-4 border rounded-lg bg-muted/30">
+                <div>
+                  <h3 className="font-serif text-lg font-medium">No user listings yet</h3>
+                  <p className="text-sm text-muted-foreground">Browse our catalog of {catalogData?.total ? catalogData.total.toLocaleString() : ""} known books and editions</p>
+                </div>
+                <Link href="/catalog">
+                  <Button variant="outline" size="sm">
+                    Full Catalog <ArrowRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4" data-testid="catalog-fallback-grid">
+                {catalogBooks.map((entry) => (
+                  <CatalogCard key={entry.id} entry={entry} />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-20 border rounded-lg bg-card">
+              <BookOpen className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+              <h3 className="font-serif text-lg font-medium mb-1">No books found</h3>
+              <p className="text-sm text-muted-foreground">Try adjusting your search or filters</p>
+            </div>
+          )}
+        </>
       )}
 
       {/* Subtle ad */}
