@@ -168,7 +168,7 @@ app.use((req, res, next) => {
     // Auto-seed works + catalog on first run (no-op if already populated).
     // Runs AFTER listen() so Cloud Run sees the port open immediately.
     runAutoSeed().catch((err) => {
-      console.error("Auto-seed failed (non-fatal):", err.message);
+      console.error("Auto-seed failed (non-fatal):", err);
     });
   } catch (err) {
     console.error("Fatal startup error:", err);
