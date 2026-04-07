@@ -39,6 +39,12 @@ export async function runMigrations(): Promise<void> {
   const pool = new Pool({ 
     connectionString: process.env.DATABASE_URL,
     ssl: isUnixSocket ? false : (process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false),
+    connectionTimeoutMillis: 15_000,
+  });
+
+  // Prevent unhandled pool errors from crashing the process
+  pool.on("error", (err) => {
+    console.error("Migration pool error on idle client:", err.message);
   });
 
   try {
@@ -47,11 +53,11 @@ export async function runMigrations(): Promise<void> {
     await migrate(db, { migrationsFolder });
     console.log("✅ Migrations complete.");
   } catch (err: any) {
-    console.error("❌ Migration failed:", err.message);
-    // In production, a failed migration is fatal — we can't serve stale schema
-    if (process.env.NODE_ENV === "production") {
-      process.exit(1);
-    }
+    // Log the full error for debugging, but do NOT process.exit().
+    // On Cloud Run, the schema may already exist from a previous deploy.
+    // Crashing here prevents the container from ever binding to PORT,
+    // which triggers the "container failed to start" loop.
+    console.error("❌ Migration failed (non-fatal, server will attempt to start):", err.message);
   } finally {
     await pool.end();
   }

@@ -92,6 +92,7 @@ jobs:
             --cpu=1
             --min-instances=0
             --max-instances=3
+            --startup-cpu-boost
             --set-cloudsql-instances=${{ vars.GCP_PROJECT_ID }}:${{ env.REGION }}:${{ env.DB_INSTANCE_NAME }}
             --set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest
           env_vars: |

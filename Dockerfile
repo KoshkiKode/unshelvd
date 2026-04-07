@@ -45,9 +45,8 @@ COPY script/seed.js ./script/seed.js
 ENV PORT=8080
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
+# Cloud Run uses its own TCP startup probe — no Docker HEALTHCHECK needed.
+# Adding one causes unnecessary restarts during cold starts.
 
 # Run
 CMD ["node", "dist/index.cjs"]
