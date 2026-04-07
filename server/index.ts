@@ -119,51 +119,59 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Run DB migrations before anything else (no-op in dev if migrations/ doesn't exist)
-  // The bootstrap Cloud Run job (script/bootstrap.js) runs first to fix permissions,
-  // then this applies the schema from migrations/ so all tables are created.
-  await runMigrations();
+  try {
+    // Run DB migrations before anything else (no-op in dev if migrations/ doesn't exist)
+    // The bootstrap Cloud Run job (script/bootstrap.js) runs first to fix permissions,
+    // then this applies the schema from migrations/ so all tables are created.
+    await runMigrations();
 
-  // Auto-seed works + catalog on first run (no-op if already populated)
-  await runAutoSeed();
+    await registerRoutes(httpServer, app);
+    app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
 
-  await registerRoutes(httpServer, app);
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+      console.error("Internal Server Error:", err);
 
-    console.error("Internal Server Error:", err);
+      if (res.headersSent) {
+        return next(err);
+      }
 
-    if (res.headersSent) {
-      return next(err);
+      return res.status(status).json({ message });
+    });
+
+    // importantly only setup vite in development and after
+    // setting up all the other routes so the catch-all route
+    // doesn't interfere with the other routes
+    if (process.env.NODE_ENV === "production") {
+      serveStatic(app);
+    } else {
+      const { setupVite } = await import("./vite");
+      await setupVite(httpServer, app);
     }
 
-    return res.status(status).json({ message });
-  });
+    // ALWAYS serve the app on the port specified in the environment variable PORT
+    // Other ports are firewalled. Default to 5000 if not specified.
+    // this serves both the API and the client.
+    // It is the only port that is not firewalled.
+    const port = parseInt(process.env.PORT || "5000", 10);
+    httpServer.listen(
+      {
+        port,
+        host: "0.0.0.0",
+        reusePort: true,
+      },
+      () => {
+        log(`serving on port ${port}`);
+      },
+    );
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (process.env.NODE_ENV === "production") {
-    serveStatic(app);
-  } else {
-    const { setupVite } = await import("./vite");
-    await setupVite(httpServer, app);
+    // Auto-seed works + catalog on first run (no-op if already populated).
+    // Runs AFTER listen() so Cloud Run sees the port open immediately.
+    runAutoSeed().catch((err) => {
+      console.error("Auto-seed failed (non-fatal):", err);
+    });
+  } catch (err) {
+    console.error("Fatal startup error:", err);
+    process.exit(1);
   }
-
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-    },
-  );
 })();

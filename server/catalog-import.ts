@@ -78,9 +78,11 @@ function detectScript(lang: string): string | null {
 }
 
 async function importFromDump(filePath: string) {
+  // Unix socket connections (Cloud SQL) don't use SSL
+  const isUnixSocket = (process.env.DATABASE_URL || "").includes("host=/");
   const pool = new Pool({ 
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+    ssl: isUnixSocket ? false : (process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false),
   });
   const db = drizzle(pool);
 
@@ -163,9 +165,11 @@ async function importFromDump(filePath: string) {
 
 // Quick seed from Open Library API (for small initial dataset)
 async function seedFromAPI(queries: string[]) {
+  // Unix socket connections (Cloud SQL) don't use SSL
+  const isUnixSocket = (process.env.DATABASE_URL || "").includes("host=/");
   const pool = new Pool({ 
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+    ssl: isUnixSocket ? false : (process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false),
   });
   const db = drizzle(pool);
 
