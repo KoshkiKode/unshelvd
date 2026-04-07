@@ -58,6 +58,9 @@ export async function runMigrations(): Promise<void> {
     // Crashing here prevents the container from ever binding to PORT,
     // which triggers the "container failed to start" loop.
     console.error("❌ Migration failed (non-fatal, server will attempt to start):", err.message);
+    if (err.stack) {
+      console.error("  Stack:", err.stack);
+    }
   } finally {
     await pool.end();
   }
