@@ -36,7 +36,10 @@ import { z } from "zod";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
+import createMemoryStore from "memorystore";
 import bcrypt from "bcryptjs";
+
+const MemoryStore = createMemoryStore(session);
 import { ZodError } from "zod";
 
 // Extend express session
@@ -76,13 +79,15 @@ export async function registerRoutes(
   app: Express,
 ): Promise<Server> {
   // Session setup
+  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
   app.use(
     session({
       secret: process.env.SESSION_SECRET || "unshelvd-dev-secret-change-me",
       resave: false,
       saveUninitialized: false,
+      store: new MemoryStore({ checkPeriod: sessionTtl }),
       cookie: {
-        maxAge: 7 * 24 * 60 * 60 * 1000,
+        maxAge: sessionTtl,
         // For Capacitor native apps making cross-origin requests:
         sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         secure: process.env.NODE_ENV === "production",
