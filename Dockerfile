@@ -39,6 +39,7 @@ COPY --from=builder /app/migrations ./migrations
 COPY drizzle.config.ts ./
 COPY shared ./shared
 COPY script/bootstrap.js ./script/bootstrap.js
+COPY script/migrate.js ./script/migrate.js
 COPY script/seed.js ./script/seed.js
 
 # Expose port

@@ -76,6 +76,28 @@ jobs:
           docker push ${{ env.IMAGE }}:${{ github.sha }}
           docker push ${{ env.IMAGE }}:latest
 
+      # ── Apply DB schema to Cloud SQL before traffic switches ──────────────
+      # Deploys a short-lived Cloud Run Job that runs script/migrate.js, then
+      # executes it synchronously. The job exits 0 on success, non-zero on failure.
+      # This guarantees schema is up-to-date before the new service version serves traffic.
+      - name: Deploy migration job
+        run: |
+          gcloud run jobs deploy unshelvd-migrate \
+            --image=${{ env.IMAGE }}:${{ github.sha }} \
+            --command=node \
+            --args=script/migrate.js \
+            --region=${{ env.REGION }} \
+            --set-cloudsql-instances=${{ vars.GCP_PROJECT_ID }}:${{ env.REGION }}:${{ env.DB_INSTANCE_NAME }} \
+            --set-secrets=DATABASE_URL=DATABASE_URL:latest \
+            --max-retries=1 \
+            --task-timeout=120
+
+      - name: Execute migration job
+        run: |
+          gcloud run jobs execute unshelvd-migrate \
+            --region=${{ env.REGION }} \
+            --wait
+
       # ── Deploy to Cloud Run ───────────────────────────────────────────────
       - name: Deploy to Cloud Run
         id: deploy
