@@ -1,10 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import BookCard from "@/components/book-card";
+import CatalogCard from "@/components/catalog-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowRight, BookOpen, Search, Users } from "lucide-react";
-import type { Book, BookRequest } from "@shared/schema";
+import type { Book, BookRequest, CatalogEntry } from "@shared/schema";
+
+interface CatalogResponse {
+  books: CatalogEntry[];
+  total: number;
+}
 
 const genres = ["Fiction", "Non-Fiction", "Textbooks", "Sci-Fi", "Mystery", "Biography", "Poetry", "Philosophy", "History", "Rare"];
 
@@ -13,9 +19,17 @@ export default function Home() {
     queryKey: ["/api/books?limit=10"],
   });
 
+  const { data: catalogData, isLoading: catalogLoading } = useQuery<CatalogResponse>({
+    queryKey: ["/api/catalog?limit=10"],
+  });
+
   const { data: requests, isLoading: requestsLoading } = useQuery<(BookRequest & { user: any })[]>({
     queryKey: ["/api/requests"],
   });
+
+  const hasUserBooks = books && books.length > 0;
+  const catalogBooks = catalogData?.books || [];
+  const hasCatalogBooks = catalogBooks.length > 0;
 
   return (
     <div className="min-h-screen" data-testid="home-page">
@@ -64,15 +78,17 @@ export default function Home() {
       <section className="px-4 pb-16" data-testid="recent-books">
         <div className="container mx-auto max-w-6xl">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="font-serif text-2xl font-semibold">Recently Listed</h2>
-            <Link href="/browse">
+            <h2 className="font-serif text-2xl font-semibold">
+              {hasUserBooks ? "Recently Listed" : "Featured Books"}
+            </h2>
+            <Link href={hasUserBooks ? "/browse" : "/catalog"}>
               <Button variant="ghost" size="sm" className="text-muted-foreground">
                 View all <ArrowRight className="h-4 w-4 ml-1" />
               </Button>
             </Link>
           </div>
 
-          {booksLoading ? (
+          {(booksLoading || catalogLoading) ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {Array.from({ length: 10 }).map((_, i) => (
                 <div key={i} className="space-y-2">
@@ -82,10 +98,16 @@ export default function Home() {
                 </div>
               ))}
             </div>
-          ) : books && books.length > 0 ? (
+          ) : hasUserBooks ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {books.slice(0, 10).map((book, i) => (
                 <BookCard key={book.id} book={book} size={i < 2 ? "large" : i < 5 ? "medium" : "small"} />
+              ))}
+            </div>
+          ) : hasCatalogBooks ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {catalogBooks.slice(0, 10).map((entry, i) => (
+                <CatalogCard key={entry.id} entry={entry} size={i < 2 ? "large" : i < 5 ? "medium" : "small"} />
               ))}
             </div>
           ) : (
