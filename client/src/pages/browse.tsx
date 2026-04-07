@@ -16,7 +16,7 @@ interface CatalogResponse {
   total: number;
 }
 
-const genres = ["Fiction", "Non-Fiction", "Textbooks", "Sci-Fi", "Mystery", "Biography", "Poetry", "Philosophy", "History", "Rare"];
+const fallbackGenres = ["Fiction", "Non-Fiction", "Sci-Fi", "Mystery", "Biography", "Poetry", "Philosophy", "History"];
 const conditions = ["new", "like-new", "good", "fair", "poor"];
 
 export default function Browse() {
@@ -29,6 +29,12 @@ export default function Browse() {
   const [sort, setSort] = useState("newest");
   const [status, setStatus] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+
+  // Fetch genres dynamically from API, fall back to hardcoded list
+  const { data: dynamicGenres } = useQuery<string[]>({
+    queryKey: ["/api/genres"],
+  });
+  const genres = dynamicGenres && dynamicGenres.length > 0 ? dynamicGenres : fallbackGenres;
 
   const queryParams = new URLSearchParams();
   if (search) queryParams.set("search", search);
@@ -77,7 +83,7 @@ export default function Browse() {
       {/* Filters */}
       {showFilters && (
         <div className="flex flex-wrap gap-3 mb-6 p-4 border rounded-lg bg-card" data-testid="filters-panel">
-          <Select value={genre} onValueChange={setGenre}>
+          <Select value={genre || "all"} onValueChange={(v) => setGenre(v === "all" ? "" : v)}>
             <SelectTrigger className="w-36">
               <SelectValue placeholder="Genre" />
             </SelectTrigger>
@@ -89,7 +95,7 @@ export default function Browse() {
             </SelectContent>
           </Select>
 
-          <Select value={condition} onValueChange={setCondition}>
+          <Select value={condition || "all"} onValueChange={(v) => setCondition(v === "all" ? "" : v)}>
             <SelectTrigger className="w-36">
               <SelectValue placeholder="Condition" />
             </SelectTrigger>
@@ -101,7 +107,7 @@ export default function Browse() {
             </SelectContent>
           </Select>
 
-          <Select value={status} onValueChange={setStatus}>
+          <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v)}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Status" />
             </SelectTrigger>

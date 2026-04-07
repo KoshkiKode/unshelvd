@@ -125,7 +125,17 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters.genre) {
-      conditions.push(ilike(books.genre, `%${sanitizeLikeInput(filters.genre)}%`));
+      const g = sanitizeLikeInput(filters.genre);
+      // Match exact genre in comma-separated list without false positives
+      // (e.g. "Fiction" should NOT match "Non-Fiction")
+      conditions.push(
+        or(
+          ilike(books.genre, g),             // exact match
+          ilike(books.genre, `${g},%`),      // starts with "Genre,..."
+          ilike(books.genre, `%,${g}`),      // ends with "...,Genre"
+          ilike(books.genre, `%,${g},%`),    // middle: "...,Genre,..."
+        ),
+      );
     }
 
     if (filters.condition) {
