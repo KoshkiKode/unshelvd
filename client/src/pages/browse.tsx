@@ -183,7 +183,7 @@ export default function Browse() {
               <div className="flex items-center justify-between mb-4 p-4 border rounded-lg bg-muted/30">
                 <div>
                   <h3 className="font-serif text-lg font-medium">No user listings yet</h3>
-                  <p className="text-sm text-muted-foreground">Browse our catalog of {catalogData?.total?.toLocaleString() || ""} known books and editions</p>
+                  <p className="text-sm text-muted-foreground">Browse our catalog of {catalogData?.total ? catalogData.total.toLocaleString() : ""} known books and editions</p>
                 </div>
                 <Link href="/catalog">
                   <Button variant="outline" size="sm">
