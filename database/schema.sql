@@ -52,35 +52,6 @@ CREATE TABLE IF NOT EXISTS "users" (
     "created_at"        timestamp DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS "books" (
-    "id"                serial PRIMARY KEY,
-    "user_id"           integer NOT NULL,
-    "title"             text NOT NULL,
-    "author"            text NOT NULL,
-    "isbn"              text,
-    "cover_url"         text,
-    "description"       text,
-    "condition"         text NOT NULL,
-    "status"            text NOT NULL,
-    "price"             real,
-    "genre"             text,
-    "publisher"         text,
-    "edition"           text,
-    "year"              integer,
-    "language"          text,
-    "original_language" text,
-    "country_of_origin" text,
-    "print_country"     text,
-    "era"               text,
-    "script"            text,
-    "calendar_system"   text,
-    "calendar_year"     text,
-    "text_direction"    text,
-    "catalog_id"        integer,
-    "work_id"           integer,
-    "created_at"        timestamp DEFAULT now()
-);
-
 CREATE TABLE IF NOT EXISTS "book_catalog" (
     "id"                    serial PRIMARY KEY,
     "title"                 text NOT NULL,
@@ -116,7 +87,7 @@ CREATE TABLE IF NOT EXISTS "book_catalog" (
     "era"                   text,
     "cover_url"             text,
     "description"           text,
-    "work_id"               integer,
+    "work_id"               integer REFERENCES "works"("id") ON DELETE SET NULL,
     "source"                text,
     "source_id"             text,
     "verified"              boolean DEFAULT false,
@@ -124,9 +95,38 @@ CREATE TABLE IF NOT EXISTS "book_catalog" (
     "updated_at"            timestamp DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS "books" (
+    "id"                serial PRIMARY KEY,
+    "user_id"           integer NOT NULL REFERENCES "users"("id"),
+    "title"             text NOT NULL,
+    "author"            text NOT NULL,
+    "isbn"              text,
+    "cover_url"         text,
+    "description"       text,
+    "condition"         text NOT NULL,
+    "status"            text NOT NULL,
+    "price"             real,
+    "genre"             text,
+    "publisher"         text,
+    "edition"           text,
+    "year"              integer,
+    "language"          text,
+    "original_language" text,
+    "country_of_origin" text,
+    "print_country"     text,
+    "era"               text,
+    "script"            text,
+    "calendar_system"   text,
+    "calendar_year"     text,
+    "text_direction"    text,
+    "catalog_id"        integer REFERENCES "book_catalog"("id") ON DELETE SET NULL,
+    "work_id"           integer REFERENCES "works"("id") ON DELETE SET NULL,
+    "created_at"        timestamp DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS "book_requests" (
     "id"                serial PRIMARY KEY,
-    "user_id"           integer NOT NULL,
+    "user_id"           integer NOT NULL REFERENCES "users"("id"),
     "title"             text NOT NULL,
     "author"            text,
     "isbn"              text,
@@ -141,9 +141,9 @@ CREATE TABLE IF NOT EXISTS "book_requests" (
 
 CREATE TABLE IF NOT EXISTS "messages" (
     "id"            serial PRIMARY KEY,
-    "sender_id"     integer NOT NULL,
-    "receiver_id"   integer NOT NULL,
-    "book_id"       integer,
+    "sender_id"     integer NOT NULL REFERENCES "users"("id"),
+    "receiver_id"   integer NOT NULL REFERENCES "users"("id"),
+    "book_id"       integer REFERENCES "books"("id") ON DELETE SET NULL,
     "content"       text NOT NULL,
     "is_read"       boolean DEFAULT false,
     "created_at"    timestamp DEFAULT now()
@@ -151,9 +151,9 @@ CREATE TABLE IF NOT EXISTS "messages" (
 
 CREATE TABLE IF NOT EXISTS "offers" (
     "id"                serial PRIMARY KEY,
-    "buyer_id"          integer NOT NULL,
-    "seller_id"         integer NOT NULL,
-    "book_id"           integer NOT NULL,
+    "buyer_id"          integer NOT NULL REFERENCES "users"("id"),
+    "seller_id"         integer NOT NULL REFERENCES "users"("id"),
+    "book_id"           integer NOT NULL REFERENCES "books"("id"),
     "amount"            real NOT NULL,
     "status"            text DEFAULT 'pending',
     "counter_amount"    real,
@@ -163,10 +163,10 @@ CREATE TABLE IF NOT EXISTS "offers" (
 
 CREATE TABLE IF NOT EXISTS "transactions" (
     "id"                        serial PRIMARY KEY,
-    "buyer_id"                  integer NOT NULL,
-    "seller_id"                 integer NOT NULL,
-    "book_id"                   integer NOT NULL,
-    "offer_id"                  integer,
+    "buyer_id"                  integer NOT NULL REFERENCES "users"("id"),
+    "seller_id"                 integer NOT NULL REFERENCES "users"("id"),
+    "book_id"                   integer NOT NULL REFERENCES "books"("id"),
+    "offer_id"                  integer REFERENCES "offers"("id") ON DELETE SET NULL,
     "amount"                    real NOT NULL,
     "platform_fee"              real NOT NULL,
     "seller_payout"             real NOT NULL,
@@ -182,3 +182,23 @@ CREATE TABLE IF NOT EXISTS "transactions" (
     "created_at"                timestamp DEFAULT now(),
     "updated_at"                timestamp DEFAULT now()
 );
+
+-- ============================================================
+-- Indexes for query performance
+-- ============================================================
+
+CREATE INDEX IF NOT EXISTS "book_catalog_work_id_idx"      ON "book_catalog"   ("work_id");
+CREATE INDEX IF NOT EXISTS "book_requests_user_id_idx"     ON "book_requests"  ("user_id");
+CREATE INDEX IF NOT EXISTS "book_requests_status_idx"      ON "book_requests"  ("status");
+CREATE INDEX IF NOT EXISTS "books_user_id_idx"             ON "books"          ("user_id");
+CREATE INDEX IF NOT EXISTS "books_status_idx"              ON "books"          ("status");
+CREATE INDEX IF NOT EXISTS "books_genre_idx"               ON "books"          ("genre");
+CREATE INDEX IF NOT EXISTS "messages_sender_id_idx"        ON "messages"       ("sender_id");
+CREATE INDEX IF NOT EXISTS "messages_receiver_id_idx"      ON "messages"       ("receiver_id");
+CREATE INDEX IF NOT EXISTS "messages_is_read_idx"          ON "messages"       ("is_read");
+CREATE INDEX IF NOT EXISTS "offers_buyer_id_idx"           ON "offers"         ("buyer_id");
+CREATE INDEX IF NOT EXISTS "offers_seller_id_idx"          ON "offers"         ("seller_id");
+CREATE INDEX IF NOT EXISTS "transactions_buyer_id_idx"     ON "transactions"   ("buyer_id");
+CREATE INDEX IF NOT EXISTS "transactions_seller_id_idx"    ON "transactions"   ("seller_id");
+CREATE INDEX IF NOT EXISTS "transactions_status_idx"       ON "transactions"   ("status");
+
