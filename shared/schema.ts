@@ -1,4 +1,4 @@
-import { pgTable, text, integer, serial, real, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, serial, real, boolean, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -61,7 +61,7 @@ export const users = pgTable("users", {
 
 export const books = pgTable("books", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
   title: text("title").notNull(),
   author: text("author").notNull(),
   isbn: text("isbn"),
@@ -84,10 +84,14 @@ export const books = pgTable("books", {
   calendarSystem: text("calendar_system"), // "gregorian", "islamic_hijri", "hebrew", etc.
   calendarYear: text("calendar_year"),    // year in the specified calendar, e.g. "1444 AH"
   textDirection: text("text_direction"),  // "ltr" or "rtl"
-  catalogId: integer("catalog_id"),       // link to canonical book_catalog entry
-  workId: integer("work_id"),              // link to the abstract work
+  catalogId: integer("catalog_id").references(() => bookCatalog.id, { onDelete: "set null" }), // link to canonical book_catalog entry
+  workId: integer("work_id").references(() => works.id, { onDelete: "set null" }),             // link to the abstract work
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("books_user_id_idx").on(table.userId),
+  index("books_status_idx").on(table.status),
+  index("books_genre_idx").on(table.genre),
+]);
 
 // ═══════════════════════════════════════════════════════════════
 // CANONICAL BOOK CATALOG — proprietary master database
@@ -137,18 +141,20 @@ export const bookCatalog = pgTable("book_catalog", {
   coverUrl: text("cover_url"),
   description: text("description"),
   // Work linkage
-  workId: integer("work_id"),             // link to the abstract work
+  workId: integer("work_id").references(() => works.id, { onDelete: "set null" }), // link to the abstract work
   // Data provenance
   source: text("source"),                 // "open_library", "manual", "loc", etc.
   sourceId: text("source_id"),            // ID in the source system
   verified: boolean("verified").default(false), // manually verified entry
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("book_catalog_work_id_idx").on(table.workId),
+]);
 
 export const bookRequests = pgTable("book_requests", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
   title: text("title").notNull(),
   author: text("author"),
   isbn: text("isbn"),
@@ -159,29 +165,39 @@ export const bookRequests = pgTable("book_requests", {
   countryOfOrigin: text("country_of_origin"),
   status: text("status").default("open"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("book_requests_user_id_idx").on(table.userId),
+  index("book_requests_status_idx").on(table.status),
+]);
 
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
-  senderId: integer("sender_id").notNull(),
-  receiverId: integer("receiver_id").notNull(),
-  bookId: integer("book_id"),
+  senderId: integer("sender_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  receiverId: integer("receiver_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  bookId: integer("book_id").references(() => books.id, { onDelete: "set null" }),
   content: text("content").notNull(),
   isRead: boolean("is_read").default(false),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("messages_sender_id_idx").on(table.senderId),
+  index("messages_receiver_id_idx").on(table.receiverId),
+  index("messages_is_read_idx").on(table.isRead),
+]);
 
 export const offers = pgTable("offers", {
   id: serial("id").primaryKey(),
-  buyerId: integer("buyer_id").notNull(),
-  sellerId: integer("seller_id").notNull(),
-  bookId: integer("book_id").notNull(),
+  buyerId: integer("buyer_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  sellerId: integer("seller_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  bookId: integer("book_id").notNull().references(() => books.id, { onDelete: "restrict" }),
   amount: real("amount").notNull(),
   status: text("status").default("pending"),
   counterAmount: real("counter_amount"),
   message: text("message"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("offers_buyer_id_idx").on(table.buyerId),
+  index("offers_seller_id_idx").on(table.sellerId),
+]);
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -256,10 +272,10 @@ export type Work = typeof works.$inferSelect;
 export const transactions = pgTable("transactions", {
   id: serial("id").primaryKey(),
   // Parties
-  buyerId: integer("buyer_id").notNull(),
-  sellerId: integer("seller_id").notNull(),
-  bookId: integer("book_id").notNull(),
-  offerId: integer("offer_id"),              // if from an accepted offer
+  buyerId: integer("buyer_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  sellerId: integer("seller_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  bookId: integer("book_id").notNull().references(() => books.id, { onDelete: "restrict" }),
+  offerId: integer("offer_id").references(() => offers.id, { onDelete: "set null" }), // if from an accepted offer
   // Money
   amount: real("amount").notNull(),           // what the buyer pays
   platformFee: real("platform_fee").notNull(), // Unshelv'd cut
@@ -279,7 +295,11 @@ export const transactions = pgTable("transactions", {
   // Timestamps
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("transactions_buyer_id_idx").on(table.buyerId),
+  index("transactions_seller_id_idx").on(table.sellerId),
+  index("transactions_status_idx").on(table.status),
+]);
 
 export type Transaction = typeof transactions.$inferSelect;
 
