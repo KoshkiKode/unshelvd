@@ -61,7 +61,7 @@ export const users = pgTable("users", {
 
 export const books = pgTable("books", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
   title: text("title").notNull(),
   author: text("author").notNull(),
   isbn: text("isbn"),
@@ -154,7 +154,7 @@ export const bookCatalog = pgTable("book_catalog", {
 
 export const bookRequests = pgTable("book_requests", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
   title: text("title").notNull(),
   author: text("author"),
   isbn: text("isbn"),
@@ -172,8 +172,8 @@ export const bookRequests = pgTable("book_requests", {
 
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
-  senderId: integer("sender_id").notNull().references(() => users.id),
-  receiverId: integer("receiver_id").notNull().references(() => users.id),
+  senderId: integer("sender_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  receiverId: integer("receiver_id").notNull().references(() => users.id, { onDelete: "restrict" }),
   bookId: integer("book_id").references(() => books.id, { onDelete: "set null" }),
   content: text("content").notNull(),
   isRead: boolean("is_read").default(false),
@@ -186,9 +186,9 @@ export const messages = pgTable("messages", {
 
 export const offers = pgTable("offers", {
   id: serial("id").primaryKey(),
-  buyerId: integer("buyer_id").notNull().references(() => users.id),
-  sellerId: integer("seller_id").notNull().references(() => users.id),
-  bookId: integer("book_id").notNull().references(() => books.id),
+  buyerId: integer("buyer_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  sellerId: integer("seller_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  bookId: integer("book_id").notNull().references(() => books.id, { onDelete: "restrict" }),
   amount: real("amount").notNull(),
   status: text("status").default("pending"),
   counterAmount: real("counter_amount"),
@@ -272,9 +272,9 @@ export type Work = typeof works.$inferSelect;
 export const transactions = pgTable("transactions", {
   id: serial("id").primaryKey(),
   // Parties
-  buyerId: integer("buyer_id").notNull().references(() => users.id),
-  sellerId: integer("seller_id").notNull().references(() => users.id),
-  bookId: integer("book_id").notNull().references(() => books.id),
+  buyerId: integer("buyer_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  sellerId: integer("seller_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  bookId: integer("book_id").notNull().references(() => books.id, { onDelete: "restrict" }),
   offerId: integer("offer_id").references(() => offers.id, { onDelete: "set null" }), // if from an accepted offer
   // Money
   amount: real("amount").notNull(),           // what the buyer pays

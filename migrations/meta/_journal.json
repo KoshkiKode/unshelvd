@@ -15,6 +15,13 @@
       "when": 1775755661146,
       "tag": "0001_remarkable_lyja",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775755845519,
+      "tag": "0002_lonely_kabuki",
+      "breakpoints": true
     }
   ]
 }

@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS "book_catalog" (
 
 CREATE TABLE IF NOT EXISTS "books" (
     "id"                serial PRIMARY KEY,
-    "user_id"           integer NOT NULL REFERENCES "users"("id"),
+    "user_id"           integer NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
     "title"             text NOT NULL,
     "author"            text NOT NULL,
     "isbn"              text,
@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS "books" (
 
 CREATE TABLE IF NOT EXISTS "book_requests" (
     "id"                serial PRIMARY KEY,
-    "user_id"           integer NOT NULL REFERENCES "users"("id"),
+    "user_id"           integer NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
     "title"             text NOT NULL,
     "author"            text,
     "isbn"              text,
@@ -141,8 +141,8 @@ CREATE TABLE IF NOT EXISTS "book_requests" (
 
 CREATE TABLE IF NOT EXISTS "messages" (
     "id"            serial PRIMARY KEY,
-    "sender_id"     integer NOT NULL REFERENCES "users"("id"),
-    "receiver_id"   integer NOT NULL REFERENCES "users"("id"),
+    "sender_id"     integer NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
+    "receiver_id"   integer NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
     "book_id"       integer REFERENCES "books"("id") ON DELETE SET NULL,
     "content"       text NOT NULL,
     "is_read"       boolean DEFAULT false,
@@ -151,9 +151,9 @@ CREATE TABLE IF NOT EXISTS "messages" (
 
 CREATE TABLE IF NOT EXISTS "offers" (
     "id"                serial PRIMARY KEY,
-    "buyer_id"          integer NOT NULL REFERENCES "users"("id"),
-    "seller_id"         integer NOT NULL REFERENCES "users"("id"),
-    "book_id"           integer NOT NULL REFERENCES "books"("id"),
+    "buyer_id"          integer NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
+    "seller_id"         integer NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
+    "book_id"           integer NOT NULL REFERENCES "books"("id") ON DELETE RESTRICT,
     "amount"            real NOT NULL,
     "status"            text DEFAULT 'pending',
     "counter_amount"    real,
@@ -163,9 +163,9 @@ CREATE TABLE IF NOT EXISTS "offers" (
 
 CREATE TABLE IF NOT EXISTS "transactions" (
     "id"                        serial PRIMARY KEY,
-    "buyer_id"                  integer NOT NULL REFERENCES "users"("id"),
-    "seller_id"                 integer NOT NULL REFERENCES "users"("id"),
-    "book_id"                   integer NOT NULL REFERENCES "books"("id"),
+    "buyer_id"                  integer NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
+    "seller_id"                 integer NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
+    "book_id"                   integer NOT NULL REFERENCES "books"("id") ON DELETE RESTRICT,
     "offer_id"                  integer REFERENCES "offers"("id") ON DELETE SET NULL,
     "amount"                    real NOT NULL,
     "platform_fee"              real NOT NULL,
