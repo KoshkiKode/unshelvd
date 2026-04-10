@@ -11,7 +11,7 @@ For the web version, the API URL is typically relative because the same server h
 
 However, if you're using a separate host for the API, set the URL during build:
 ```bash
-VITE_API_URL=https://your-api.run.app npm run build
+VITE_API_URL=https://unshelvd.koshkikode.com npm run build
 ```
 
 ### 2. Android APK / iOS App
@@ -20,7 +20,7 @@ Native apps **MUST** have an absolute URL to connect to the backend.
 **Build Command:**
 ```bash
 # Set your real Cloud Run URL here
-API_URL=https://unshelvd-backend-xxxxxx.run.app npm run cap:build:android
+API_URL=https://unshelvd.koshkikode.com npm run cap:build:android
 ```
 
 If you forget to set this, the build will now **FAIL** early to prevent you from shipping a broken app.
