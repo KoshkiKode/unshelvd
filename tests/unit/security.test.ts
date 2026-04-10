@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { sanitizeLikeInput, parseIntParam, stripHtml, validateIdParam } from "../../server/security";
+import express from "express";
+import request from "supertest";
+import { sanitizeLikeInput, parseIntParam, stripHtml, validateIdParam, applySecurityMiddleware } from "../../server/security";
 
 // ────────────────────────────────────────────────────────────────
 // sanitizeLikeInput
@@ -206,5 +208,49 @@ describe("validateIdParam", () => {
     validateIdParam(req, res, next);
     // parseInt("0.5") = 0, not null, so next is called
     expect(next).toHaveBeenCalledOnce();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────
+// applySecurityMiddleware
+// ────────────────────────────────────────────────────────────────
+
+describe("applySecurityMiddleware", () => {
+  it("registers middleware without throwing", () => {
+    const app = express();
+    expect(() => applySecurityMiddleware(app)).not.toThrow();
+  });
+
+  it("adds Helmet security headers (X-Content-Type-Options) to responses", async () => {
+    const app = express();
+    applySecurityMiddleware(app);
+    app.get("/ping", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app).get("/ping");
+    // Helmet sets this header on every response
+    expect(res.headers["x-content-type-options"]).toBe("nosniff");
+  });
+
+  it("adds X-Frame-Options header to responses", async () => {
+    const app = express();
+    applySecurityMiddleware(app);
+    app.get("/ping", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app).get("/ping");
+    expect(res.headers["x-frame-options"]).toBeDefined();
+  });
+
+  it("applies rate limiting to /api/auth/login (returns 429 after limit exceeded)", async () => {
+    const app = express();
+    applySecurityMiddleware(app);
+    app.post("/api/auth/login", (_req, res) => res.json({ ok: true }));
+
+    // Fire 11 requests — the 11th should hit the 10-request auth limit
+    let lastStatus = 200;
+    for (let i = 0; i < 11; i++) {
+      const res = await request(app).post("/api/auth/login").send({});
+      lastStatus = res.status;
+    }
+    expect(lastStatus).toBe(429);
   });
 });
