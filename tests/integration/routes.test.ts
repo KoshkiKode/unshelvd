@@ -104,10 +104,19 @@ vi.mock("../../shared/password-policy", () => ({
   validatePassword: vi.fn().mockReturnValue({ valid: true, errors: [] }),
 }));
 
+// Mock bcryptjs so tests can control password comparison without real hashing
+vi.mock("bcryptjs", () => ({
+  default: {
+    compare: vi.fn(),
+    hash: vi.fn().mockResolvedValue("$2b$12$mockedhash"),
+  },
+}));
+
 // ─── import after mocks are set up ─────────────────────────────────────────
 
 import { storage } from "../../server/storage";
 import { registerRoutes } from "../../server/routes";
+import bcrypt from "bcryptjs";
 
 // ─── test helpers ──────────────────────────────────────────────────────────
 
@@ -125,6 +134,20 @@ const mockStorage = storage as ReturnType<typeof vi.mocked<typeof storage>>;
  *  each resolve to the corresponding entry in the array. */
 function pushDbResults(...values: any[]) {
   dbCallQueue.push(...values);
+}
+
+/**
+ * Log in as `user` and return a persistent supertest agent whose session
+ * cookie is preserved across requests.  Call `mockStorage.getUser.mockResolvedValueOnce(user)`
+ * before each subsequent authenticated request so that passport's
+ * deserializeUser can find the user.
+ */
+async function loginAs(app: express.Express, user: any) {
+  vi.mocked(bcrypt.compare).mockResolvedValueOnce(true as any);
+  mockStorage.getUserByEmail.mockResolvedValueOnce(user);
+  const agent = request.agent(app);
+  await agent.post("/api/auth/login").send({ email: user.email, password: "password" });
+  return agent;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -1399,5 +1422,515 @@ describe("GET /api/search/books — with mocked Open Library response", () => {
     const res = await request(app).get("/api/search/books?q=xyznotabook");
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Shared fixture for authenticated-route tests
+// ──────────────────────────────────────────────────────────────────────────
+
+const TEST_USER = {
+  id: 42,
+  username: "tester",
+  displayName: "Test User",
+  email: "tester@example.com",
+  password: "$2b$12$mockedhash",
+  bio: null,
+  avatarUrl: null,
+  location: null,
+  rating: 0,
+  totalSales: 0,
+  totalPurchases: 0,
+  role: "user",
+  stripeAccountId: null,
+  stripeOnboarded: false,
+  createdAt: new Date(),
+};
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/books — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/books — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("creates a book and returns it when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const createdBook = {
+      id: 10,
+      userId: TEST_USER.id,
+      title: "Clean Code",
+      author: "Robert Martin",
+      condition: "good",
+      status: "for-sale",
+      price: 15,
+    };
+    mockStorage.createBook.mockResolvedValueOnce(createdBook);
+
+    const res = await agent.post("/api/books").send({
+      title: "Clean Code",
+      author: "Robert Martin",
+      condition: "good",
+      status: "for-sale",
+      price: 15,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe("Clean Code");
+    expect(res.body.id).toBe(10);
+  });
+
+  it("returns 400 for invalid book data when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/books").send({
+      // missing required 'title' and 'author'
+      condition: "good",
+      status: "for-sale",
+    });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// PATCH /api/books/:id — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("PATCH /api/books/:id — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("updates a book and returns it when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const updatedBook = { id: 5, title: "Updated Title", author: "Author" };
+    mockStorage.updateBook.mockResolvedValueOnce(updatedBook);
+
+    const res = await agent.patch("/api/books/5").send({ title: "Updated Title" });
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe("Updated Title");
+  });
+
+  it("returns 404 when the book is not found or not owned by the user", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    mockStorage.updateBook.mockResolvedValueOnce(undefined);
+
+    const res = await agent.patch("/api/books/999").send({ title: "X" });
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/not found/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// DELETE /api/books/:id — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("DELETE /api/books/:id — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("deletes a book and returns a success message when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    mockStorage.deleteBook.mockResolvedValueOnce(true);
+
+    const res = await agent.delete("/api/books/5");
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/deleted/i);
+  });
+
+  it("returns 404 when the book is not found or not owned by the user", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    mockStorage.deleteBook.mockResolvedValueOnce(false);
+
+    const res = await agent.delete("/api/books/999");
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/not found/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/requests — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/requests — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("creates a book request and returns it when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const newRequest = { id: 7, userId: TEST_USER.id, title: "Dune", status: "open" };
+    mockStorage.createBookRequest.mockResolvedValueOnce(newRequest);
+
+    const res = await agent.post("/api/requests").send({ title: "Dune" });
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe("Dune");
+  });
+
+  it("returns 400 when title is missing", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/requests").send({});
+    expect(res.status).toBe(400);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// PATCH /api/requests/:id — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("PATCH /api/requests/:id — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("updates a book request when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const updated = { id: 7, title: "Dune Messiah", status: "open" };
+    mockStorage.updateBookRequest.mockResolvedValueOnce(updated);
+
+    const res = await agent.patch("/api/requests/7").send({ title: "Dune Messiah" });
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe("Dune Messiah");
+  });
+
+  it("returns 404 when the request is not found or not owned", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    mockStorage.updateBookRequest.mockResolvedValueOnce(undefined);
+
+    const res = await agent.patch("/api/requests/999").send({ title: "X" });
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/not found/i);
+  });
+
+  it("returns 400 for a non-numeric request id", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.patch("/api/requests/notanid").send({ title: "X" });
+    expect(res.status).toBe(400);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// GET /api/messages — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("GET /api/messages — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns conversations for the authenticated user", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const conversations = [
+      { otherUserId: 1, otherUsername: "alice", lastMessage: "Hi" },
+    ];
+    mockStorage.getConversations.mockResolvedValueOnce(conversations);
+
+    const res = await agent.get("/api/messages");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].otherUsername).toBe("alice");
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// GET /api/messages/unread/count — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("GET /api/messages/unread/count — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns the unread message count for the authenticated user", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    mockStorage.getUnreadCount.mockResolvedValueOnce(3);
+
+    const res = await agent.get("/api/messages/unread/count");
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(3);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// GET /api/messages/:userId — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("GET /api/messages/:userId — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns the message thread with another user", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const msgs = [{ id: 1, content: "Hello!", senderId: TEST_USER.id }];
+    mockStorage.getMessages.mockResolvedValueOnce(msgs);
+    mockStorage.markMessagesRead.mockResolvedValueOnce(undefined);
+
+    const res = await agent.get("/api/messages/7");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].content).toBe("Hello!");
+  });
+
+  it("returns 400 for a non-numeric userId", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.get("/api/messages/notanid");
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/invalid/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/messages — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/messages — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("sends a message and returns it when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const msg = { id: 99, content: "Hey there", senderId: TEST_USER.id, receiverId: 7 };
+    mockStorage.createMessage.mockResolvedValueOnce(msg);
+
+    const res = await agent.post("/api/messages").send({ receiverId: 7, content: "Hey there" });
+    expect(res.status).toBe(200);
+    expect(res.body.content).toBe("Hey there");
+  });
+
+  it("returns 400 when content is empty", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/messages").send({ receiverId: 7, content: "" });
+    expect(res.status).toBe(400);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// GET /api/offers — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("GET /api/offers — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns the offer list for the authenticated user", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const offers = [{ id: 1, bookId: 5, amount: 10, status: "pending" }];
+    mockStorage.getOffers.mockResolvedValueOnce(offers);
+
+    const res = await agent.get("/api/offers");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].amount).toBe(10);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/offers — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/offers — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("creates an offer when the book is available", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const book = { id: 5, userId: 99, status: "for-sale", title: "Dune" };
+    mockStorage.getBook.mockResolvedValueOnce(book);
+    const offer = { id: 1, bookId: 5, amount: 12, status: "pending" };
+    mockStorage.createOffer.mockResolvedValueOnce(offer);
+
+    const res = await agent.post("/api/offers").send({ bookId: 5, amount: 12 });
+    expect(res.status).toBe(200);
+    expect(res.body.amount).toBe(12);
+  });
+
+  it("returns 404 when the book does not exist", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    mockStorage.getBook.mockResolvedValueOnce(undefined);
+
+    const res = await agent.post("/api/offers").send({ bookId: 999, amount: 10 });
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/not found/i);
+  });
+
+  it("returns 400 when the user tries to make an offer on their own book", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    // Book belongs to the authenticated user (TEST_USER.id === book.userId)
+    const book = { id: 5, userId: TEST_USER.id, status: "for-sale", title: "My Book" };
+    mockStorage.getBook.mockResolvedValueOnce(book);
+
+    const res = await agent.post("/api/offers").send({ bookId: 5, amount: 10 });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/own book/i);
+  });
+
+  it("returns 400 when the book is not accepting offers", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const book = { id: 5, userId: 99, status: "not-for-sale", title: "Rare Book" };
+    mockStorage.getBook.mockResolvedValueOnce(book);
+
+    const res = await agent.post("/api/offers").send({ bookId: 5, amount: 10 });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/not accepting/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// PATCH /api/offers/:id — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("PATCH /api/offers/:id — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("updates an offer status when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const updatedOffer = { id: 1, bookId: 5, amount: 10, status: "accepted" };
+    mockStorage.updateOffer.mockResolvedValueOnce(updatedOffer);
+
+    const res = await agent.patch("/api/offers/1").send({ status: "accepted" });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("accepted");
+  });
+
+  it("returns 404 when the offer is not found or not owned", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    mockStorage.updateOffer.mockResolvedValueOnce(undefined);
+
+    const res = await agent.patch("/api/offers/999").send({ status: "declined" });
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/not found/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/works/resolve — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/works/resolve — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("resolves a work and returns the result when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent
+      .post("/api/works/resolve")
+      .send({ title: "Dune", author: "Frank Herbert" });
+
+    expect(res.status).toBe(200);
+    // The mocked resolveWork returns { workId: 1, isNew: false, confidence: "high" }
+    expect(res.body.workId).toBe(1);
+    expect(res.body.confidence).toBe("high");
   });
 });
