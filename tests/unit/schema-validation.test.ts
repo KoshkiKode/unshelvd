@@ -7,6 +7,7 @@ import {
   insertMessageSchema,
   insertOfferSchema,
   updateOfferSchema,
+  insertCatalogSchema,
 } from "@shared/schema";
 
 // ────────────────────────────────────────────────────────────────
@@ -357,6 +358,94 @@ describe("updateOfferSchema", () => {
   it("accepts a null counterAmount", () => {
     expect(() =>
       updateOfferSchema.parse({ status: "accepted", counterAmount: null })
+    ).not.toThrow();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────
+// insertCatalogSchema
+// ────────────────────────────────────────────────────────────────
+
+describe("insertCatalogSchema", () => {
+  const valid = {
+    title: "War and Peace",
+    author: "Leo Tolstoy",
+    language: "Russian",
+  };
+
+  it("accepts a minimal valid catalog entry", () => {
+    expect(() => insertCatalogSchema.parse(valid)).not.toThrow();
+  });
+
+  it("rejects an empty title", () => {
+    expect(() =>
+      insertCatalogSchema.parse({ ...valid, title: "" })
+    ).toThrow();
+  });
+
+  it("rejects a missing title", () => {
+    const { title, ...rest } = valid;
+    expect(() => insertCatalogSchema.parse(rest)).toThrow();
+  });
+
+  it("rejects an empty author", () => {
+    expect(() =>
+      insertCatalogSchema.parse({ ...valid, author: "" })
+    ).toThrow();
+  });
+
+  it("rejects a missing author", () => {
+    const { author, ...rest } = valid;
+    expect(() => insertCatalogSchema.parse(rest)).toThrow();
+  });
+
+  it("rejects an empty language", () => {
+    expect(() =>
+      insertCatalogSchema.parse({ ...valid, language: "" })
+    ).toThrow();
+  });
+
+  it("rejects a missing language", () => {
+    const { language, ...rest } = valid;
+    expect(() => insertCatalogSchema.parse(rest)).toThrow();
+  });
+
+  it("accepts optional ISBN fields", () => {
+    expect(() =>
+      insertCatalogSchema.parse({
+        ...valid,
+        isbn13: "9780143107637",
+        isbn10: "0143107631",
+      })
+    ).not.toThrow();
+  });
+
+  it("accepts optional publisher and publication year", () => {
+    expect(() =>
+      insertCatalogSchema.parse({
+        ...valid,
+        publisher: "Penguin Classics",
+        publicationYear: 1869,
+      })
+    ).not.toThrow();
+  });
+
+  it("accepts a full catalog entry with all optional fields", () => {
+    expect(() =>
+      insertCatalogSchema.parse({
+        ...valid,
+        titleNative: "Война и мир",
+        authorNative: "Лев Толстой",
+        isbn13: "9780143107637",
+        publisher: "Penguin Classics",
+        publicationYear: 1869,
+        pages: 1296,
+        originalLanguage: "Russian",
+        countryOfOrigin: "Russia",
+        genre: "Literary Fiction, Historical Fiction",
+        description: "A classic novel.",
+        coverUrl: "https://example.com/cover.jpg",
+      })
     ).not.toThrow();
   });
 });
