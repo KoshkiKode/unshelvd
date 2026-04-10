@@ -9,7 +9,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
-      include: ["shared/**/*.ts", "server/security.ts"],
+      include: ["shared/**/*.ts", "server/security.ts", "server/work-resolver.ts"],
       exclude: ["**/*.test.ts"],
     },
   },
