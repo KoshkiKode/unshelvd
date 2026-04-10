@@ -22,6 +22,7 @@ import {
   failPayment,
   handleSellerAccountUpdated,
   handleTransferFailed,
+  handleChargeRefunded,
   markShipped,
   confirmDelivery,
   getUserTransactions,
@@ -1016,6 +1017,11 @@ export async function registerRoutes(
         case "transfer.failed": {
           const transfer = event.data.object;
           if (transfer.id) await handleTransferFailed(transfer.id);
+          break;
+        }
+        case "charge.refunded": {
+          const charge = event.data.object;
+          if (charge.payment_intent) await handleChargeRefunded(charge.payment_intent as string);
           break;
         }
         default:
