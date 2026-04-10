@@ -14,6 +14,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:run": "node script/migrate.js",
     "db:seed": "node script/seed.js",
+    "db:bulk-seed": "tsx server/bulk-seed.ts",
     "db:bootstrap": "node script/migrate.js",
     "cap:sync": "npm run verify:env && npm run build && npx cap sync",
     "cap:android": "npx cap open android",
