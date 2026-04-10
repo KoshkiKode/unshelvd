@@ -1,50 +1,157 @@
-title,author,isbn13,isbn10,language,originalLanguage,publisher,publicationYear,firstPublishedYear,genre,coverUrl,source
-Sapiens: A Brief History of Humankind,Yuval Noah Harari,9780062316097,0062316095,English,Hebrew,Harper,2015,2011,"Non-Fiction,History",https://covers.openlibrary.org/b/isbn/9780062316097-L.jpg,manual
-Sapiens: A Brief History of Humankind,Yuval Noah Harari,9780099590088,,English,Hebrew,Vintage,2015,2011,"Non-Fiction,History",https://covers.openlibrary.org/b/isbn/9780099590088-L.jpg,manual
-קיצור תולדות האנושות,יובל נח הררי,9789655601695,,Hebrew,Hebrew,Dvir,2011,2011,"Non-Fiction,History",https://covers.openlibrary.org/b/id/7781014-L.jpg,manual
-Meditations,Marcus Aurelius,9780140449334,0140449337,English,Ancient Greek,Penguin Classics,2006,180,Philosophy,https://covers.openlibrary.org/b/isbn/9780140449334-L.jpg,manual
-Meditations,Marcus Aurelius,9780486298238,,English,Ancient Greek,Dover,1997,180,Philosophy,https://covers.openlibrary.org/b/isbn/9780486298238-L.jpg,manual
-Τὰ εἰς ἑαυτόν,Μάρκος Αὐρήλιος,,,Ancient Greek,Ancient Greek,Akademische Verlagsgesellschaft,1960,180,Philosophy,,manual
-"Blood Meridian, or the Evening Redness in the West",Cormac McCarthy,9780679728757,0679728759,English,English,Vintage,1992,1985,Fiction,https://covers.openlibrary.org/b/isbn/9780679728757-L.jpg,manual
-Dune,Frank Herbert,9780441172719,0441172717,English,English,Ace,1990,1965,"Sci-Fi,Fiction",https://covers.openlibrary.org/b/isbn/9780441172719-L.jpg,manual
-Dune,Frank Herbert,9780593099322,,English,English,Ace,2019,1965,"Sci-Fi,Fiction",https://covers.openlibrary.org/b/id/13186889-L.jpg,manual
-Kafka on the Shore,Haruki Murakami,9781400079278,1400079276,English,Japanese,Vintage,2005,2002,Fiction,https://covers.openlibrary.org/b/isbn/9781400079278-L.jpg,manual
-海辺のカフカ,村上春樹,9784101001616,,Japanese,Japanese,Shinchosha,2005,2002,Fiction,https://covers.openlibrary.org/b/id/8471060-L.jpg,manual
-The Stranger,Albert Camus,9780679720201,0679720200,English,French,Vintage,1989,1942,"Fiction,Philosophy",https://covers.openlibrary.org/b/isbn/9780679720201-L.jpg,manual
-L'Étranger,Albert Camus,9782070360024,,French,French,Gallimard,1971,1942,"Fiction,Philosophy",https://covers.openlibrary.org/b/id/8408558-L.jpg,manual
-Norwegian Wood,Haruki Murakami,9780375704024,0375704027,English,Japanese,Vintage,2000,1987,Fiction,https://covers.openlibrary.org/b/isbn/9780375704024-L.jpg,manual
-ノルウェイの森,村上春樹,9784062749497,,Japanese,Japanese,Kodansha,2004,1987,Fiction,,manual
-House of Leaves,Mark Z. Danielewski,9780375703768,0375703764,English,English,Pantheon,2000,2000,"Fiction,Horror",https://covers.openlibrary.org/b/isbn/9780375703768-L.jpg,manual
-The Brothers Karamazov,Fyodor Dostoevsky,9780374528379,0374528373,English,Russian,"Farrar, Straus and Giroux",2002,1880,Fiction,https://covers.openlibrary.org/b/isbn/9780374528379-L.jpg,manual
-Братья Карамазовы,Фёдор Достоевский,9785699015832,,Russian,Russian,Eksmo,2008,1880,Fiction,https://covers.openlibrary.org/b/id/8409928-L.jpg,manual
-Die Brüder Karamasow,Fjodor Dostojewski,9783423124782,,German,Russian,dtv,1993,1880,Fiction,,manual
-The Master and Margarita,Mikhail Bulgakov,9780141180144,0141180145,English,Russian,Penguin Classics,1997,1967,"Fiction,Fantasy",https://covers.openlibrary.org/b/isbn/9780141180144-L.jpg,manual
-Мастер и Маргарита,Михаил Булгаков,9785170977871,,Russian,Russian,AST,2019,1967,"Fiction,Fantasy",https://covers.openlibrary.org/b/isbn/9785170977871-L.jpg,manual
-Roadside Picnic,Arkady and Boris Strugatsky,9781613743416,,English,Russian,Chicago Review Press,2012,1972,Sci-Fi,https://covers.openlibrary.org/b/id/8443792-L.jpg,manual
-Пикник на обочине,Аркадий и Борис Стругацкие,,,Russian,Russian,Молодая гвардия,1972,1972,Sci-Fi,,manual
-Crime and Punishment,Fyodor Dostoevsky,9780143058144,,English,Russian,Penguin Classics,2003,1866,Fiction,https://covers.openlibrary.org/b/id/8479260-L.jpg,manual
-Преступление и наказание,Фёдор Достоевский,,,Russian,Russian,Eksmo,2005,1866,Fiction,,manual
-War and Peace,Leo Tolstoy,9780140447934,,English,Russian,Penguin Classics,1982,1869,"Fiction,History",https://covers.openlibrary.org/b/id/8228691-L.jpg,manual
-Война и мир,Лев Толстой,,,Russian,Russian,Азбука,2012,1869,"Fiction,History",,manual
-The Bridge on the Drina,Ivo Andrić,9780226020457,0226020452,English,Serbian,University of Chicago Press,1977,1945,"Fiction,History",https://covers.openlibrary.org/b/isbn/9780226020457-L.jpg,manual
-Na Drini ćuprija,Ivo Andrić,9788652118038,,Serbian,Serbian,Prosveta,1945,1945,"Fiction,History",https://covers.openlibrary.org/b/isbn/9788652118038-L.jpg,manual
-Die Brücke über die Drina,Ivo Andrić,,,German,Serbian,Paul Zsolnay Verlag,1953,1945,"Fiction,History",,manual
-Death and the Dervish,Meša Selimović,9780810112384,,English,Bosnian,Northwestern University Press,1996,1966,"Fiction,Philosophy",https://covers.openlibrary.org/b/id/13127483-L.jpg,manual
-Derviš i smrt,Meša Selimović,,,Bosnian,Bosnian,Svjetlost,1966,1966,"Fiction,Philosophy",,manual
-The Damned Yard,Ivo Andrić,,,English,Serbian,Forest Books,1992,1954,Fiction,,manual
-Prokleta avlija,Ivo Andrić,,,Serbian,Serbian,Prosveta,1954,1954,Fiction,,manual
-A Brief History of Time,Stephen Hawking,9780553380163,0553380168,English,English,Bantam,1988,1988,"Non-Fiction,Science",https://covers.openlibrary.org/b/isbn/9780553380163-L.jpg,manual
-A Brief History of Time (Updated Edition),Stephen Hawking,9780553804577,,English,English,Bantam,1998,1988,"Non-Fiction,Science",https://covers.openlibrary.org/b/isbn/9780553804577-L.jpg,manual
-1984,George Orwell,9780451524935,0451524934,English,English,Signet Classics,1950,1949,"Fiction,Sci-Fi",https://covers.openlibrary.org/b/isbn/9780451524935-L.jpg,manual
-Nineteen Eighty-Four,George Orwell,9780141036144,,English,English,Penguin Modern Classics,2004,1949,"Fiction,Sci-Fi",https://covers.openlibrary.org/b/isbn/9780141036144-L.jpg,manual
-The Left Hand of Darkness,Ursula K. Le Guin,9780441478125,0441478123,English,English,Ace,1969,1969,Sci-Fi,https://covers.openlibrary.org/b/isbn/9780441478125-L.jpg,manual
-The Diaries of Franz Kafka,Franz Kafka,9780805209068,0805209069,English,German,Schocken,1988,1948,"Non-Fiction,Biography",https://covers.openlibrary.org/b/isbn/9780805209068-L.jpg,manual
-Tagebücher,Franz Kafka,,,German,German,S. Fischer Verlag,1954,1948,"Non-Fiction,Biography",,manual
-One Hundred Years of Solitude,Gabriel García Márquez,9780060883287,0060883286,English,Spanish,Harper Perennial Modern Classics,2006,1967,Fiction,https://covers.openlibrary.org/b/id/8411716-L.jpg,manual
-Cien años de soledad,Gabriel García Márquez,9788497592208,,Spanish,Spanish,Cátedra,2007,1967,Fiction,,manual
-Don Quixote,Miguel de Cervantes,9780060934347,,English,Spanish,Harper Perennial Modern Classics,2003,1605,Fiction,https://covers.openlibrary.org/b/id/8416816-L.jpg,manual
-El ingenioso hidalgo don Quijote de la Mancha,Miguel de Cervantes,,,Spanish,Spanish,Real Academia Española,2004,1605,Fiction,,manual
-Things Fall Apart,Chinua Achebe,9780385474542,0385474547,English,English,Anchor,1994,1958,Fiction,https://covers.openlibrary.org/b/id/8468612-L.jpg,manual
-The Divine Comedy,Dante Alighieri,9780142437223,,English,Italian,Penguin Classics,2003,1320,"Poetry,Fiction",https://covers.openlibrary.org/b/id/8470260-L.jpg,manual
-La Divina Commedia,Dante Alighieri,,,Italian,Italian,Einaudi,2014,1320,"Poetry,Fiction",,manual
-Hamlet,William Shakespeare,9780743477123,0743477124,English,English,Simon & Schuster,2003,1603,"Fiction,Drama",https://covers.openlibrary.org/b/id/8471820-L.jpg,manual
+work_title,work_author,title,author,isbn13,isbn10,language,publisher,publication_year,genre,cover_url,original_language,country_of_origin
+Sapiens: A Brief History of Humankind,Yuval Noah Harari,Sapiens: A Brief History of Humankind,Yuval Noah Harari,9780062316097,0062316095,English,Harper,2015,"Non-Fiction,History",https://covers.openlibrary.org/b/isbn/9780062316097-L.jpg,,
+Sapiens: A Brief History of Humankind,Yuval Noah Harari,Sapiens: A Brief History of Humankind,Yuval Noah Harari,9780099590088,,English,Vintage,2015,"Non-Fiction,History",https://covers.openlibrary.org/b/isbn/9780099590088-L.jpg,,
+Meditations,Marcus Aurelius,Meditations,Marcus Aurelius,9780140449334,0140449337,English,Penguin Classics,2006,Philosophy,https://covers.openlibrary.org/b/isbn/9780140449334-L.jpg,Ancient Greek,
+Meditations,Marcus Aurelius,Meditations,Marcus Aurelius,9780486298238,,English,Dover,1997,Philosophy,https://covers.openlibrary.org/b/isbn/9780486298238-L.jpg,Ancient Greek,
+Blood Meridian,Cormac McCarthy,"Blood Meridian, or the Evening Redness in the West",Cormac McCarthy,9780679728757,0679728759,English,Vintage,1992,Fiction,https://covers.openlibrary.org/b/isbn/9780679728757-L.jpg,,
+Dune,Frank Herbert,Dune,Frank Herbert,9780441172719,0441172717,English,Ace,1990,"Sci-Fi,Fiction",https://covers.openlibrary.org/b/isbn/9780441172719-L.jpg,,
+Dune,Frank Herbert,Dune,Frank Herbert,9780593099322,,English,Ace,2019,"Sci-Fi,Fiction",https://covers.openlibrary.org/b/id/13186889-L.jpg,,
+Kafka on the Shore,Haruki Murakami,Kafka on the Shore,Haruki Murakami,9781400079278,1400079276,English,Vintage,2005,Fiction,https://covers.openlibrary.org/b/isbn/9781400079278-L.jpg,Japanese,
+Kafka on the Shore,Haruki Murakami,Umibe no Kafuka,Murakami Haruki,9784101001616,,Japanese,Shinchosha,2005,Fiction,https://covers.openlibrary.org/b/id/8471060-L.jpg,,Japan
+The Stranger,Albert Camus,The Stranger,Albert Camus,9780679720201,0679720200,English,Vintage,1989,"Fiction,Philosophy",https://covers.openlibrary.org/b/isbn/9780679720201-L.jpg,French,
+The Stranger,Albert Camus,L'Etranger,Albert Camus,9782070360024,,French,Gallimard,1971,"Fiction,Philosophy",https://covers.openlibrary.org/b/id/8408558-L.jpg,,France
+Norwegian Wood,Haruki Murakami,Norwegian Wood,Haruki Murakami,9780375704024,0375704027,English,Vintage,2000,Fiction,https://covers.openlibrary.org/b/isbn/9780375704024-L.jpg,Japanese,
+Norwegian Wood,Haruki Murakami,Noruwei no Mori,Murakami Haruki,9784062749497,,Japanese,Kodansha,2004,Fiction,,,Japan
+House of Leaves,Mark Z. Danielewski,House of Leaves,Mark Z. Danielewski,9780375703768,0375703764,English,Pantheon,2000,"Fiction,Horror",https://covers.openlibrary.org/b/isbn/9780375703768-L.jpg,,
+The Brothers Karamazov,Fyodor Dostoevsky,The Brothers Karamazov,Fyodor Dostoevsky,9780374528379,0374528373,English,Farrar Straus Giroux,2002,Fiction,https://covers.openlibrary.org/b/isbn/9780374528379-L.jpg,Russian,
+The Brothers Karamazov,Fyodor Dostoevsky,Bratya Karamazovy,Fyodor Dostoyevsky,,,Russian,Eksmo,2008,Fiction,https://covers.openlibrary.org/b/id/8409928-L.jpg,,Russian Empire
+The Master and Margarita,Mikhail Bulgakov,The Master and Margarita,Mikhail Bulgakov,9780141180144,0141180145,English,Penguin Classics,1997,"Fiction,Fantasy",https://covers.openlibrary.org/b/isbn/9780141180144-L.jpg,Russian,
+The Master and Margarita,Mikhail Bulgakov,Master i Margarita,Mikhail Bulgakov,9785170977871,,Russian,AST,2019,"Fiction,Fantasy",https://covers.openlibrary.org/b/isbn/9785170977871-L.jpg,,USSR / Soviet Union
+Roadside Picnic,Arkady and Boris Strugatsky,Roadside Picnic,Arkady and Boris Strugatsky,9781613743416,,English,Chicago Review Press,2012,Sci-Fi,https://covers.openlibrary.org/b/id/8443792-L.jpg,Russian,
+Roadside Picnic,Arkady and Boris Strugatsky,Piknik na obochine,Arkady i Boris Strugatsky,,,Russian,Molodaya gvardiya,1972,Sci-Fi,,,USSR / Soviet Union
+Crime and Punishment,Fyodor Dostoevsky,Crime and Punishment,Fyodor Dostoevsky,9780143058144,,English,Penguin Classics,2003,Fiction,https://covers.openlibrary.org/b/id/8479260-L.jpg,Russian,
+Crime and Punishment,Fyodor Dostoevsky,Prestupleniye i nakazaniye,Fyodor Dostoyevsky,,,Russian,Eksmo,2005,Fiction,,,Russian Empire
+War and Peace,Leo Tolstoy,War and Peace,Leo Tolstoy,9780140447934,,English,Penguin Classics,1982,"Fiction,History",https://covers.openlibrary.org/b/id/8228691-L.jpg,Russian,
+War and Peace,Leo Tolstoy,Voyna i mir,Lev Tolstoy,,,Russian,Azbuka,2012,"Fiction,History",,,Russian Empire
+The Bridge on the Drina,Ivo Andric,The Bridge on the Drina,Ivo Andric,9780226020457,0226020452,English,University of Chicago Press,1977,"Fiction,History",https://covers.openlibrary.org/b/isbn/9780226020457-L.jpg,Serbian,
+The Bridge on the Drina,Ivo Andric,Na Drini cuprija,Ivo Andric,9788652118038,,Serbian,Prosveta,1945,"Fiction,History",https://covers.openlibrary.org/b/isbn/9788652118038-L.jpg,,Yugoslavia
+Death and the Dervish,Mesa Selimovic,Death and the Dervish,Mesa Selimovic,9780810112384,,English,Northwestern University Press,1996,"Fiction,Philosophy",https://covers.openlibrary.org/b/id/13127483-L.jpg,Bosnian,
+Death and the Dervish,Mesa Selimovic,Dervis i smrt,Mesa Selimovic,,,Bosnian,Svjetlost,1966,"Fiction,Philosophy",,,Yugoslavia
+The Damned Yard,Ivo Andric,The Damned Yard,Ivo Andric,,,English,Forest Books,1992,Fiction,,Serbian,
+The Damned Yard,Ivo Andric,Prokleta avlija,Ivo Andric,,,Serbian,Prosveta,1954,Fiction,,,Yugoslavia
+A Brief History of Time,Stephen Hawking,A Brief History of Time,Stephen Hawking,9780553380163,0553380168,English,Bantam,1988,"Non-Fiction,Science",https://covers.openlibrary.org/b/isbn/9780553380163-L.jpg,,
+A Brief History of Time,Stephen Hawking,A Brief History of Time (Updated Edition),Stephen Hawking,9780553804577,,English,Bantam,1998,"Non-Fiction,Science",https://covers.openlibrary.org/b/isbn/9780553804577-L.jpg,,
+1984,George Orwell,1984,George Orwell,9780451524935,0451524934,English,Signet Classics,1950,"Fiction,Sci-Fi",https://covers.openlibrary.org/b/isbn/9780451524935-L.jpg,,
+1984,George Orwell,Nineteen Eighty-Four,George Orwell,9780141036144,,English,Penguin Modern Classics,2004,"Fiction,Sci-Fi",https://covers.openlibrary.org/b/isbn/9780141036144-L.jpg,,
+The Left Hand of Darkness,Ursula K. Le Guin,The Left Hand of Darkness,Ursula K. Le Guin,9780441478125,0441478123,English,Ace,1969,Sci-Fi,https://covers.openlibrary.org/b/isbn/9780441478125-L.jpg,,
+The Diaries of Franz Kafka,Franz Kafka,The Diaries of Franz Kafka,Franz Kafka,9780805209068,0805209069,English,Schocken,1988,"Non-Fiction,Biography",https://covers.openlibrary.org/b/isbn/9780805209068-L.jpg,German,
+The Diaries of Franz Kafka,Franz Kafka,Tagebucher,Franz Kafka,,,German,S. Fischer Verlag,1954,"Non-Fiction,Biography",,,Austria-Hungary
+One Hundred Years of Solitude,Gabriel Garcia Marquez,One Hundred Years of Solitude,Gabriel Garcia Marquez,9780060883287,0060883286,English,Harper Perennial,2006,Fiction,https://covers.openlibrary.org/b/id/8411716-L.jpg,Spanish,
+One Hundred Years of Solitude,Gabriel Garcia Marquez,Cien anos de soledad,Gabriel Garcia Marquez,9788497592208,,Spanish,Catedra,2007,Fiction,,,Colombia
+Don Quixote,Miguel de Cervantes,Don Quixote,Miguel de Cervantes,9780060934347,,English,Harper Perennial,2003,Fiction,https://covers.openlibrary.org/b/id/8416816-L.jpg,Spanish,
+Don Quixote,Miguel de Cervantes,El ingenioso hidalgo don Quijote,Miguel de Cervantes,,,Spanish,Real Academia Espanola,2004,Fiction,,,Spain
+Things Fall Apart,Chinua Achebe,Things Fall Apart,Chinua Achebe,9780385474542,0385474547,English,Anchor,1994,Fiction,https://covers.openlibrary.org/b/id/8468612-L.jpg,,Nigeria
+The Divine Comedy,Dante Alighieri,The Divine Comedy,Dante Alighieri,9780142437223,,English,Penguin Classics,2003,"Poetry,Fiction",https://covers.openlibrary.org/b/id/8470260-L.jpg,Italian,
+The Divine Comedy,Dante Alighieri,La Divina Commedia,Dante Alighieri,,,Italian,Einaudi,2014,"Poetry,Fiction",,,Italy
+Hamlet,William Shakespeare,Hamlet,William Shakespeare,9780743477123,0743477124,English,Simon and Schuster,2003,"Fiction,Drama",https://covers.openlibrary.org/b/id/8471820-L.jpg,,
+Anna Karenina,Leo Tolstoy,Anna Karenina,Leo Tolstoy,9780143035008,,English,Penguin Classics,2000,Fiction,https://covers.openlibrary.org/b/isbn/9780143035008-L.jpg,Russian,
+Anna Karenina,Leo Tolstoy,Anna Karenina,Lev Tolstoy,,,Russian,Azbuka,2013,Fiction,,,Russian Empire
+The Idiot,Fyodor Dostoevsky,The Idiot,Fyodor Dostoevsky,9780140447927,,English,Penguin Classics,2004,Fiction,https://covers.openlibrary.org/b/isbn/9780140447927-L.jpg,Russian,
+Notes from Underground,Fyodor Dostoevsky,Notes from Underground,Fyodor Dostoevsky,9780140449136,,English,Penguin Classics,2009,"Fiction,Philosophy",https://covers.openlibrary.org/b/isbn/9780140449136-L.jpg,Russian,
+Dead Souls,Nikolai Gogol,Dead Souls,Nikolai Gogol,9780140448078,,English,Penguin Classics,2004,Fiction,https://covers.openlibrary.org/b/isbn/9780140448078-L.jpg,Russian,
+We,Yevgeny Zamyatin,We,Yevgeny Zamyatin,9780140185852,,English,Penguin Classics,1993,"Fiction,Sci-Fi",https://covers.openlibrary.org/b/isbn/9780140185852-L.jpg,Russian,
+We,Yevgeny Zamyatin,My,Evgeniy Zamyatin,,,Russian,Azbuka,2008,"Fiction,Sci-Fi",,,USSR / Soviet Union
+Doctor Zhivago,Boris Pasternak,Doctor Zhivago,Boris Pasternak,9780375408694,,English,Pantheon,1958,Fiction,https://covers.openlibrary.org/b/isbn/9780375408694-L.jpg,Russian,
+The Trial,Franz Kafka,The Trial,Franz Kafka,9780805209068,,English,Schocken,1999,Fiction,https://covers.openlibrary.org/b/isbn/9780805209068-L.jpg,German,
+The Metamorphosis,Franz Kafka,The Metamorphosis,Franz Kafka,9780553213690,,English,Bantam,1972,Fiction,https://covers.openlibrary.org/b/isbn/9780553213690-L.jpg,German,
+Siddhartha,Hermann Hesse,Siddhartha,Hermann Hesse,9780553208849,,English,Bantam,1951,"Fiction,Philosophy",https://covers.openlibrary.org/b/isbn/9780553208849-L.jpg,German,
+Steppenwolf,Hermann Hesse,Steppenwolf,Hermann Hesse,9780312278908,,English,Picador,2002,Fiction,https://covers.openlibrary.org/b/isbn/9780312278908-L.jpg,German,
+The Magic Mountain,Thomas Mann,The Magic Mountain,Thomas Mann,9780679772873,,English,Vintage,1996,Fiction,https://covers.openlibrary.org/b/isbn/9780679772873-L.jpg,German,
+Death in Venice,Thomas Mann,Death in Venice,Thomas Mann,9780679722068,,English,Vintage,1989,Fiction,https://covers.openlibrary.org/b/isbn/9780679722068-L.jpg,German,
+The Tin Drum,Gunter Grass,The Tin Drum,Gunter Grass,9780156900430,,English,Harvest,1989,Fiction,https://covers.openlibrary.org/b/isbn/9780156900430-L.jpg,German,
+Faust,Johann Wolfgang von Goethe,Faust,Johann Wolfgang von Goethe,9780140440201,,English,Penguin Classics,2005,"Fiction,Drama",https://covers.openlibrary.org/b/isbn/9780140440201-L.jpg,German,
+Madame Bovary,Gustave Flaubert,Madame Bovary,Gustave Flaubert,9780143136019,,English,Penguin Classics,2011,Fiction,https://covers.openlibrary.org/b/isbn/9780143136019-L.jpg,French,
+Madame Bovary,Gustave Flaubert,Madame Bovary,Gustave Flaubert,9782070413119,,French,Gallimard,1972,Fiction,,,France
+Les Miserables,Victor Hugo,Les Miserables,Victor Hugo,9780140444308,,English,Penguin Classics,1987,Fiction,https://covers.openlibrary.org/b/isbn/9780140444308-L.jpg,French,
+Les Miserables,Victor Hugo,Les Miserables,Victor Hugo,9782070409228,,French,Gallimard,2000,Fiction,,,France
+The Count of Monte Cristo,Alexandre Dumas,The Count of Monte Cristo,Alexandre Dumas,9780140449266,,English,Penguin Classics,1996,Fiction,https://covers.openlibrary.org/b/isbn/9780140449266-L.jpg,French,
+Swann's Way,Marcel Proust,Swann's Way,Marcel Proust,9780142437964,,English,Penguin Classics,2004,Fiction,https://covers.openlibrary.org/b/isbn/9780142437964-L.jpg,French,
+Nausea,Jean-Paul Sartre,Nausea,Jean-Paul Sartre,9780811201224,,English,New Directions,1964,"Fiction,Philosophy",https://covers.openlibrary.org/b/isbn/9780811201224-L.jpg,French,
+The Plague,Albert Camus,The Plague,Albert Camus,9780679720218,,English,Vintage,1991,Fiction,https://covers.openlibrary.org/b/isbn/9780679720218-L.jpg,French,
+Waiting for Godot,Samuel Beckett,Waiting for Godot,Samuel Beckett,9780802130341,,English,Grove Press,1954,"Fiction,Drama",https://covers.openlibrary.org/b/isbn/9780802130341-L.jpg,French,
+Journey to the End of the Night,Louis-Ferdinand Celine,Journey to the End of the Night,Louis-Ferdinand Celine,9780811201889,,English,New Directions,1983,Fiction,https://covers.openlibrary.org/b/isbn/9780811201889-L.jpg,French,
+The Little Prince,Antoine de Saint-Exupery,The Little Prince,Antoine de Saint-Exupery,9780156012195,,English,Harvest,2000,Fiction,https://covers.openlibrary.org/b/isbn/9780156012195-L.jpg,French,
+The Little Prince,Antoine de Saint-Exupery,Le Petit Prince,Antoine de Saint-Exupery,9782070408504,,French,Gallimard,1993,Fiction,,,France
+Love in the Time of Cholera,Gabriel Garcia Marquez,Love in the Time of Cholera,Gabriel Garcia Marquez,9780140157741,,English,Penguin,1989,Fiction,https://covers.openlibrary.org/b/isbn/9780140157741-L.jpg,Spanish,
+Ficciones,Jorge Luis Borges,Ficciones,Jorge Luis Borges,9780802130303,,English,Grove Press,1994,Fiction,https://covers.openlibrary.org/b/isbn/9780802130303-L.jpg,Spanish,
+Pedro Paramo,Juan Rulfo,Pedro Paramo,Juan Rulfo,9780802144904,,English,Grove Press,1994,Fiction,https://covers.openlibrary.org/b/isbn/9780802144904-L.jpg,Spanish,
+The House of the Spirits,Isabel Allende,The House of the Spirits,Isabel Allende,9781501117015,,English,Atria,2015,Fiction,https://covers.openlibrary.org/b/isbn/9781501117015-L.jpg,Spanish,
+Blindness,Jose Saramago,Blindness,Jose Saramago,9780156007757,,English,Harvest,1999,Fiction,https://covers.openlibrary.org/b/isbn/9780156007757-L.jpg,Portuguese,
+The Book of Disquiet,Fernando Pessoa,The Book of Disquiet,Fernando Pessoa,9780141183046,,English,Penguin Classics,2002,"Fiction,Philosophy",https://covers.openlibrary.org/b/isbn/9780141183046-L.jpg,Portuguese,
+If on a winter's night a traveler,Italo Calvino,If on a winter's night a traveler,Italo Calvino,9780156439619,,English,Harvest,1982,Fiction,https://covers.openlibrary.org/b/isbn/9780156439619-L.jpg,Italian,
+The Name of the Rose,Umberto Eco,The Name of the Rose,Umberto Eco,9780156001311,,English,Harvest,2004,Fiction,https://covers.openlibrary.org/b/isbn/9780156001311-L.jpg,Italian,
+The Leopard,Giuseppe Tomasi di Lampedusa,The Leopard,Giuseppe Tomasi di Lampedusa,9780375714566,,English,Pantheon,2007,Fiction,https://covers.openlibrary.org/b/isbn/9780375714566-L.jpg,Italian,
+Snow Country,Yasunari Kawabata,Snow Country,Yasunari Kawabata,9780679761051,,English,Vintage,1996,Fiction,https://covers.openlibrary.org/b/isbn/9780679761051-L.jpg,Japanese,
+Snow Country,Yasunari Kawabata,Yukiguni,Kawabata Yasunari,,,Japanese,Shinchosha,1948,Fiction,,,Japan
+No Longer Human,Osamu Dazai,No Longer Human,Osamu Dazai,9780811204811,,English,New Directions,1958,Fiction,https://covers.openlibrary.org/b/isbn/9780811204811-L.jpg,Japanese,
+The Sound of Waves,Yukio Mishima,The Sound of Waves,Yukio Mishima,9780679752684,,English,Vintage,1994,Fiction,https://covers.openlibrary.org/b/isbn/9780679752684-L.jpg,Japanese,
+1Q84,Haruki Murakami,1Q84,Haruki Murakami,9780307593313,,English,Knopf,2011,Fiction,https://covers.openlibrary.org/b/isbn/9780307593313-L.jpg,Japanese,
+The Wind-Up Bird Chronicle,Haruki Murakami,The Wind-Up Bird Chronicle,Haruki Murakami,9780679775430,,English,Vintage,1998,Fiction,https://covers.openlibrary.org/b/isbn/9780679775430-L.jpg,Japanese,
+Silence,Shusaku Endo,Silence,Shusaku Endo,9780312422608,,English,Picador,2016,Fiction,https://covers.openlibrary.org/b/isbn/9780312422608-L.jpg,Japanese,
+Rashomon and Seventeen Other Stories,Ryunosuke Akutagawa,Rashomon and Seventeen Other Stories,Ryunosuke Akutagawa,9780140449709,,English,Penguin Classics,2006,Fiction,https://covers.openlibrary.org/b/isbn/9780140449709-L.jpg,Japanese,
+Dream of the Red Chamber,Cao Xueqin,Dream of the Red Chamber,Cao Xueqin,9780140443714,,English,Penguin Classics,1973,Fiction,https://covers.openlibrary.org/b/isbn/9780140443714-L.jpg,Classical Chinese,
+Journey to the West,Wu Cheng-en,Monkey: A Folk Novel of China,Wu Cheng-en,9780802150219,,English,Grove Press,1994,Fiction,https://covers.openlibrary.org/b/isbn/9780802150219-L.jpg,Classical Chinese,
+The Iliad,Homer,The Iliad (trans. Robert Fagles),Homer,9780140447940,,English,Penguin Classics,1998,"Fiction,Poetry",https://covers.openlibrary.org/b/isbn/9780140447940-L.jpg,Ancient Greek,
+The Iliad,Homer,The Iliad (trans. Emily Wilson),Homer,9780393246414,,English,Norton,2023,"Fiction,Poetry",https://covers.openlibrary.org/b/isbn/9780393246414-L.jpg,Ancient Greek,
+The Odyssey,Homer,The Odyssey (trans. Emily Wilson),Homer,9780393246025,,English,Norton,2018,"Fiction,Poetry",https://covers.openlibrary.org/b/isbn/9780393246025-L.jpg,Ancient Greek,
+The Odyssey,Homer,The Odyssey (trans. Robert Fitzgerald),Homer,9780374525743,,English,Farrar Straus Giroux,1998,"Fiction,Poetry",https://covers.openlibrary.org/b/isbn/9780374525743-L.jpg,Ancient Greek,
+The Aeneid,Virgil,The Aeneid (trans. Robert Fagles),Virgil,9780670038176,,English,Viking,2006,"Fiction,Poetry",https://covers.openlibrary.org/b/isbn/9780670038176-L.jpg,Latin,
+The Republic,Plato,The Republic,Plato,9780140455113,,English,Penguin Classics,2007,Philosophy,https://covers.openlibrary.org/b/isbn/9780140455113-L.jpg,Ancient Greek,
+The Art of War,Sun Tzu,The Art of War,Sun Tzu,9780199540174,,English,Oxford,2008,"Non-Fiction,Philosophy",https://covers.openlibrary.org/b/isbn/9780199540174-L.jpg,Classical Chinese,
+Tao Te Ching,Lao Tzu,Tao Te Ching,Lao Tzu,9780140441314,,English,Penguin Classics,1963,Philosophy,https://covers.openlibrary.org/b/isbn/9780140441314-L.jpg,Classical Chinese,
+The Analects,Confucius,The Analects,Confucius,9780140443486,,English,Penguin Classics,1979,Philosophy,https://covers.openlibrary.org/b/isbn/9780140443486-L.jpg,Classical Chinese,
+Bhagavad Gita,Vyasa,Bhagavad Gita,Vyasa,9780140449181,,English,Penguin Classics,2003,"Philosophy,Religion",https://covers.openlibrary.org/b/isbn/9780140449181-L.jpg,Sanskrit,
+Beowulf,Anonymous,Beowulf (trans. Seamus Heaney),Anonymous,9780393320978,,English,Norton,2001,"Fiction,Poetry",https://covers.openlibrary.org/b/isbn/9780393320978-L.jpg,Old English,
+The Canterbury Tales,Geoffrey Chaucer,The Canterbury Tales,Geoffrey Chaucer,9780140422344,,English,Penguin Classics,1951,"Fiction,Poetry",https://covers.openlibrary.org/b/isbn/9780140422344-L.jpg,,
+The Decameron,Giovanni Boccaccio,The Decameron,Giovanni Boccaccio,9780140449303,,English,Penguin Classics,2003,Fiction,https://covers.openlibrary.org/b/isbn/9780140449303-L.jpg,Italian,
+Paradise Lost,John Milton,Paradise Lost,John Milton,9780140424393,,English,Penguin Classics,2000,Poetry,https://covers.openlibrary.org/b/isbn/9780140424393-L.jpg,,
+Candide,Voltaire,Candide,Voltaire,9780140440041,,English,Penguin Classics,1947,"Fiction,Philosophy",https://covers.openlibrary.org/b/isbn/9780140440041-L.jpg,French,
+Candide,Voltaire,Candide,Voltaire,9782070360246,,French,Gallimard,1992,"Fiction,Philosophy",,,France
+Robinson Crusoe,Daniel Defoe,Robinson Crusoe,Daniel Defoe,9780141439822,,English,Penguin Classics,2003,Fiction,https://covers.openlibrary.org/b/isbn/9780141439822-L.jpg,,
+Pride and Prejudice,Jane Austen,Pride and Prejudice,Jane Austen,9780141439518,,English,Penguin Classics,2002,Fiction,https://covers.openlibrary.org/b/isbn/9780141439518-L.jpg,,
+Jane Eyre,Charlotte Bronte,Jane Eyre,Charlotte Bronte,9780141441146,,English,Penguin Classics,2006,Fiction,https://covers.openlibrary.org/b/isbn/9780141441146-L.jpg,,
+Wuthering Heights,Emily Bronte,Wuthering Heights,Emily Bronte,9780141439556,,English,Penguin Classics,2003,Fiction,https://covers.openlibrary.org/b/isbn/9780141439556-L.jpg,,
+Great Expectations,Charles Dickens,Great Expectations,Charles Dickens,9780141439563,,English,Penguin Classics,2002,Fiction,https://covers.openlibrary.org/b/isbn/9780141439563-L.jpg,,
+Moby-Dick,Herman Melville,Moby-Dick,Herman Melville,9780142437247,,English,Penguin Classics,2002,Fiction,https://covers.openlibrary.org/b/isbn/9780142437247-L.jpg,,
+Moby-Dick,Herman Melville,Moby-Dick (Norton Critical Edition),Herman Melville,9780393972832,,English,Norton,2001,Fiction,https://covers.openlibrary.org/b/isbn/9780393972832-L.jpg,,
+The Scarlet Letter,Nathaniel Hawthorne,The Scarlet Letter,Nathaniel Hawthorne,9780142437261,,English,Penguin Classics,2003,Fiction,https://covers.openlibrary.org/b/isbn/9780142437261-L.jpg,,
+Adventures of Huckleberry Finn,Mark Twain,Adventures of Huckleberry Finn,Mark Twain,9780142437179,,English,Penguin Classics,2002,Fiction,https://covers.openlibrary.org/b/isbn/9780142437179-L.jpg,,
+Dracula,Bram Stoker,Dracula,Bram Stoker,9780141439846,,English,Penguin Classics,2003,"Fiction,Horror",https://covers.openlibrary.org/b/isbn/9780141439846-L.jpg,,
+The Picture of Dorian Gray,Oscar Wilde,The Picture of Dorian Gray,Oscar Wilde,9780141442464,,English,Penguin Classics,2003,Fiction,https://covers.openlibrary.org/b/isbn/9780141442464-L.jpg,,
+Ulysses,James Joyce,Ulysses,James Joyce,9780394743127,,English,Vintage,1990,Fiction,https://covers.openlibrary.org/b/isbn/9780394743127-L.jpg,,Ireland
+Mrs Dalloway,Virginia Woolf,Mrs Dalloway,Virginia Woolf,9780156628709,,English,Harvest,1981,Fiction,https://covers.openlibrary.org/b/isbn/9780156628709-L.jpg,,
+Animal Farm,George Orwell,Animal Farm,George Orwell,9780451526342,,English,Signet Classics,1966,Fiction,https://covers.openlibrary.org/b/isbn/9780451526342-L.jpg,,
+Brave New World,Aldous Huxley,Brave New World,Aldous Huxley,9780060850524,,English,Harper Perennial,2006,"Fiction,Sci-Fi",https://covers.openlibrary.org/b/isbn/9780060850524-L.jpg,,
+Lord of the Flies,William Golding,Lord of the Flies,William Golding,9780399501487,,English,Perigee,2011,Fiction,https://covers.openlibrary.org/b/isbn/9780399501487-L.jpg,,
+A Clockwork Orange,Anthony Burgess,A Clockwork Orange,Anthony Burgess,9780393312836,,English,Norton,2012,Fiction,https://covers.openlibrary.org/b/isbn/9780393312836-L.jpg,,
+The Great Gatsby,F. Scott Fitzgerald,The Great Gatsby,F. Scott Fitzgerald,9780743273565,,English,Scribner,2004,Fiction,https://covers.openlibrary.org/b/isbn/9780743273565-L.jpg,,
+The Sound and the Fury,William Faulkner,The Sound and the Fury,William Faulkner,9780679732242,,English,Vintage,1990,Fiction,https://covers.openlibrary.org/b/isbn/9780679732242-L.jpg,,
+To Kill a Mockingbird,Harper Lee,To Kill a Mockingbird,Harper Lee,9780061935466,,English,Harper Perennial,2002,Fiction,https://covers.openlibrary.org/b/isbn/9780061935466-L.jpg,,United States
+The Grapes of Wrath,John Steinbeck,The Grapes of Wrath,John Steinbeck,9780143039433,,English,Penguin Classics,2006,Fiction,https://covers.openlibrary.org/b/isbn/9780143039433-L.jpg,,
+East of Eden,John Steinbeck,East of Eden,John Steinbeck,9780142004234,,English,Penguin,2002,Fiction,https://covers.openlibrary.org/b/isbn/9780142004234-L.jpg,,
+Catch-22,Joseph Heller,Catch-22,Joseph Heller,9781451626650,,English,Simon and Schuster,2011,Fiction,https://covers.openlibrary.org/b/isbn/9781451626650-L.jpg,,
+Slaughterhouse-Five,Kurt Vonnegut,Slaughterhouse-Five,Kurt Vonnegut,9780440180296,,English,Dell,1991,"Fiction,Sci-Fi",https://covers.openlibrary.org/b/isbn/9780440180296-L.jpg,,
+The Catcher in the Rye,J.D. Salinger,The Catcher in the Rye,J.D. Salinger,9780316769174,,English,Little Brown,2001,Fiction,https://covers.openlibrary.org/b/isbn/9780316769174-L.jpg,,
+On the Road,Jack Kerouac,On the Road,Jack Kerouac,9780140283297,,English,Penguin,1999,Fiction,https://covers.openlibrary.org/b/isbn/9780140283297-L.jpg,,
+Beloved,Toni Morrison,Beloved,Toni Morrison,9781400033416,,English,Vintage,2004,Fiction,https://covers.openlibrary.org/b/isbn/9781400033416-L.jpg,,United States
+The Road,Cormac McCarthy,The Road,Cormac McCarthy,9780307387899,,English,Vintage,2007,Fiction,https://covers.openlibrary.org/b/isbn/9780307387899-L.jpg,,
+The Hobbit,J.R.R. Tolkien,The Hobbit,J.R.R. Tolkien,9780547928227,,English,Houghton Mifflin Harcourt,2012,"Fiction,Fantasy",https://covers.openlibrary.org/b/isbn/9780547928227-L.jpg,,
+The Fellowship of the Ring,J.R.R. Tolkien,The Fellowship of the Ring,J.R.R. Tolkien,9780618574940,,English,Houghton Mifflin Harcourt,2004,"Fiction,Fantasy",https://covers.openlibrary.org/b/isbn/9780618574940-L.jpg,,
+Foundation,Isaac Asimov,Foundation,Isaac Asimov,9780553293357,,English,Spectra,1991,"Fiction,Sci-Fi",https://covers.openlibrary.org/b/isbn/9780553293357-L.jpg,,
+Fahrenheit 451,Ray Bradbury,Fahrenheit 451,Ray Bradbury,9781451673319,,English,Simon and Schuster,2012,"Fiction,Sci-Fi",https://covers.openlibrary.org/b/isbn/9781451673319-L.jpg,,
+Neuromancer,William Gibson,Neuromancer,William Gibson,9780441569595,,English,Ace,1986,"Fiction,Sci-Fi",https://covers.openlibrary.org/b/isbn/9780441569595-L.jpg,,
+Do Androids Dream of Electric Sheep?,Philip K. Dick,Do Androids Dream of Electric Sheep?,Philip K. Dick,9780345404473,,English,Del Rey,1996,"Fiction,Sci-Fi",https://covers.openlibrary.org/b/isbn/9780345404473-L.jpg,,
+The Hitchhiker's Guide to the Galaxy,Douglas Adams,The Hitchhiker's Guide to the Galaxy,Douglas Adams,9780345391803,,English,Del Rey,1995,"Fiction,Sci-Fi",https://covers.openlibrary.org/b/isbn/9780345391803-L.jpg,,
+On the Origin of Species,Charles Darwin,On the Origin of Species,Charles Darwin,9780140432053,,English,Penguin Classics,1985,"Non-Fiction,Science",https://covers.openlibrary.org/b/isbn/9780140432053-L.jpg,,
+Man's Search for Meaning,Viktor Frankl,Man's Search for Meaning,Viktor Frankl,9780807014271,,English,Beacon Press,2006,"Non-Fiction,Philosophy",https://covers.openlibrary.org/b/isbn/9780807014271-L.jpg,German,
+The Diary of a Young Girl,Anne Frank,The Diary of a Young Girl,Anne Frank,9780553296983,,English,Bantam,1993,"Non-Fiction,Biography",https://covers.openlibrary.org/b/isbn/9780553296983-L.jpg,Dutch,
+Night,Elie Wiesel,Night,Elie Wiesel,9780374500016,,English,Hill and Wang,2006,"Non-Fiction,Biography",https://covers.openlibrary.org/b/isbn/9780374500016-L.jpg,French,
+In Cold Blood,Truman Capote,In Cold Blood,Truman Capote,9780679745587,,English,Vintage,1994,Non-Fiction,https://covers.openlibrary.org/b/isbn/9780679745587-L.jpg,,
+The Remains of the Day,Kazuo Ishiguro,The Remains of the Day,Kazuo Ishiguro,9780679731726,,English,Vintage,1990,Fiction,https://covers.openlibrary.org/b/isbn/9780679731726-L.jpg,,
+Never Let Me Go,Kazuo Ishiguro,Never Let Me Go,Kazuo Ishiguro,9781400078776,,English,Vintage,2006,Fiction,https://covers.openlibrary.org/b/isbn/9781400078776-L.jpg,,
+The Kite Runner,Khaled Hosseini,The Kite Runner,Khaled Hosseini,9781594631931,,English,Riverhead,2004,Fiction,https://covers.openlibrary.org/b/isbn/9781594631931-L.jpg,,Afghanistan
+Life of Pi,Yann Martel,Life of Pi,Yann Martel,9780156027328,,English,Harvest,2003,Fiction,https://covers.openlibrary.org/b/isbn/9780156027328-L.jpg,,
+Midnight's Children,Salman Rushdie,Midnight's Children,Salman Rushdie,9780812976533,,English,Random House,2006,Fiction,https://covers.openlibrary.org/b/isbn/9780812976533-L.jpg,,India
+The God of Small Things,Arundhati Roy,The God of Small Things,Arundhati Roy,9780679457312,,English,Random House,1997,Fiction,https://covers.openlibrary.org/b/isbn/9780679457312-L.jpg,,India
+Gitanjali,Rabindranath Tagore,Gitanjali,Rabindranath Tagore,9780333902981,,English,Macmillan,1913,Poetry,https://covers.openlibrary.org/b/isbn/9780333902981-L.jpg,Bengali,British India
+Season of Migration to the North,Tayeb Salih,Season of Migration to the North,Tayeb Salih,9780894108501,,English,NYRB Classics,2009,Fiction,https://covers.openlibrary.org/b/isbn/9780894108501-L.jpg,Arabic,Sudan
