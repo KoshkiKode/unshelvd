@@ -1126,3 +1126,278 @@ describe("GET /api/seller/connect/complete (requires auth)", () => {
     expect(res.status).toBe(401);
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────
+// Catalog listing route (GET /api/catalog)
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("GET /api/catalog", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns empty books array and total 0 when catalog is empty", async () => {
+    pushDbResults([]);           // catalog rows
+    pushDbResults([{ count: 0 }]); // count query
+    const res = await request(app).get("/api/catalog");
+    expect(res.status).toBe(200);
+    expect(res.body.books).toEqual([]);
+    expect(res.body.total).toBe(0);
+  });
+
+  it("returns catalog entries with total", async () => {
+    const entries = [
+      { id: 1, title: "1984", author: "George Orwell", language: "English" },
+      { id: 2, title: "Brave New World", author: "Aldous Huxley", language: "English" },
+    ];
+    pushDbResults(entries);
+    pushDbResults([{ count: 2 }]);
+    const res = await request(app).get("/api/catalog");
+    expect(res.status).toBe(200);
+    expect(res.body.books).toHaveLength(2);
+    expect(res.body.total).toBe(2);
+    expect(res.body.books[0].title).toBe("1984");
+  });
+
+  it("respects the limit query param (capped at 100)", async () => {
+    pushDbResults([]);
+    pushDbResults([{ count: 200 }]);
+    const res = await request(app).get("/api/catalog?limit=5");
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(200);
+  });
+
+  it("supports page-based pagination", async () => {
+    pushDbResults([]);
+    pushDbResults([{ count: 50 }]);
+    const res = await request(app).get("/api/catalog?page=3&limit=10");
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(50);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Catalog search route (GET /api/catalog/search)
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("GET /api/catalog/search", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns empty results and total 0 when no query given", async () => {
+    pushDbResults([]);
+    pushDbResults([{ count: 0 }]);
+    const res = await request(app).get("/api/catalog/search");
+    expect(res.status).toBe(200);
+    expect(res.body.results).toEqual([]);
+    expect(res.body.total).toBe(0);
+  });
+
+  it("returns empty results when query is a single character (< 2 chars)", async () => {
+    pushDbResults([]);
+    pushDbResults([{ count: 0 }]);
+    const res = await request(app).get("/api/catalog/search?q=a");
+    expect(res.status).toBe(200);
+    expect(res.body.results).toEqual([]);
+  });
+
+  it("returns results and total for a valid query", async () => {
+    const entries = [
+      { id: 5, title: "War and Peace", author: "Leo Tolstoy", language: "English" },
+    ];
+    pushDbResults(entries);
+    pushDbResults([{ count: 1 }]);
+    const res = await request(app).get("/api/catalog/search?q=war");
+    expect(res.status).toBe(200);
+    expect(res.body.results).toHaveLength(1);
+    expect(res.body.total).toBe(1);
+    expect(res.body.results[0].title).toBe("War and Peace");
+  });
+
+  it("exposes limit and offset in the response envelope", async () => {
+    pushDbResults([]);
+    pushDbResults([{ count: 0 }]);
+    const res = await request(app).get("/api/catalog/search?q=book&limit=5&offset=10");
+    expect(res.status).toBe(200);
+    expect(res.body.limit).toBe(5);
+    expect(res.body.offset).toBe(10);
+  });
+
+  it("filters by language when the language param is provided", async () => {
+    const entries = [
+      { id: 3, title: "Война и мир", author: "Толстой", language: "Russian" },
+    ];
+    pushDbResults(entries);
+    pushDbResults([{ count: 1 }]);
+    const res = await request(app).get("/api/catalog/search?language=Russian");
+    expect(res.status).toBe(200);
+    expect(res.body.results).toHaveLength(1);
+    expect(res.body.results[0].language).toBe("Russian");
+  });
+
+  it("clamps limit to 100 even when a larger value is requested", async () => {
+    pushDbResults([]);
+    pushDbResults([{ count: 0 }]);
+    const res = await request(app).get("/api/catalog/search?limit=500");
+    expect(res.status).toBe(200);
+    expect(res.body.limit).toBe(100);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// ISBN lookup route (GET /api/search/isbn/:isbn)
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("GET /api/search/isbn/:isbn", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("returns 404 when the ISBN is not found in Open Library", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }),
+    );
+    const res = await request(app).get("/api/search/isbn/9780141439518");
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/not found/i);
+  });
+
+  it("returns formatted book data when the ISBN is found", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          "ISBN:9780141439518": {
+            title: "Pride and Prejudice",
+            authors: [{ name: "Jane Austen" }],
+            publish_date: "1813",
+            publishers: [{ name: "T. Egerton" }],
+            cover: { large: "https://example.com/cover.jpg" },
+            subjects: [{ name: "Fiction" }, { name: "Romance" }],
+            number_of_pages: 432,
+          },
+        }),
+      }),
+    );
+    const res = await request(app).get("/api/search/isbn/9780141439518");
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe("Pride and Prejudice");
+    expect(res.body.author).toBe("Jane Austen");
+    expect(res.body.year).toBe(1813);
+    expect(res.body.isbn).toBe("9780141439518");
+    expect(res.body.coverUrl).toBe("https://example.com/cover.jpg");
+    expect(res.body.pages).toBe(432);
+  });
+
+  it("returns 500 when the fetch call throws", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("Network error")),
+    );
+    const res = await request(app).get("/api/search/isbn/9780141439518");
+    expect(res.status).toBe(500);
+    expect(res.body.message).toMatch(/isbn lookup failed/i);
+  });
+
+  it("strips non-numeric characters from the isbn param", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+    await request(app).get("/api/search/isbn/978-0-14-143951-8");
+    // The fetch URL should contain the cleaned ISBN (digits only)
+    const calledUrl = mockFetch.mock.calls[0][0] as string;
+    expect(calledUrl).toContain("9780141439518");
+    expect(calledUrl).not.toContain("-");
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Open Library book search (GET /api/search/books) — with results
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("GET /api/search/books — with mocked Open Library response", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("returns mapped results from Open Library for a valid query", async () => {
+    const olResponse = {
+      docs: [
+        {
+          title: "Dune",
+          author_name: ["Frank Herbert"],
+          first_publish_year: 1965,
+          publisher: ["Chilton Books"],
+          isbn: ["9780441013593"],
+          cover_i: 8765432,
+          edition_count: 30,
+          subject: ["Science fiction", "Desert planets", "Sand worms", "Spice", "Arrakis"],
+        },
+      ],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => olResponse }),
+    );
+    const res = await request(app).get("/api/search/books?q=dune");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].title).toBe("Dune");
+    expect(res.body[0].author).toBe("Frank Herbert");
+    expect(res.body[0].year).toBe(1965);
+    expect(res.body[0].isbn).toBe("9780441013593");
+    expect(res.body[0].editionCount).toBe(30);
+    expect(res.body[0].coverUrl).toContain("8765432");
+    // subjects are sliced to max 5
+    expect(res.body[0].subjects).toHaveLength(5);
+  });
+
+  it("returns 500 when the Open Library fetch throws", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("Network error")),
+    );
+    const res = await request(app).get("/api/search/books?q=somebook");
+    expect(res.status).toBe(500);
+    expect(res.body.message).toMatch(/search failed/i);
+  });
+
+  it("returns an empty array when Open Library returns no docs", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ docs: [] }) }),
+    );
+    const res = await request(app).get("/api/search/books?q=xyznotabook");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+});
