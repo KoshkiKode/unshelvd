@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Search, BookOpen, X, Globe } from "lucide-react";
+import { ArrowLeft, Loader2, Search, BookOpen, X, Globe, Smartphone, Mail } from "lucide-react";
 import { Link } from "wouter";
 import {
   languages,
@@ -89,6 +89,37 @@ export default function AddBook() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const searchStr = useSearch();
+
+  // Desktop-only: dismiss state for "email yourself a link" banner
+  const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(
+    typeof window !== "undefined" && window.innerWidth >= 768,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  const sendMobileLink = () => {
+    if (!user?.email) {
+      toast({
+        title: "No email on file",
+        description: "Update your profile with an email address first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const addBookUrl = `${window.location.origin}/add-book`;
+    const subject = encodeURIComponent("Add a book on Unshelv'd");
+    const body = encodeURIComponent(
+      `Here's your link to add a book using your phone camera:\n\n${addBookUrl}\n\nJust open this on your phone to scan the barcode or take a photo of the cover.`,
+    );
+    const to = encodeURIComponent(user.email);
+    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+    toast({ title: "Opening email app…", description: "Send the link to yourself and open it on your phone." });
+  };
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -280,6 +311,39 @@ export default function AddBook() {
           <CardTitle className="font-serif text-2xl">Add a Book</CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Desktop: offer to email a link so users can add the book via phone camera */}
+          {isDesktop && !emailBannerDismissed && (
+            <div className="mb-5 flex items-start gap-3 rounded-lg border border-border bg-muted/50 px-4 py-3">
+              <Smartphone className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">Want to use your phone camera?</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Email yourself a link to scan the barcode or take a photo of the cover.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 text-xs h-8"
+                  onClick={sendMobileLink}
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  Email me a link
+                </Button>
+                <button
+                  type="button"
+                  aria-label="Dismiss"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setEmailBannerDismissed(true)}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Book search / autofill */}
           <div className="mb-6" ref={searchRef}>
             <label className="text-sm font-medium mb-1 block">
