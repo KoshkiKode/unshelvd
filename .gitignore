@@ -29,3 +29,6 @@ ios/App/Pods/
 
 # Tauri
 src-tauri/target/
+
+# Test coverage output
+coverage/

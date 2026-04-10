@@ -197,10 +197,9 @@ describe("validateIdParam", () => {
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it("returns 400 for a float string that parses to 0 (edge case)", () => {
-    // "0.5" → parseInt("0.5") = 0 which passes the < 0 check, so id = 0
-    // validateIdParam checks id === null, and 0 !== null → calls next()
-    // This documents the actual behavior of the middleware
+  it("calls next() for a float string that parses to 0 (edge case)", () => {
+    // parseInt("0.5") = 0 which is ≥ 0, so parseIntParam returns 0.
+    // validateIdParam checks id === null; since 0 !== null it calls next().
     const req = { params: { id: "0.5" } } as any;
     const res = makeRes();
     const next = vi.fn();
