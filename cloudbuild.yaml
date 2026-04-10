@@ -4,9 +4,16 @@
 # One-command deploy:
 #   gcloud builds submit --config=cloudbuild.yaml [--substitutions=...]
 #
-# Required secrets in Secret Manager (create once — see DEPLOY.md):
-#   DATABASE_URL  — Cloud SQL Unix-socket connection string
-#   SESSION_SECRET — random 32-byte hex string
+# Required secrets in Secret Manager (create once — see DEPLOY.md § "Secrets"):
+#   DATABASE_URL          — Cloud SQL Unix-socket connection string
+#   SESSION_SECRET        — random 32-byte hex string
+#
+# Optional secrets for Stripe payments (see DEPLOY.md § "Stripe Payments"):
+#   STRIPE_SECRET_KEY     — Stripe server-side secret key  (sk_live_... / sk_test_...)
+#   STRIPE_WEBHOOK_SECRET — Stripe webhook signing secret  (whsec_...)
+#
+# NOTE: VITE_STRIPE_PUBLISHABLE_KEY is a build-time env var, not a runtime secret.
+#       Pass it via --substitutions=_STRIPE_PK=pk_live_... (see substitutions below).
 #
 # Substitutions (override with --substitutions flag):
 #   _REGION           GCP region                   (default: us-central1)
@@ -23,6 +30,10 @@ substitutions:
   _SQL_INSTANCE: unshelvd-db
   _MEMORY: 512Mi
   _MAX_INSTANCES: "3"
+  # Stripe publishable key — safe to embed at build time (not a secret).
+  # Override at deploy time:  --substitutions=_STRIPE_PK=pk_live_...
+  # Leave blank to run in dev/no-payment mode.
+  _STRIPE_PK: ""
 
 steps:
   # 1. Build the Docker image
@@ -82,6 +93,16 @@ steps:
       - "--wait"
 
   # 5. Deploy the main Cloud Run service
+  #
+  # ── Stripe secrets ──────────────────────────────────────────────────────────
+  # To enable payments, add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET to
+  # Secret Manager first (see DEPLOY.md § "Stripe Payments"), then uncomment
+  # the two secrets below in --set-secrets and pass _STRIPE_PK at deploy time:
+  #
+  #   gcloud builds submit --config=cloudbuild.yaml \
+  #     --substitutions=_STRIPE_PK=pk_live_...
+  #
+  # ────────────────────────────────────────────────────────────────────────────
   - name: "gcr.io/cloud-builders/gcloud"
     args:
       - "run"
@@ -98,8 +119,9 @@ steps:
       - "--max-instances=${_MAX_INSTANCES}"
       - "--startup-cpu-boost"
       - "--set-cloudsql-instances=${PROJECT_ID}:${_REGION}:${_SQL_INSTANCE}"
+      # Add ,STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest when Stripe secrets exist in Secret Manager
       - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest"
-      - "--set-env-vars=NODE_ENV=production"
+      - "--set-env-vars=NODE_ENV=production,VITE_STRIPE_PUBLISHABLE_KEY=${_STRIPE_PK}"
 
 images:
   - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE_NAME}"

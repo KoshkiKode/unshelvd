@@ -160,21 +160,62 @@ echo -n "NEW_URL" | gcloud secrets versions add DATABASE_URL --data-file=-
 
 ---
 
-## Optional: Stripe Integration
+## Stripe Payments (Required to buy/sell books)
 
-Add your Stripe keys as additional secrets and pass them to Cloud Run:
+Stripe keys are **never committed to the repo**. Store them in Google Cloud Secret Manager and inject them at deploy time.
+
+### 1. Create the three secrets
 
 ```bash
+# Server-side secret key — get from https://dashboard.stripe.com/apikeys
 echo -n "sk_live_..." | gcloud secrets create STRIPE_SECRET_KEY \
   --replication-policy=automatic --data-file=-
 
+# Webhook signing secret — get from https://dashboard.stripe.com/webhooks
+# (create an endpoint pointing to https://YOUR_DOMAIN/api/webhooks/stripe)
 echo -n "whsec_..." | gcloud secrets create STRIPE_WEBHOOK_SECRET \
   --replication-policy=automatic --data-file=-
 ```
 
-Then add to the `--set-secrets` flag in step 5 of `cloudbuild.yaml`:
+> **VITE_STRIPE_PUBLISHABLE_KEY** (`pk_live_...`) is a public key — it is **not**
+> a secret. Pass it as a build substitution, not via Secret Manager (see step 3).
+
+### 2. Grant the Cloud Run service account access
+
+```bash
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+
+for SECRET in STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET; do
+  gcloud secrets add-iam-policy-binding $SECRET \
+    --member="serviceAccount:${SA}" \
+    --role="roles/secretmanager.secretAccessor"
+done
 ```
---set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest,STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest
+
+### 3. Deploy with Stripe enabled
+
+Uncomment the two Stripe secrets in `cloudbuild.yaml` step 5 (`--set-secrets`),
+then deploy with your publishable key as a substitution:
+
+```bash
+gcloud builds submit --config=cloudbuild.yaml \
+  --substitutions=_STRIPE_PK=pk_live_...
+```
+
+### Rotate / update Stripe keys
+
+```bash
+# Rotate the server secret key
+echo -n "sk_live_NEW..." | gcloud secrets versions add STRIPE_SECRET_KEY --data-file=-
+
+# Rotate the webhook secret
+echo -n "whsec_NEW..." | gcloud secrets versions add STRIPE_WEBHOOK_SECRET --data-file=-
+```
+
+A new Cloud Run revision is needed after rotation so it picks up the new version:
+```bash
+gcloud builds submit --config=cloudbuild.yaml --substitutions=_STRIPE_PK=pk_live_...
 ```
 
 ---
