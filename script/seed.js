@@ -373,7 +373,8 @@ async function seed() {
     if (!hasUsers) {
       console.log('Seeding users and books...');
 
-      const demoHash = await bcrypt.hash('DemoPassword!234', 12);
+      const demoPassword = process.env.DEMO_PASSWORD || crypto.randomBytes(10).toString('base64url').slice(0, 14) + '!D1';
+      const demoHash = await bcrypt.hash(demoPassword, 12);
       const adminPass = process.env.ADMIN_PASSWORD || crypto.randomBytes(12).toString('base64url').slice(0, 16) + '!A1';
       const adminHash = await bcrypt.hash(adminPass, 12);
       const adminUsername = process.env.ADMIN_USERNAME || crypto.randomBytes(4).toString('hex');
