@@ -4,7 +4,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * VITE_API_URL must be set when building a production native app so that
  * Capacitor knows where your backend lives.  Example:
  *
- *   VITE_API_URL=https://api.unshelvd.com npm run build && npx cap sync
+ *   VITE_API_URL=https://unshelvd.koshkikode.com npm run build && npx cap sync
  *
  * In development the API base falls back to:
  *   - Android emulator → http://10.0.2.2:5000

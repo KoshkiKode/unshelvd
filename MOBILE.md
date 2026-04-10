@@ -46,7 +46,7 @@ Send this to testers — they can install it directly.
 
 ```bash
 # Set your production API URL and build
-VITE_API_URL=https://your-cloud-run-url.a.run.app npm run build
+VITE_API_URL=https://unshelvd.koshkikode.com npm run build
 npx cap sync android
 
 cd android
@@ -96,12 +96,12 @@ The app automatically routes API calls to the right server:
 | Local dev (browser) | `localhost:5000` (same origin) |
 | Android Emulator | `10.0.2.2:5000` (host machine) |
 | iOS Simulator | `localhost:5000` |
-| Production (native) | `VITE_API_URL` env var (your Cloud Run URL) |
+| Production (native) | `VITE_API_URL` env var (`https://unshelvd.koshkikode.com`) |
 | Deployed web | Proxy path (set at deploy time) |
 
 Set `VITE_API_URL` when building for production:
 ```bash
-VITE_API_URL=https://unshelvd-xxxxx-uc.a.run.app npm run build
+VITE_API_URL=https://unshelvd.koshkikode.com npm run build
 npx cap sync
 ```
 
