@@ -198,15 +198,10 @@ describe("resolveWork — Strategy 3: medium confidence when titles overlap", ()
     // Make fetch fail so strategies 1 and 2 fall through to strategy 3
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network error")));
 
-    // normTitle    = normalizeTitle("Dune: The Complete Epic") → "dune the complete epic"
-    // matchNormTitle = normalizeTitle("Dune")                  → "dune"
-    // "dune".includes("dune the complete epic") is false  → left branch NOT taken
-    // "dune the complete epic".includes("dune")  is true  → right branch taken ← line 137
-    //
-    // normAuthor    = normalizeAuthor("Frank Herbert") → "frank herbert"
-    // matchNormAuthor = normalizeAuthor("Herbert")      → "herbert"
-    // "herbert".includes("frank herbert") is false     → left branch NOT taken
-    // "frank herbert".includes("herbert")  is true     → right branch taken ← line 138
+    // The input title "Dune: The Complete Epic" normalises to a string that
+    // contains the match title "Dune". The match author "Herbert" is contained
+    // by the input author "Frank Herbert". Both containment checks use the
+    // right-side (reverse) branch of the || in the medium-confidence condition.
     dbResults.push([
       { id: 20, title: "Dune", author: "Herbert" },
     ]);
@@ -610,7 +605,7 @@ describe("updateWorkStats", () => {
 
     expect((db as any).set).toHaveBeenCalledWith(
       expect.objectContaining({
-        translationCount: 0, // transStats.count || 0 → 0 || 0 = 0
+        translationCount: 0,
       }),
     );
   });
@@ -841,8 +836,8 @@ describe("resolveWork — Strategy 2: falls through when doc.key is not a /works
 
   it("uses fallback author, null year and edition count of 1 when doc fields are missing", async () => {
     // A doc with a valid /works/ key and matching title, but no author_name,
-    // first_publish_year or edition_count → exercises the falsy || branches on
-    // lines 286, 287, and 289 of searchOpenLibraryWork.
+    // first_publish_year, or edition_count → exercises the falsy || fallback
+    // branches in searchOpenLibraryWork's return statement.
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValueOnce({

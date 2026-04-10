@@ -138,7 +138,7 @@ function pushDbResults(...values: any[]) {
 
 /**
  * Log in as `user` and return a persistent supertest agent whose session
- * cookie is preserved across requests.  Call `mockStorage.getUser.mockResolvedValueOnce(user)`
+ * cookie is preserved across requests. Call `mockStorage.getUser.mockResolvedValueOnce(user)`
  * before each subsequent authenticated request so that passport's
  * deserializeUser can find the user.
  */
