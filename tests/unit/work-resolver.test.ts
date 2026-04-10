@@ -193,6 +193,27 @@ describe("resolveWork — Strategy 3: medium confidence when titles overlap", ()
     expect(result.workId).toBe(15);
     expect(result.confidence).toBe("medium");
   });
+
+  it("returns medium confidence when the input title contains the match title (reverse direction)", async () => {
+    // Make fetch fail so strategies 1 and 2 fall through to strategy 3
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network error")));
+
+    // The input title "Dune: The Complete Epic" normalises to a string that
+    // contains the match title "Dune". The match author "Herbert" is contained
+    // by the input author "Frank Herbert". Both containment checks use the
+    // right-side (reverse) branch of the || in the medium-confidence condition.
+    dbResults.push([
+      { id: 20, title: "Dune", author: "Herbert" },
+    ]);
+
+    const result = await resolveWork({
+      title: "Dune: The Complete Epic",
+      author: "Frank Herbert",
+    });
+    expect(result.isNew).toBe(false);
+    expect(result.workId).toBe(20);
+    expect(result.confidence).toBe("medium");
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -569,5 +590,624 @@ describe("updateWorkStats", () => {
     // Should not throw even if the work row doesn't exist
     await expect(updateWorkStats(999)).resolves.toBeUndefined();
     expect((db as any).update).toHaveBeenCalled();
+  });
+
+  it("sets translationCount to 0 when the translation query returns count 0", async () => {
+    dbResults.push(
+      [{ count: 3, languages: 2 }],                   // editionStats
+      [{ count: 5 }],                                  // listingStats
+      [{ id: 4, originalLanguage: "English" }],        // work lookup — has originalLanguage
+      [{ count: 0 }],                                  // transStats — zero translations
+      [],                                              // update result
+    );
+
+    await updateWorkStats(4);
+
+    expect((db as any).set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        translationCount: 0,
+      }),
+    );
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// resolveWork — resolveViaOpenLibrary: non-ok fetch responses
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("resolveWork — resolveViaOpenLibrary: non-ok HTTP responses fall through", () => {
+  beforeEach(() => {
+    dbResults.length = 0;
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("falls through when the ISBN edition fetch returns a non-ok response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        // ISBN endpoint returns non-ok → resolveViaOpenLibrary returns null
+        .mockResolvedValueOnce({ ok: false })
+        // Strategy 2: OL title+author search → no docs
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ docs: [] }),
+        }),
+    );
+
+    // Strategy 3 fuzzy: no match
+    dbResults.push([]);
+    // Strategy 4 insert
+    dbResults.push([{ id: 500, title: "Test Book", author: "Test Author" }]);
+
+    const result = await resolveWork({
+      title: "Test Book",
+      author: "Test Author",
+      isbn: "8888888888",
+    });
+
+    expect(result.confidence).toBe("created");
+    expect(result.isNew).toBe(true);
+    expect(result.workId).toBe(500);
+  });
+
+  it("falls through when the work-detail fetch returns a non-ok response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        // ISBN endpoint returns ok with a work key
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ title: "Test Book", works: [{ key: "/works/OL600W" }] }),
+        })
+        // Work-detail fetch returns non-ok → resolveViaOpenLibrary returns null
+        .mockResolvedValueOnce({ ok: false })
+        // Strategy 2: OL title+author search → no docs
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ docs: [] }),
+        }),
+    );
+
+    // Strategy 3 fuzzy: no match
+    dbResults.push([]);
+    // Strategy 4 insert
+    dbResults.push([{ id: 501, title: "Test Book", author: "Test Author" }]);
+
+    const result = await resolveWork({
+      title: "Test Book",
+      author: "Test Author",
+      isbn: "9999999999",
+    });
+
+    expect(result.confidence).toBe("created");
+    expect(result.isNew).toBe(true);
+    expect(result.workId).toBe(501);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// resolveWork — Strategy 1: input.year fallback (branch coverage for line 74)
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("resolveWork — Strategy 1: uses input.year when OL work lacks firstPublishYear", () => {
+  beforeEach(() => {
+    dbResults.length = 0;
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("falls back to input.year when the OL work has no first_publish_date", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ title: "Dune", works: [{ key: "/works/OL123W" }] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            title: "Dune",
+            authors: [{ author: { key: "/authors/OL1A" } }],
+            covers: [],
+            // deliberately omit first_publish_date so firstPublishYear → null
+            edition_count: 5,
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ name: "Frank Herbert" }),
+        }),
+    );
+
+    // No existing work by OL work ID, then insert returns new work
+    dbResults.push(
+      [],
+      [{ id: 77, title: "Dune", author: "Frank Herbert" }],
+    );
+
+    const result = await resolveWork({
+      title: "Dune",
+      author: "Frank Herbert",
+      isbn: "9780441013593",
+      year: 1965, // should be used as the fallback when OL provides no year
+    });
+
+    expect(result.isNew).toBe(true);
+    expect(result.confidence).toBe("exact");
+    expect(result.workId).toBe(77);
+    // The insert should have been called with the fallback year value
+    expect((db as any).values).toHaveBeenCalledWith(
+      expect.objectContaining({ firstPublishedYear: 1965 }),
+    );
+  });
+
+  it("uses null for firstPublishedYear when neither OL nor input provides a year", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ title: "Obscure Book", works: [{ key: "/works/OL999W" }] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            title: "Obscure Book",
+            // No first_publish_date and no authors
+            edition_count: 1,
+          }),
+        }),
+    );
+
+    dbResults.push(
+      [],
+      [{ id: 78, title: "Obscure Book", author: "Unknown" }],
+    );
+
+    const result = await resolveWork({
+      title: "Obscure Book",
+      author: "Unknown",
+      isbn: "0000000001",
+      // no year provided
+    });
+
+    expect(result.isNew).toBe(true);
+    expect(result.confidence).toBe("exact");
+    // The insert should have been called with null for firstPublishedYear
+    expect((db as any).values).toHaveBeenCalledWith(
+      expect.objectContaining({ firstPublishedYear: null }),
+    );
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// resolveWork — Strategy 2: searchOpenLibraryWork rejects non-/works/ keys
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("resolveWork — Strategy 2: falls through when doc.key is not a /works/ path", () => {
+  beforeEach(() => {
+    dbResults.length = 0;
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("falls through to strategy 4 when doc.key is not a /works/ path", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          docs: [
+            {
+              // A book-level key rather than a work-level key
+              key: "/books/OL123M",
+              title: "Dune",
+              author_name: ["Frank Herbert"],
+              first_publish_year: 1965,
+              edition_count: 5,
+            },
+          ],
+        }),
+      }),
+    );
+
+    // Strategy 3 fuzzy: no match in db
+    dbResults.push([]);
+    // Strategy 4 insert
+    dbResults.push([{ id: 200, title: "Dune", author: "Frank Herbert" }]);
+
+    const result = await resolveWork({ title: "Dune", author: "Frank Herbert" });
+    // searchOpenLibraryWork returns null → falls through to strategy 4
+    expect(result.confidence).toBe("created");
+    expect(result.isNew).toBe(true);
+    expect(result.workId).toBe(200);
+  });
+
+  it("uses fallback author, null year and edition count of 1 when doc fields are missing", async () => {
+    // A doc with a valid /works/ key and matching title, but no author_name,
+    // first_publish_year, or edition_count → exercises the falsy || fallback
+    // branches in searchOpenLibraryWork's return statement.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          docs: [
+            {
+              key: "/works/OL789W",
+              title: "Foundation",
+              // author_name omitted → fallback to input author
+              // first_publish_year omitted → null
+              // edition_count omitted → 1
+            },
+          ],
+        }),
+      }),
+    );
+
+    // db: no existing work for that OL ID, then insert new work
+    dbResults.push(
+      [],
+      [{ id: 201, title: "Foundation", author: "Isaac Asimov" }],
+    );
+
+    const result = await resolveWork({ title: "Foundation", author: "Isaac Asimov" });
+    expect(result.isNew).toBe(true);
+    expect(result.confidence).toBe("high");
+    expect(result.workId).toBe(201);
+    // Confirm fallback values were propagated into the insert
+    expect((db as any).values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        author: "Isaac Asimov",   // from input, not doc.author_name
+        firstPublishedYear: null, // doc.first_publish_year was absent
+        editionCount: 1,          // doc.edition_count was absent
+      }),
+    );
+  });
+
+  it("falls through to strategy 4 when the search fetch returns a non-ok response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce({ ok: false }),
+    );
+
+    // Strategy 3 fuzzy: no match
+    dbResults.push([]);
+    // Strategy 4 insert
+    dbResults.push([{ id: 202, title: "Some Book", author: "Some Author" }]);
+
+    const result = await resolveWork({ title: "Some Book", author: "Some Author" });
+    expect(result.confidence).toBe("created");
+    expect(result.isNew).toBe(true);
+    expect(result.workId).toBe(202);
+  });
+
+  it("normalises a doc with a null title using the empty-string fallback", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          docs: [
+            {
+              key: "/works/OL321W",
+              // title is absent — normalizeTitle uses || "" fallback
+              author_name: ["Ghost Author"],
+              first_publish_year: 2000,
+              edition_count: 2,
+            },
+          ],
+        }),
+      }),
+    );
+
+    // db: no existing work, then insert
+    dbResults.push(
+      [],
+      [{ id: 203, title: "Mystery Title", author: "Some Author" }],
+    );
+
+    const result = await resolveWork({ title: "Mystery Title", author: "Some Author" });
+    // searchOpenLibraryWork returns the result (empty normResult includes "" prefix)
+    // but normTitle "" includes normResult.substring(0,10) check passes → result returned
+    expect(result.isNew).toBe(true);
+    expect(result.workId).toBe(203);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// resolveWork — resolveViaOpenLibrary: remaining branch coverage
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("resolveWork — resolveViaOpenLibrary: edition_count and description branches", () => {
+  beforeEach(() => {
+    dbResults.length = 0;
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("defaults edition count to 1 when the OL work has no edition_count field", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ title: "Niche Book", works: [{ key: "/works/OL555W" }] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            title: "Niche Book",
+            // No edition_count → should default to 1
+          }),
+        }),
+    );
+
+    dbResults.push(
+      [],
+      [{ id: 300, title: "Niche Book", author: "Unknown" }],
+    );
+
+    const result = await resolveWork({
+      title: "Niche Book",
+      author: "Unknown",
+      isbn: "1111111111",
+    });
+
+    expect(result.isNew).toBe(true);
+    expect((db as any).values).toHaveBeenCalledWith(
+      expect.objectContaining({ editionCount: 1 }),
+    );
+  });
+
+  it("uses the description.value string when the OL work description is an object", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ title: "Rich Book", works: [{ key: "/works/OL777W" }] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            title: "Rich Book",
+            // description as an object with a value field (Open Library format)
+            description: { value: "A richly detailed story." },
+            edition_count: 3,
+          }),
+        }),
+    );
+
+    dbResults.push(
+      [],
+      [{ id: 301, title: "Rich Book", author: "Unknown" }],
+    );
+
+    const result = await resolveWork({
+      title: "Rich Book",
+      author: "Unknown",
+      isbn: "2222222222",
+    });
+
+    expect(result.isNew).toBe(true);
+    expect((db as any).values).toHaveBeenCalledWith(
+      expect.objectContaining({ description: "A richly detailed story." }),
+    );
+  });
+
+  it("uses a plain string description when the OL work description is a string", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ title: "Plain Book", works: [{ key: "/works/OL888W" }] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            title: "Plain Book",
+            description: "A plain string description.",
+            edition_count: 2,
+          }),
+        }),
+    );
+
+    dbResults.push(
+      [],
+      [{ id: 302, title: "Plain Book", author: "Unknown" }],
+    );
+
+    const result = await resolveWork({
+      title: "Plain Book",
+      author: "Unknown",
+      isbn: "3333333333",
+    });
+
+    expect(result.isNew).toBe(true);
+    expect((db as any).values).toHaveBeenCalledWith(
+      expect.objectContaining({ description: "A plain string description." }),
+    );
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// resolveWork — resolveViaOpenLibrary: author fetch edge cases
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("resolveWork — resolveViaOpenLibrary: author name and title fallback branches", () => {
+  beforeEach(() => {
+    dbResults.length = 0;
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("falls back to 'Unknown' when the author fetch returns no name", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ title: "Anon Book", works: [{ key: "/works/OL400W" }] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            title: "Anon Book",
+            authors: [{ author: { key: "/authors/OL9A" } }],
+            edition_count: 1,
+          }),
+        })
+        // Author fetch returns a response with no name field
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({}), // no name → authorName stays "Unknown"
+        }),
+    );
+
+    dbResults.push(
+      [],
+      [{ id: 400, title: "Anon Book", author: "Unknown" }],
+    );
+
+    const result = await resolveWork({
+      title: "Anon Book",
+      author: "SomeAuthor",
+      isbn: "4444444444",
+    });
+
+    expect(result.isNew).toBe(true);
+    expect((db as any).values).toHaveBeenCalledWith(
+      expect.objectContaining({ author: "Unknown" }),
+    );
+  });
+
+  it("silently uses 'Unknown' when the author detail fetch throws", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ title: "Anon Book 2", works: [{ key: "/works/OL401W" }] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            title: "Anon Book 2",
+            authors: [{ author: { key: "/authors/OL10A" } }],
+            edition_count: 1,
+          }),
+        })
+        // Author fetch throws — inner catch swallows it, authorName stays "Unknown"
+        .mockRejectedValueOnce(new Error("Author fetch failed")),
+    );
+
+    dbResults.push(
+      [],
+      [{ id: 401, title: "Anon Book 2", author: "Unknown" }],
+    );
+
+    const result = await resolveWork({
+      title: "Anon Book 2",
+      author: "SomeAuthor",
+      isbn: "5555555555",
+    });
+
+    expect(result.isNew).toBe(true);
+    expect((db as any).values).toHaveBeenCalledWith(
+      expect.objectContaining({ author: "Unknown" }),
+    );
+  });
+
+  it("falls back to edition.title when the OL work has no title of its own", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          // edition has title but work won't
+          json: async () => ({
+            title: "Edition Title Only",
+            works: [{ key: "/works/OL402W" }],
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            // work.title is absent — resolveViaOpenLibrary falls back to edition.title
+            edition_count: 2,
+          }),
+        }),
+    );
+
+    dbResults.push(
+      [],
+      [{ id: 402, title: "Edition Title Only", author: "Unknown" }],
+    );
+
+    const result = await resolveWork({
+      title: "Edition Title Only",
+      author: "Unknown",
+      isbn: "6666666666",
+    });
+
+    expect(result.isNew).toBe(true);
+    expect((db as any).values).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Edition Title Only" }),
+    );
+  });
+
+  it("sets firstPublishedYear to null when first_publish_date is a non-numeric string", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ title: "Old Book", works: [{ key: "/works/OL403W" }] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            title: "Old Book",
+            // Non-numeric → parseInt returns NaN → || null gives null
+            first_publish_date: "circa 1800",
+            edition_count: 1,
+          }),
+        }),
+    );
+
+    dbResults.push(
+      [],
+      [{ id: 403, title: "Old Book", author: "Unknown" }],
+    );
+
+    const result = await resolveWork({
+      title: "Old Book",
+      author: "Unknown",
+      isbn: "7777777777",
+    });
+
+    expect(result.isNew).toBe(true);
+    expect((db as any).values).toHaveBeenCalledWith(
+      expect.objectContaining({ firstPublishedYear: null }),
+    );
   });
 });
