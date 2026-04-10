@@ -215,10 +215,6 @@ describe("getPasswordStrength", () => {
   });
 
   it("returns labels and colors corresponding to score indices", () => {
-    const scores: [string, string, string][] = [
-      ["aaaaaaaaaaaa", "Fair", "text-orange-500"], // score 1
-      ["AaBbCcDdEeFf", "Good", "text-yellow-500"], // score 3... actually let me check
-    ];
     // Validate score 1 (length ≥ 12 only)
     const s1 = getPasswordStrength("aaaaaaaaaaaa");
     expect(s1.label).toBe("Fair");
