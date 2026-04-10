@@ -403,7 +403,8 @@ async function seed() {
   // ═══════════════════════════════════════
   // DEMO USERS
   // ═══════════════════════════════════════
-  const demoHash = await bcrypt.hash("DemoPassword!234", 12);
+  const demoPassword = process.env.DEMO_PASSWORD || crypto.randomBytes(10).toString("base64url").slice(0, 14) + "!D1";
+  const demoHash = await bcrypt.hash(demoPassword, 12);
 
   const [jane] = await db.insert(users).values({
     username: "bookworm",

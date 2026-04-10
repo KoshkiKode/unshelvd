@@ -12,7 +12,7 @@ services:
     environment:
       POSTGRES_DB: unshelvd
       POSTGRES_USER: unshelvd
-      POSTGRES_PASSWORD: unshelvd_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-unshelvd_dev}
     ports:
       - "5432:5432"
     volumes:
@@ -29,10 +29,10 @@ services:
     ports:
       - "8080:8080"
     environment:
-      DATABASE_URL: postgresql://unshelvd:unshelvd_dev@db:5432/unshelvd
+      DATABASE_URL: ${DATABASE_URL:-postgresql://unshelvd:unshelvd_dev@db:5432/unshelvd}
       NODE_ENV: production
       PORT: "8080"
-      SESSION_SECRET: change-me-in-production
+      SESSION_SECRET: ${SESSION_SECRET:-unshelvd-dev-secret-change-me}
     depends_on:
       db:
         condition: service_healthy
