@@ -27,7 +27,10 @@
     "catalog:seed": "tsx server/catalog-import.ts --api",
     "catalog:import": "tsx server/catalog-import.ts",
     "catalog:mass-seed": "tsx server/catalog-mass-seed.ts",
-    "catalog:mass-seed:py": "python3 scripts/seed-catalog.py"
+    "catalog:mass-seed:py": "python3 scripts/seed-catalog.py",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.0",
@@ -125,15 +128,19 @@
     "@types/passport-local": "^1.0.38",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
+    "@types/supertest": "^6.0.2",
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.7.0",
+    "@vitest/coverage-v8": "^2.1.9",
     "autoprefixer": "^10.4.20",
     "esbuild": "^0.25.0",
     "postcss": "^8.4.47",
+    "supertest": "^7.0.0",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.20.5",
     "typescript": "5.6.3",
-    "vite": "^7.3.2"
+    "vite": "^7.3.2",
+    "vitest": "^2.1.9"
   },
   "overrides": {
     "drizzle-kit": {
