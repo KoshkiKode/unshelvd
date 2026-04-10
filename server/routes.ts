@@ -259,8 +259,10 @@ export async function registerRoutes(
     try {
       const userId = parseIntParam(req.params.userId);
       if (!userId) return res.status(400).json({ message: "Invalid user ID" });
-      const limit = Math.min(parseInt(req.query.limit as string) || 200, 200);
-      const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+      const rawLimit = parseInt(req.query.limit as string);
+      const rawOffset = parseInt(req.query.offset as string);
+      const limit = Math.min(!Number.isNaN(rawLimit) && rawLimit > 0 ? rawLimit : 200, 200);
+      const offset = !Number.isNaN(rawOffset) && rawOffset > 0 ? rawOffset : 0;
       const booksList = await storage.getBooksByUser(userId, limit, offset);
       return res.json(booksList);
     } catch (err) {
