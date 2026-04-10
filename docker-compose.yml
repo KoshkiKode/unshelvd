@@ -32,7 +32,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://unshelvd:unshelvd_dev@db:5432/unshelvd}
       NODE_ENV: production
       PORT: "8080"
-      SESSION_SECRET: ${SESSION_SECRET}
+      SESSION_SECRET: ${SESSION_SECRET:-unshelvd-dev-secret-change-me}
     depends_on:
       db:
         condition: service_healthy
