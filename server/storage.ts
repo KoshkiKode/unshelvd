@@ -36,7 +36,7 @@ export interface IStorage {
   // Books
   getBook(id: number): Promise<Book | undefined>;
   getBooks(filters: BookFilters): Promise<Book[]>;
-  getBooksByUser(userId: number): Promise<Book[]>;
+  getBooksByUser(userId: number, limit?: number, offset?: number): Promise<Book[]>;
   createBook(userId: number, book: InsertBook): Promise<Book>;
   updateBook(id: number, userId: number, book: Partial<InsertBook>): Promise<Book | undefined>;
   deleteBook(id: number, userId: number): Promise<boolean>;
@@ -188,8 +188,14 @@ export class DatabaseStorage implements IStorage {
     return await query;
   }
 
-  async getBooksByUser(userId: number): Promise<Book[]> {
-    return await db.select().from(books).where(eq(books.userId, userId)).orderBy(desc(books.id));
+  async getBooksByUser(userId: number, limit = 200, offset = 0): Promise<Book[]> {
+    return await db
+      .select()
+      .from(books)
+      .where(eq(books.userId, userId))
+      .orderBy(desc(books.id))
+      .limit(limit)
+      .offset(offset);
   }
 
   async createBook(userId: number, book: InsertBook): Promise<Book> {

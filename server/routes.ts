@@ -259,7 +259,11 @@ export async function registerRoutes(
     try {
       const userId = parseIntParam(req.params.userId);
       if (!userId) return res.status(400).json({ message: "Invalid user ID" });
-      const booksList = await storage.getBooksByUser(userId);
+      const rawLimit = parseInt(req.query.limit as string);
+      const rawOffset = parseInt(req.query.offset as string);
+      const limit = Math.min(!Number.isNaN(rawLimit) && rawLimit > 0 ? rawLimit : 200, 200);
+      const offset = !Number.isNaN(rawOffset) && rawOffset > 0 ? rawOffset : 0;
+      const booksList = await storage.getBooksByUser(userId, limit, offset);
       return res.json(booksList);
     } catch (err) {
       return res.status(500).json({ message: "Failed to fetch user books" });
