@@ -82,7 +82,8 @@ export async function registerRoutes(
   app: Express,
 ): Promise<Server> {
   // Session setup
-  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+  const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+  const SESSION_PRUNE_INTERVAL_S = 15 * 60;        // prune expired sessions every 15 min
 
   // In production use a PostgreSQL-backed session store so sessions survive
   // across multiple Cloud Run instances.  In development fall back to the
@@ -94,10 +95,10 @@ export async function registerRoutes(
           tableName: "user_sessions",
           // Auto-create the session table on first connect
           createTableIfMissing: true,
-          ttl: sessionTtl / 1000, // pg store uses seconds
-          pruneSessionInterval: 60 * 15, // prune expired sessions every 15 min
+          ttl: SESSION_TTL_MS / 1000, // pg store uses seconds
+          pruneSessionInterval: SESSION_PRUNE_INTERVAL_S,
         })
-      : new MemoryStore({ checkPeriod: sessionTtl });
+      : new MemoryStore({ checkPeriod: SESSION_TTL_MS });
 
   app.use(
     session({
@@ -106,7 +107,7 @@ export async function registerRoutes(
       saveUninitialized: false,
       store: sessionStore,
       cookie: {
-        maxAge: sessionTtl,
+        maxAge: SESSION_TTL_MS,
         // For Capacitor native apps making cross-origin requests:
         sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         secure: process.env.NODE_ENV === "production",
