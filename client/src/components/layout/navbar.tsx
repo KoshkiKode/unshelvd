@@ -3,8 +3,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { BookOpen, Menu, MessageSquare, Search, LayoutDashboard, User, LogOut, Sun, Moon, Info, Globe2, Shield } from "lucide-react";
-import { useState, useEffect } from "react";
+import { BookOpen, Menu, MessageSquare, Search, LayoutDashboard, User, LogOut, Sun, Moon, Info, Globe2, Shield, Library, Settings } from "lucide-react";
+import { useState } from "react";
 import { useI18n } from "@/i18n/use-i18n";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { Locale } from "@/i18n/translations";
@@ -13,17 +13,22 @@ export default function Navbar() {
   const { user, logout } = useAuth();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(() => {
+    try {
+      return localStorage.getItem("theme") === "dark";
+    } catch {
+      return document.documentElement.classList.contains("dark");
+    }
+  });
   const { t, locale, setLocale, locales } = useI18n();
 
-  useEffect(() => {
-    const stored = document.documentElement.classList.contains("dark");
-    setDark(stored);
-  }, []);
-
   const toggleDark = () => {
-    setDark(!dark);
-    document.documentElement.classList.toggle("dark");
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    try {
+      localStorage.setItem("theme", next ? "dark" : "light");
+    } catch {}
   };
 
   const { data: unreadData } = useQuery<{ count: number }>({
@@ -36,6 +41,7 @@ export default function Navbar() {
 
   const navLinks = [
     { href: "/browse", label: "Browse", icon: Search },
+    { href: "/catalog", label: "Catalog", icon: Library },
     { href: "/requests", label: "Requests", icon: BookOpen },
     { href: "/about", label: "About", icon: Info },
   ];
@@ -50,6 +56,7 @@ export default function Navbar() {
           badge: unreadCount,
         },
         { href: `/user/${user.id}`, label: "Profile", icon: User },
+        { href: "/dashboard/settings", label: "Settings", icon: Settings },
         // Admin link (only visible to admins)
         ...((user as any).role === "admin" ? [{ href: "/admin", label: "Admin", icon: Shield }] : []),
       ]

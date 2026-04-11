@@ -88,12 +88,12 @@ export default function About() {
           <div className="text-center p-3 rounded-lg bg-muted border border-border">
             <p className="font-serif text-xl font-bold">9%</p>
             <p className="text-[10px] text-muted-foreground mt-1">Phase 2</p>
-            <p className="text-[10px] text-muted-foreground">1,000 users</p>
+            <p className="text-[10px] text-muted-foreground">500 sales/mo</p>
           </div>
           <div className="text-center p-3 rounded-lg bg-muted border border-border">
             <p className="font-serif text-xl font-bold">7.5%</p>
             <p className="text-[10px] text-muted-foreground mt-1">Phase 3</p>
-            <p className="text-[10px] text-muted-foreground">10,000 users</p>
+            <p className="text-[10px] text-muted-foreground">2,500 sales/mo</p>
           </div>
           <div className="text-center p-3 rounded-lg bg-muted border border-border">
             <p className="font-serif text-xl font-bold">5%</p>
