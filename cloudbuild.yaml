@@ -100,9 +100,12 @@ steps:
       - "--args=script/seed.js"
       - "--region=${_REGION}"
       - "--set-cloudsql-instances=${PROJECT_ID}:${_REGION}:${_SQL_INSTANCE}"
-      # Admin credential secrets are optional — if not set in Secret Manager,
-      # the seed script auto-generates credentials (logged to Cloud Run job output).
-      - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest,ADMIN_EMAIL=ADMIN_EMAIL:latest,ADMIN_USERNAME=ADMIN_USERNAME:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest"
+      # Admin credential secrets are optional.
+      # If ADMIN_EMAIL, ADMIN_USERNAME, or ADMIN_PASSWORD do not yet exist in
+      # Secret Manager, remove them from --set-secrets below and the seed script
+      # will auto-generate credentials (printed to the job log — save immediately).
+      # Create them first with: see DEPLOY.md § "Admin Credentials"
+      - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest"
       - "--set-env-vars=NODE_ENV=production"
       - "--max-retries=1"
       - "--task-timeout=300s"

@@ -12,6 +12,12 @@ import rateLimit, { type Store, type ClientRateLimitInfo } from "express-rate-li
 import type { Pool } from "pg";
 import type { Express, Request, Response, NextFunction } from "express";
 
+// Rate limiter window durations — defined at module level for easy tuning
+const AUTH_WINDOW_MS = 15 * 60 * 1_000;  // 15 minutes
+const PAYMENT_WINDOW_MS = 60 * 1_000;    // 1 minute
+const API_WINDOW_MS = 60 * 1_000;        // 1 minute
+const SEARCH_WINDOW_MS = 60 * 1_000;     // 1 minute
+
 /**
  * PostgreSQL-backed rate limit store for express-rate-limit.
  * Stores hit counters in the database so limits are correctly enforced
@@ -20,7 +26,9 @@ import type { Express, Request, Response, NextFunction } from "express";
 class PgRateLimitStore implements Store {
   private pool: Pool;
   private windowMs: number;
-  private initialized = false;
+  // Promise-based singleton ensures the table is created exactly once,
+  // even when multiple concurrent requests arrive before init completes.
+  private initPromise: Promise<void> | null = null;
 
   constructor(pool: Pool, windowMs: number) {
     this.pool = pool;
@@ -28,17 +36,20 @@ class PgRateLimitStore implements Store {
   }
 
   /** Create the rate_limits table once on first use. */
-  private async ensureTable(): Promise<void> {
-    if (this.initialized) return;
-    await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS rate_limits (
-        key         TEXT         NOT NULL,
-        hits        INTEGER      NOT NULL DEFAULT 1,
-        reset_time  TIMESTAMPTZ  NOT NULL,
-        PRIMARY KEY (key)
-      )
-    `);
-    this.initialized = true;
+  private ensureTable(): Promise<void> {
+    if (!this.initPromise) {
+      this.initPromise = this.pool
+        .query(`
+          CREATE TABLE IF NOT EXISTS rate_limits (
+            key         TEXT         NOT NULL,
+            hits        INTEGER      NOT NULL DEFAULT 1,
+            reset_time  TIMESTAMPTZ  NOT NULL,
+            PRIMARY KEY (key)
+          )
+        `)
+        .then(() => undefined);
+    }
+    return this.initPromise;
   }
 
   async increment(key: string): Promise<ClientRateLimitInfo> {
@@ -86,6 +97,49 @@ class PgRateLimitStore implements Store {
   }
 }
 
+// Production Content Security Policy directives
+const productionCspDirectives = {
+  defaultSrc: ["'self'"],
+  scriptSrc: [
+    "'self'",
+    // Stripe.js — needed for payment forms
+    "https://js.stripe.com",
+  ],
+  styleSrc: [
+    "'self'",
+    // Google Fonts stylesheet
+    "https://fonts.googleapis.com",
+    // Tailwind / shadcn inject inline styles at runtime
+    "'unsafe-inline'",
+  ],
+  fontSrc: ["'self'", "https://fonts.gstatic.com"],
+  imgSrc: [
+    "'self'",
+    "data:",
+    // Open Library book covers
+    "https://covers.openlibrary.org",
+    // ISBNdb covers
+    "https://images.isbndb.com",
+    // Stripe-hosted images
+    "https://*.stripe.com",
+    // Allow any HTTPS image (book covers come from many sources)
+    "https:",
+  ],
+  connectSrc: [
+    "'self'",
+    "https://api.stripe.com",
+    // Open Library search API (catalog import)
+    "https://openlibrary.org",
+  ],
+  frameSrc: [
+    // Stripe payment iframes
+    "https://js.stripe.com",
+    "https://hooks.stripe.com",
+  ],
+  objectSrc: ["'none'"],
+  baseUri: ["'self'"],
+};
+
 /**
  * Apply all security middleware to the Express app.
  * In production a shared PostgreSQL store is used for rate limiting so
@@ -95,112 +149,75 @@ export function applySecurityMiddleware(app: Express, pgPool?: Pool) {
   const isProduction = process.env.NODE_ENV === "production";
 
   // ═══ Helmet — HTTP security headers ═══
-  app.use(
-    helmet({
-      // In production enforce a Content Security Policy.
-      // In development keep it off so Vite's HMR / inline scripts work.
-      contentSecurityPolicy: isProduction
-        ? {
-            directives: {
-              defaultSrc: ["'self'"],
-              scriptSrc: [
-                "'self'",
-                // Stripe.js — needed for payment forms
-                "https://js.stripe.com",
-              ],
-              styleSrc: [
-                "'self'",
-                // Google Fonts stylesheet
-                "https://fonts.googleapis.com",
-                // Tailwind / shadcn inject inline styles at runtime
-                "'unsafe-inline'",
-              ],
-              fontSrc: ["'self'", "https://fonts.gstatic.com"],
-              imgSrc: [
-                "'self'",
-                "data:",
-                // Open Library book covers
-                "https://covers.openlibrary.org",
-                // ISBNdb covers
-                "https://images.isbndb.com",
-                // Stripe-hosted images
-                "https://*.stripe.com",
-                // Allow any HTTPS image (book covers come from many sources)
-                "https:",
-              ],
-              connectSrc: [
-                "'self'",
-                "https://api.stripe.com",
-                // Open Library search API (catalog import)
-                "https://openlibrary.org",
-              ],
-              frameSrc: [
-                // Stripe payment iframes
-                "https://js.stripe.com",
-                "https://hooks.stripe.com",
-              ],
-              objectSrc: ["'none'"],
-              baseUri: ["'self'"],
-            },
-          }
-        : false,
-      crossOriginEmbedderPolicy: false, // Allow loading external images (book covers)
-      crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow Capacitor
-    }),
-  );
+  // Apply CSP in production only — Vite's HMR requires inline scripts in dev.
+  // Two separate helmet() calls avoid having contentSecurityPolicy:false in
+  // the production code path (which would be misleading and trigger linters).
+  if (isProduction) {
+    app.use(
+      helmet({
+        contentSecurityPolicy: { directives: productionCspDirectives },
+        crossOriginEmbedderPolicy: false, // Allow loading external images (book covers)
+        crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow Capacitor
+      }),
+    );
+  } else {
+    app.use(
+      helmet({
+        contentSecurityPolicy: false, // Disabled in development — Vite needs inline scripts
+        crossOriginEmbedderPolicy: false,
+        crossOriginResourcePolicy: { policy: "cross-origin" },
+      }),
+    );
+  }
 
   // ═══ Rate Limiters ═══
   // In production: use the shared PostgreSQL store so limits are enforced
-  // across all Cloud Run instances (prevents 10× bypass with 10 instances).
+  // across all Cloud Run instances (prevents 10× bypass with N instances).
   // In development: use the default in-memory store (no DB required).
 
   const makeStore = (windowMs: number) =>
     isProduction && pgPool ? new PgRateLimitStore(pgPool, windowMs) : undefined;
 
   // Strict limit on auth routes (prevent brute force)
-  const authWindowMs = 15 * 60 * 1000; // 15 minutes
   const authLimiter = rateLimit({
-    windowMs: authWindowMs,
+    windowMs: AUTH_WINDOW_MS,
     max: 10, // 10 attempts per window
     message: { message: "Too many login attempts. Please try again in 15 minutes." },
     standardHeaders: true,
     legacyHeaders: false,
-    store: makeStore(authWindowMs),
+    store: makeStore(AUTH_WINDOW_MS),
   });
   app.use("/api/auth/login", authLimiter);
   app.use("/api/auth/register", authLimiter);
 
   // Moderate limit on payment routes
-  const paymentWindowMs = 60 * 1000; // 1 minute
   const paymentLimiter = rateLimit({
-    windowMs: paymentWindowMs,
+    windowMs: PAYMENT_WINDOW_MS,
     max: 5, // 5 payment attempts per minute
     message: { message: "Too many payment attempts. Please slow down." },
     standardHeaders: true,
     legacyHeaders: false,
-    store: makeStore(paymentWindowMs),
+    store: makeStore(PAYMENT_WINDOW_MS),
   });
   app.use("/api/payments/checkout", paymentLimiter);
 
   // General API rate limit (generous but prevents abuse)
-  const apiWindowMs = 60 * 1000; // 1 minute
   const apiLimiter = rateLimit({
-    windowMs: apiWindowMs,
+    windowMs: API_WINDOW_MS,
     max: 100, // 100 requests per minute
     message: { message: "Rate limit exceeded. Please slow down." },
     standardHeaders: true,
     legacyHeaders: false,
-    store: makeStore(apiWindowMs),
+    store: makeStore(API_WINDOW_MS),
   });
   app.use("/api/", apiLimiter);
 
   // Open Library search rate limit (be nice to their servers)
-  const searchWindowMs = 60 * 1000;
   const searchLimiter = rateLimit({
-    windowMs: searchWindowMs,
+    windowMs: SEARCH_WINDOW_MS,
     max: 20,
     message: { message: "Too many search requests. Please slow down." },
-    store: makeStore(searchWindowMs),
+    store: makeStore(SEARCH_WINDOW_MS),
   });
   app.use("/api/search/", searchLimiter);
 }

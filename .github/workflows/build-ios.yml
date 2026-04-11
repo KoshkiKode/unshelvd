@@ -14,6 +14,8 @@ jobs:
   build-debug:
     name: Debug build (simulator)
     runs-on: macos-latest
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -63,6 +65,8 @@ jobs:
     name: Release archive (App Store)
     runs-on: macos-latest
     if: github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
