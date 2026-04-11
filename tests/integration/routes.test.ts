@@ -66,11 +66,19 @@ vi.mock("../../server/storage", () => {
     insert: vi.fn().mockReturnThis(),
     values: vi.fn().mockReturnThis(),
     returning: vi.fn().mockReturnThis(),
+    update: vi.fn().mockReturnThis(),
+    set: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockReturnThis(),
+  };
+
+  const poolMock = {
+    query: vi.fn().mockResolvedValue({ rows: [] }),
   };
 
   return {
     storage: storageMock,
     db: dbMock,
+    pool: poolMock,
     DatabaseStorage: vi.fn(),
   };
 });
@@ -116,7 +124,7 @@ vi.mock("bcryptjs", () => ({
 
 // ─── import after mocks are set up ─────────────────────────────────────────
 
-import { storage } from "../../server/storage";
+import { storage, pool } from "../../server/storage";
 import { registerRoutes } from "../../server/routes";
 import bcrypt from "bcryptjs";
 import {
@@ -142,6 +150,7 @@ async function buildApp() {
 }
 
 const mockStorage = storage as ReturnType<typeof vi.mocked<typeof storage>>;
+const mockPool = pool as unknown as { query: ReturnType<typeof vi.fn> };
 
 /** Push values onto the db queue so that successive `await db.select()...` calls
  *  each resolve to the corresponding entry in the array. */
@@ -2450,5 +2459,292 @@ describe("POST /api/auth/change-password (requires auth)", () => {
     });
     expect(res.status).toBe(404);
     expect(res.body.message).toMatch(/User not found/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// GET /api/health
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("GET /api/health", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns { status: 'ok', db: 'ok' } when the database is reachable", async () => {
+    mockPool.query.mockResolvedValue({ rows: [] });
+
+    const res = await request(app).get("/api/health");
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("ok");
+    expect(res.body.db).toBe("ok");
+    expect(res.body.timestamp).toBeDefined();
+  });
+
+  it("returns 503 with { status: 'degraded', db: 'error' } when the database throws", async () => {
+    mockPool.query.mockRejectedValueOnce(new Error("connection refused"));
+
+    const res = await request(app).get("/api/health");
+    expect(res.status).toBe(503);
+    expect(res.body.status).toBe("degraded");
+    expect(res.body.db).toBe("error");
+    expect(res.body.error).toMatch(/connection refused/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/auth/forgot-password
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/auth/forgot-password", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns success message even when email is not registered (avoids user enumeration)", async () => {
+    mockStorage.getUserByEmail.mockResolvedValueOnce(undefined);
+
+    const res = await request(app)
+      .post("/api/auth/forgot-password")
+      .send({ email: "unknown@example.com" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/reset link has been sent/i);
+  });
+
+  it("returns success and a token in dev mode when the email is registered", async () => {
+    mockStorage.getUserByEmail.mockResolvedValueOnce({
+      id: 1,
+      email: "user@example.com",
+    });
+    // db.update().set().where() resolves with default empty array — result not used
+    pushDbResults([]);
+
+    const res = await request(app)
+      .post("/api/auth/forgot-password")
+      .send({ email: "user@example.com" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/reset link has been sent/i);
+    // In non-production mode the token is returned in the response
+    expect(res.body.resetToken).toBeDefined();
+    expect(res.body.resetUrl).toMatch(/reset-password/);
+  });
+
+  it("returns 400 when email is malformed", async () => {
+    const res = await request(app)
+      .post("/api/auth/forgot-password")
+      .send({ email: "not-an-email" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when the body is empty", async () => {
+    const res = await request(app)
+      .post("/api/auth/forgot-password")
+      .send({});
+
+    expect(res.status).toBe(400);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/auth/reset-password
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/auth/reset-password", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("resets the password successfully with a valid token", async () => {
+    // db.select().from(users).where(...) → user with valid (future) expiry
+    pushDbResults([
+      {
+        id: 1,
+        email: "user@example.com",
+        passwordResetToken: "validtoken123",
+        passwordResetExpiry: new Date(Date.now() + 60 * 60 * 1000),
+      },
+    ]);
+    // db.update(users).set().where() → not used
+    pushDbResults([]);
+
+    const res = await request(app)
+      .post("/api/auth/reset-password")
+      .send({ token: "validtoken123", password: "NewSecurePass1!" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/password has been reset/i);
+  });
+
+  it("returns 400 when the token is not found in the database", async () => {
+    // db.select() returns empty array — no matching user
+    pushDbResults([]);
+
+    const res = await request(app)
+      .post("/api/auth/reset-password")
+      .send({ token: "badtoken", password: "NewSecurePass1!" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/invalid or has expired/i);
+  });
+
+  it("returns 400 when the reset token has expired", async () => {
+    pushDbResults([
+      {
+        id: 1,
+        passwordResetToken: "expiredtoken",
+        passwordResetExpiry: new Date(Date.now() - 1000), // already expired
+      },
+    ]);
+
+    const res = await request(app)
+      .post("/api/auth/reset-password")
+      .send({ token: "expiredtoken", password: "NewSecurePass1!" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/invalid or has expired/i);
+  });
+
+  it("returns 400 when the new password fails policy validation", async () => {
+    vi.mocked(validatePassword).mockReturnValueOnce({ valid: false, errors: ["Password too weak"] });
+
+    pushDbResults([
+      {
+        id: 1,
+        passwordResetToken: "validtoken123",
+        passwordResetExpiry: new Date(Date.now() + 60 * 60 * 1000),
+      },
+    ]);
+
+    const res = await request(app)
+      .post("/api/auth/reset-password")
+      .send({ token: "validtoken123", password: "NewSecurePass1!" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Password too weak/);
+  });
+
+  it("returns 400 when required fields are missing", async () => {
+    const res = await request(app)
+      .post("/api/auth/reset-password")
+      .send({});
+
+    expect(res.status).toBe(400);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/transactions/:id/rate — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/transactions/:id/rate — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(app)
+      .post("/api/transactions/1/rate")
+      .send({ rating: 5 });
+
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 for a non-numeric transaction id", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/transactions/abc/rate").send({ rating: 5 });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Invalid transaction ID/i);
+  });
+
+  it("returns 404 when the transaction does not exist", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([]); // select returns no rows
+
+    const res = await agent.post("/api/transactions/99/rate").send({ rating: 5 });
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/not found/i);
+  });
+
+  it("returns 403 when the authenticated user is not the buyer", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([{ id: 1, buyerId: 999, sellerId: 5, status: "completed", buyerRating: null }]);
+
+    const res = await agent.post("/api/transactions/1/rate").send({ rating: 4 });
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/Only the buyer/i);
+  });
+
+  it("returns 400 when the transaction is not yet completed", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([{ id: 1, buyerId: TEST_USER.id, sellerId: 5, status: "pending", buyerRating: null }]);
+
+    const res = await agent.post("/api/transactions/1/rate").send({ rating: 5 });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Can only rate completed/i);
+  });
+
+  it("returns 400 when the buyer has already rated the transaction", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([{ id: 1, buyerId: TEST_USER.id, sellerId: 5, status: "completed", buyerRating: 4 }]);
+
+    const res = await agent.post("/api/transactions/1/rate").send({ rating: 5 });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/already rated/i);
+  });
+
+  it("submits the rating and returns confirmation when all conditions are met", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    // select(transactions) → tx, update(transactions) → ignored,
+    // select(users) → seller, update(users) → ignored
+    pushDbResults(
+      [{ id: 1, buyerId: TEST_USER.id, sellerId: 5, status: "completed", buyerRating: null }],
+      [],
+      [{ id: 5, rating: 4, ratingCount: 2 }],
+      [],
+    );
+
+    const res = await agent.post("/api/transactions/1/rate").send({ rating: 5 });
+    expect(res.status).toBe(200);
+    expect(res.body.rating).toBe(5);
+    expect(res.body.message).toMatch(/Rating submitted/i);
+  });
+
+  it("returns 400 when the rating value is out of range", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/transactions/1/rate").send({ rating: 6 });
+    expect(res.status).toBe(400);
   });
 });

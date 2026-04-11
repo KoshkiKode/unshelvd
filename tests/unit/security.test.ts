@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import express from "express";
 import request from "supertest";
 import { sanitizeLikeInput, parseIntParam, stripHtml, validateIdParam, applySecurityMiddleware } from "../../server/security";
@@ -252,5 +252,40 @@ describe("applySecurityMiddleware", () => {
       lastStatus = res.status;
     }
     expect(lastStatus).toBe(429);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────
+// applySecurityMiddleware — production mode
+// ────────────────────────────────────────────────────────────────
+
+describe("applySecurityMiddleware (production mode)", () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  it("applies a Content-Security-Policy header in production mode", async () => {
+    process.env.NODE_ENV = "production";
+    const app = express();
+    applySecurityMiddleware(app);
+    app.get("/ping", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app).get("/ping");
+    expect(res.headers["content-security-policy"]).toBeDefined();
+    // The production CSP must restrict script-src to known origins
+    expect(res.headers["content-security-policy"]).toMatch(/script-src/);
+  });
+
+  it("does not set a Content-Security-Policy header in development mode", async () => {
+    process.env.NODE_ENV = "development";
+    const app = express();
+    applySecurityMiddleware(app);
+    app.get("/ping", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app).get("/ping");
+    // Helmet with contentSecurityPolicy: false should not emit the header
+    expect(res.headers["content-security-policy"]).toBeUndefined();
   });
 });
