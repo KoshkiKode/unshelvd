@@ -42,6 +42,8 @@ jobs:
           VITE_TARGET: android
           NODE_ENV: production
           SKIP_ENV_VERIFY: "true"
+          VITE_THRIFTBOOKS_AFF_ID: ${{ vars.THRIFTBOOKS_AFF_ID || '' }}
+          VITE_ADSENSE_CLIENT: ${{ vars.ADSENSE_CLIENT || '' }}
 
       - name: Sync Capacitor
         run: npx cap sync android
@@ -94,6 +96,8 @@ jobs:
           VITE_TARGET: android
           NODE_ENV: production
           SKIP_ENV_VERIFY: "true"
+          VITE_THRIFTBOOKS_AFF_ID: ${{ vars.THRIFTBOOKS_AFF_ID || '' }}
+          VITE_ADSENSE_CLIENT: ${{ vars.ADSENSE_CLIENT || '' }}
 
       - name: Sync Capacitor
         run: npx cap sync android

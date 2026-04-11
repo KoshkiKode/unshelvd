@@ -387,6 +387,9 @@ async function seed() {
   console.log(`║  Password: ${adminPassword.padEnd(40)}║`);
   console.log(`║  SHA-256:  ${crypto.createHash("sha256").update(adminPassword).digest("hex").slice(0, 38)}..║`);
   console.log("╚══════════════════════════════════════════════════════╝");
+  if (process.env.NODE_ENV === "production") {
+    console.log("⚠️  To avoid credentials in logs: set ADMIN_EMAIL, ADMIN_USERNAME, and ADMIN_PASSWORD in GCP Secret Manager.");
+  }
 
   const adminHash = await bcrypt.hash(adminPassword, 12);
 

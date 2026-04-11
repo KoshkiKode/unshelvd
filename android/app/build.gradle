@@ -19,15 +19,17 @@ android {
     
     // Signing config for release builds
     // The keystore is either local (scripts/build-android.sh creates it)
-    // or injected via CI (GitHub Actions secret)
+    // or injected via CI (GitHub Actions secret: ANDROID_KEYSTORE_BASE64)
     signingConfigs {
         release {
             def keystoreFile = file('unshelvd-release.keystore')
             if (keystoreFile.exists()) {
                 storeFile keystoreFile
-                storePassword System.getenv('KEYSTORE_PASSWORD') ?: 'android'
-                keyAlias 'unshelvd'
-                keyPassword System.getenv('KEY_PASSWORD') ?: 'android'
+                // Passwords MUST be provided via environment variables — no fallback.
+                // Set KEYSTORE_PASSWORD and KEY_PASSWORD in CI secrets or locally.
+                storePassword System.getenv('KEYSTORE_PASSWORD')
+                keyAlias System.getenv('KEY_ALIAS') ?: 'unshelvd'
+                keyPassword System.getenv('KEY_PASSWORD')
             }
         }
     }

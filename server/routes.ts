@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage, pool } from "./storage";
 import {
   insertUserSchema,
   loginSchema,
@@ -37,9 +37,11 @@ import { z } from "zod";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import createMemoryStore from "memorystore";
 import bcrypt from "bcryptjs";
 
+const PgSessionStore = connectPgSimple(session);
 const MemoryStore = createMemoryStore(session);
 import { ZodError } from "zod";
 
@@ -81,12 +83,28 @@ export async function registerRoutes(
 ): Promise<Server> {
   // Session setup
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+
+  // In production use a PostgreSQL-backed session store so sessions survive
+  // across multiple Cloud Run instances.  In development fall back to the
+  // in-memory store to avoid requiring a database connection.
+  const sessionStore =
+    process.env.NODE_ENV === "production" && process.env.DATABASE_URL
+      ? new PgSessionStore({
+          pool,
+          tableName: "user_sessions",
+          // Auto-create the session table on first connect
+          createTableIfMissing: true,
+          ttl: sessionTtl / 1000, // pg store uses seconds
+          pruneSessionInterval: 60 * 15, // prune expired sessions every 15 min
+        })
+      : new MemoryStore({ checkPeriod: sessionTtl });
+
   app.use(
     session({
       secret: process.env.SESSION_SECRET || "unshelvd-dev-secret-change-me",
       resave: false,
       saveUninitialized: false,
-      store: new MemoryStore({ checkPeriod: sessionTtl }),
+      store: sessionStore,
       cookie: {
         maxAge: sessionTtl,
         // For Capacitor native apps making cross-origin requests:
@@ -138,6 +156,19 @@ export async function registerRoutes(
 
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // === HEALTH CHECK ===
+  app.get("/api/health", async (_req, res) => {
+    try {
+      // Quick DB connectivity check — aborts after 3 seconds
+      await pool.query("SELECT 1");
+      res.json({ status: "ok", db: "ok", timestamp: new Date().toISOString() });
+    } catch (err: any) {
+      res
+        .status(503)
+        .json({ status: "degraded", db: "error", error: err.message, timestamp: new Date().toISOString() });
+    }
+  });
 
   // === AUTH ROUTES ===
   app.post("/api/auth/register", async (req, res) => {

@@ -160,6 +160,36 @@ echo -n "NEW_URL" | gcloud secrets versions add DATABASE_URL --data-file=-
 
 ---
 
+## Admin Credentials
+
+The seed job creates an admin user on first deploy. To control the credentials
+(and prevent them from appearing in plain text in Cloud Logging), create these
+secrets in Secret Manager **before** running the seed job:
+
+```bash
+echo -n "admin@yourdomain.com"   | gcloud secrets create ADMIN_EMAIL    --replication-policy=automatic --data-file=-
+echo -n "your-admin-username"    | gcloud secrets create ADMIN_USERNAME  --replication-policy=automatic --data-file=-
+echo -n "$(openssl rand -base64 18 | tr -d '/+=')!A1" \
+                                 | gcloud secrets create ADMIN_PASSWORD  --replication-policy=automatic --data-file=-
+
+# Grant Cloud Build and Cloud Run access to the new secrets
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+for SA in \
+  "${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  "${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"; do
+  for SECRET in ADMIN_EMAIL ADMIN_USERNAME ADMIN_PASSWORD; do
+    gcloud secrets add-iam-policy-binding $SECRET \
+      --member="serviceAccount:${SA}" \
+      --role="roles/secretmanager.secretAccessor"
+  done
+done
+```
+
+If these secrets are absent when the seed job runs, credentials are auto-generated
+and printed to the Cloud Run job log — retrieve them there immediately.
+
+---
+
 ## Stripe Payments (Required to buy/sell books)
 
 Stripe keys are **never committed to the repo**. Store them in Google Cloud Secret Manager and inject them at deploy time.
@@ -240,7 +270,105 @@ npm run dev
 
 ---
 
-## Troubleshooting
+## Automated Cloud Build Trigger
+
+To deploy automatically on every push to `main`, create a Cloud Build trigger
+connected to the GitHub repository:
+
+```bash
+# Connect GitHub — follow the interactive prompt to authenticate
+gcloud builds triggers create github \
+  --repo-name=unshelvd \
+  --repo-owner=KoshkiKode \
+  --branch-pattern='^main$' \
+  --build-config=cloudbuild.yaml \
+  --name=unshelvd-main \
+  --region=$REGION
+
+# Pass your Stripe publishable key at trigger creation time so every
+# auto-deploy includes it (update when rotating Stripe keys):
+gcloud builds triggers update unshelvd-main \
+  --region=$REGION \
+  --substitutions=_STRIPE_PK=pk_live_...
+```
+
+The trigger fires automatically whenever a commit is pushed to `main`.
+Manual deploys with `gcloud builds submit` still work as before.
+
+---
+
+## Database Tier & Backups
+
+### Recommended production tier
+
+`db-f1-micro` (the default in the setup commands above) is fine for development
+and low-traffic production. For a real workload upgrade to at least:
+
+| Tier | vCPU | RAM | Cost (approx) |
+|------|------|-----|---------------|
+| `db-f1-micro` | 0.2 shared | 0.6 GB | ~$7/mo |
+| `db-g1-small` | 0.5 shared | 1.7 GB | ~$25/mo |
+| `db-custom-1-3840` | 1 dedicated | 3.75 GB | ~$50/mo |
+
+```bash
+# Upgrade an existing instance tier
+gcloud sql instances patch unshelvd-db --tier=db-g1-small
+```
+
+### Enable automated backups
+
+```bash
+gcloud sql instances patch unshelvd-db \
+  --backup-start-time=03:00 \
+  --enable-bin-log \
+  --retained-backups-count=7 \
+  --retained-transaction-log-days=7
+```
+
+This enables:
+- Daily automated backups at 03:00 UTC
+- Point-in-time recovery (PITR) with 7 days of transaction log retention
+- 7 daily backup snapshots retained
+
+Verify backups are running:
+```bash
+gcloud sql backups list --instance=unshelvd-db
+```
+
+---
+
+## Monitoring & Alerting
+
+### Health check uptime alert
+
+The server exposes `GET /api/health` which returns `{"status":"ok","db":"ok"}` and
+performs a live database ping. Set up a Cloud Monitoring uptime check:
+
+```bash
+# Create uptime check (HTTP)
+gcloud monitoring uptime create \
+  --display-name="Unshelv'd API health" \
+  --http-check-path=/api/health \
+  --monitored-resource-type=uptime-url \
+  --resource-labels=host=unshelvd.koshkikode.com \
+  --period=1  # check every minute
+```
+
+Then create an alert policy in the Cloud Console:
+**Monitoring → Alerting → Create Policy → Uptime Check → [your check]**
+and configure email/PagerDuty/Slack notification channels.
+
+### Cloud Run dashboard
+
+View request count, latency p50/p99, error rate, and instance count in the Cloud
+Console under **Cloud Run → unshelvd → Metrics**.
+
+Recommended alert thresholds:
+- Error rate > 1% → notify
+- P99 latency > 2 s → notify
+- Instance count = max (`_MAX_INSTANCES`) → scale out or increase limit
+
+---
 
 ### Cold start timeout on first deploy
 Cloud Run terminates containers that don't bind to `PORT` within ~240 seconds.
