@@ -17,7 +17,7 @@ import Dashboard from "@/pages/dashboard";
 import AddBook from "@/pages/add-book";
 import Messages from "@/pages/messages";
 import Offers from "@/pages/offers";
-import { LoginPage, RegisterPage } from "@/pages/auth";
+import { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage } from "@/pages/auth";
 import WorkPage from "@/pages/work";
 import About from "@/pages/about";
 import AdminDashboard from "@/pages/admin";
@@ -47,6 +47,8 @@ function AppRouter() {
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/login" component={LoginPage} />
           <Route path="/register" component={RegisterPage} />
+          <Route path="/forgot-password" component={ForgotPasswordPage} />
+          <Route path="/reset-password" component={ResetPasswordPage} />
           <Route component={NotFound} />
         </Switch>
       </main>

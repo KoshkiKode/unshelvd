@@ -22,6 +22,13 @@
       "when": 1775755845519,
       "tag": "0002_lonely_kabuki",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1744392000000,
+      "tag": "0003_rating_and_password_reset",
+      "breakpoints": true
     }
   ]
 }

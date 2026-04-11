@@ -12,6 +12,8 @@ import {
   books,
   bookCatalog,
   works,
+  users,
+  transactions,
 } from "@shared/schema";
 import { db } from "./storage";
 import { eq, and, or, ilike, desc, asc, sql } from "drizzle-orm";
@@ -1162,6 +1164,116 @@ export async function registerRoutes(
       return res.json(safeUser);
     } catch (err) {
       return res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Rate the seller after a completed transaction
+  app.post("/api/transactions/:id/rate", requireAuth, async (req, res) => {
+    try {
+      const txId = parseIntParam(req.params.id);
+      if (!txId) return res.status(400).json({ message: "Invalid transaction ID" });
+
+      const { rating } = z.object({ rating: z.number().int().min(1).max(5) }).parse(req.body);
+
+      const [tx] = await db.select().from(transactions).where(eq(transactions.id, txId));
+      if (!tx) return res.status(404).json({ message: "Transaction not found" });
+      if (tx.buyerId !== req.user!.id) return res.status(403).json({ message: "Only the buyer can rate this transaction" });
+      if (tx.status !== "completed") return res.status(400).json({ message: "Can only rate completed transactions" });
+      if (tx.buyerRating !== null && tx.buyerRating !== undefined) {
+        return res.status(400).json({ message: "You have already rated this transaction" });
+      }
+
+      // Save rating on transaction
+      await db.update(transactions).set({ buyerRating: rating }).where(eq(transactions.id, txId));
+
+      // Recalculate seller's average rating
+      const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
+      if (seller) {
+        const oldCount = seller.ratingCount ?? 0;
+        const oldRating = seller.rating ?? 0;
+        const newCount = oldCount + 1;
+        const newRating = Math.round(((oldRating * oldCount + rating) / newCount) * 10) / 10;
+        await db.update(users).set({ rating: newRating, ratingCount: newCount }).where(eq(users.id, tx.sellerId));
+      }
+
+      return res.json({ message: "Rating submitted", rating });
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ message: err.errors[0]?.message });
+      return res.status(500).json({ message: "Failed to submit rating" });
+    }
+  });
+
+  // === PASSWORD RESET ===
+
+  // Step 1 — generate a reset token (in production this would be emailed)
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = z.object({ email: z.string().email() }).parse(req.body);
+      const user = await storage.getUserByEmail(email);
+
+      // Always return success to avoid user enumeration
+      if (!user) return res.json({ message: "If that email is registered, a reset link has been sent." });
+
+      // Generate a cryptographically secure token
+      const crypto = await import("crypto");
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      await db.update(users).set({
+        passwordResetToken: token,
+        passwordResetExpiry: expiry,
+      }).where(eq(users.id, user.id));
+
+      // In production, send this via email. For now, log it to console.
+      const resetUrl = `${req.protocol}://${req.get("host")}/#/reset-password?token=${token}`;
+      console.log(`[password-reset] Reset URL for ${email}: ${resetUrl}`);
+
+      // Return the token in development; strip it in production
+      const payload: Record<string, string> = { message: "If that email is registered, a reset link has been sent." };
+      if (process.env.NODE_ENV !== "production") {
+        payload.resetToken = token;
+        payload.resetUrl = resetUrl;
+      }
+      return res.json(payload);
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ message: err.errors[0]?.message });
+      return res.status(500).json({ message: "Failed to process request" });
+    }
+  });
+
+  // Step 2 — validate token and set new password
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, password } = z.object({
+        token: z.string().min(1),
+        password: z.string().min(12),
+      }).parse(req.body);
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.passwordResetToken, token));
+
+      if (!user || !user.passwordResetExpiry || user.passwordResetExpiry < new Date()) {
+        return res.status(400).json({ message: "Reset link is invalid or has expired." });
+      }
+
+      const pwResult = validatePassword(password, {});
+      if (!pwResult.valid) {
+        return res.status(400).json({ message: pwResult.errors?.[0] || "Password does not meet requirements" });
+      }
+
+      const hashed = await bcrypt.hash(password, 12);
+      await db.update(users).set({
+        password: hashed,
+        passwordResetToken: null,
+        passwordResetExpiry: null,
+      }).where(eq(users.id, user.id));
+
+      return res.json({ message: "Password has been reset. You can now log in." });
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ message: err.errors[0]?.message });
+      return res.status(500).json({ message: "Failed to reset password" });
     }
   });
 

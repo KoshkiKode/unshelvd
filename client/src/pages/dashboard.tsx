@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 
+const RATING_LABELS = ["", "Poor", "Fair", "Good", "Very good", "Excellent"] as const;
+
 export default function Dashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -36,6 +38,10 @@ export default function Dashboard() {
   const [deleteDialogBook, setDeleteDialogBook] = useState<Book | null>(null);
   const [carrier, setCarrier] = useState("");
   const [tracking, setTracking] = useState("");
+
+  // State for "Rate Seller" dialog
+  const [rateTx, setRateTx] = useState<any | null>(null);
+  const [ratingValue, setRatingValue] = useState(0);
 
   const { data: sellerStatus, isLoading: sellerLoading } = useQuery<{
     connected: boolean;
@@ -139,6 +145,22 @@ export default function Dashboard() {
     },
     onError: (err: Error) => {
       toast({ title: "Failed to confirm", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const rateMutation = useMutation({
+    mutationFn: async ({ id, rating }: { id: number; rating: number }) => {
+      const res = await apiRequest("POST", `/api/transactions/${id}/rate`, { rating });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/payments/transactions"] });
+      toast({ title: "Rating submitted!", description: "Thanks for your feedback." });
+      setRateTx(null);
+      setRatingValue(0);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to submit rating", description: err.message, variant: "destructive" });
     },
   });
 
@@ -316,6 +338,7 @@ export default function Dashboard() {
                       role="buyer"
                       onConfirmDelivery={() => deliverMutation.mutate(tx.id)}
                       confirming={deliverMutation.isPending && deliverMutation.variables === tx.id}
+                      onRate={tx.status === "completed" && !tx.buyerRating ? () => { setRateTx(tx); setRatingValue(0); } : undefined}
                     />
                   ))}
                 </div>
@@ -480,6 +503,49 @@ export default function Dashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Rate Seller dialog */}
+      <Dialog open={!!rateTx} onOpenChange={(v) => { if (!v) { setRateTx(null); setRatingValue(0); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rate your seller</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <p className="text-sm text-muted-foreground mb-4">
+              How was your experience with <strong>{rateTx?.seller?.displayName}</strong> for{" "}
+              <em>{rateTx?.book?.title}</em>?
+            </p>
+            <div className="flex gap-2 justify-center mb-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setRatingValue(star)}
+                  className={`text-3xl transition-colors ${star <= ratingValue ? "text-yellow-400" : "text-muted-foreground/30"}`}
+                  aria-label={`${star} star${star !== 1 ? "s" : ""}`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+            {ratingValue > 0 && (
+              <p className="text-center text-sm text-muted-foreground">
+                {RATING_LABELS[ratingValue]}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRateTx(null); setRatingValue(0); }}>Skip</Button>
+            <Button
+              disabled={ratingValue === 0 || rateMutation.isPending}
+              onClick={() => rateTx && rateMutation.mutate({ id: rateTx.id, rating: ratingValue })}
+            >
+              {rateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Submit Rating
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -587,12 +653,14 @@ function TransactionCard({
   onMarkShipped,
   onConfirmDelivery,
   confirming,
+  onRate,
 }: {
   tx: any;
   role: "buyer" | "seller";
   onMarkShipped?: () => void;
   onConfirmDelivery?: () => void;
   confirming?: boolean;
+  onRate?: () => void;
 }) {
   const status = TX_STATUS[tx.status] ?? { label: tx.status, color: "", icon: null };
 
@@ -640,7 +708,17 @@ function TransactionCard({
           </Button>
         )}
         {tx.status === "completed" && role === "buyer" && (
-          <span className="text-[10px] text-green-600 font-medium">✓ Payout sent</span>
+          <>
+            <span className="text-[10px] text-green-600 font-medium">✓ Payout sent</span>
+            {onRate && (
+              <Button size="sm" variant="outline" onClick={onRate} className="text-xs h-7 gap-1 text-yellow-600 border-yellow-300 hover:bg-yellow-50">
+                ★ Rate seller
+              </Button>
+            )}
+            {tx.buyerRating && (
+              <span className="text-[10px] text-yellow-600">{"★".repeat(tx.buyerRating)}</span>
+            )}
+          </>
         )}
       </div>
     </div>

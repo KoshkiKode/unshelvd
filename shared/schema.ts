@@ -51,11 +51,15 @@ export const users = pgTable("users", {
   avatarUrl: text("avatar_url"),
   location: text("location"),
   rating: real("rating").default(0),
+  ratingCount: integer("rating_count").default(0),
   totalSales: integer("total_sales").default(0),
   totalPurchases: integer("total_purchases").default(0),
   role: text("role").default("user"),  // "user" | "admin" | "suspended"
   stripeAccountId: text("stripe_account_id"),  // Stripe Connect Express account ID
   stripeOnboarded: boolean("stripe_onboarded").default(false), // completed Stripe onboarding
+  // Password reset (token-based, no email service required)
+  passwordResetToken: text("password_reset_token"),
+  passwordResetExpiry: timestamp("password_reset_expiry"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -286,6 +290,8 @@ export const transactions = pgTable("transactions", {
   stripeTransferId: text("stripe_transfer_id"),  // payout to seller
   // Status flow: pending → paid → shipped → delivered → completed | disputed | refunded
   status: text("status").default("pending"),
+  // Buyer rating (1-5) given after transaction is completed
+  buyerRating: integer("buyer_rating"),
   // Tracking
   shippingCarrier: text("shipping_carrier"),
   trackingNumber: text("tracking_number"),
