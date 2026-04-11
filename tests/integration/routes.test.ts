@@ -1019,6 +1019,13 @@ describe("GET /api/catalog/:id", () => {
     expect(res.body.title).toBe("1984");
     expect(res.body).toHaveProperty("listings");
   });
+
+  it("returns 500 when the database throws", async () => {
+    dbCallQueue.push({ then: (_: any, rej: any) => rej(new Error("DB error")) });
+    const res = await request(app).get("/api/catalog/1");
+    expect(res.status).toBe(500);
+    expect(res.body.message).toMatch(/failed to fetch catalog entry/i);
+  });
 });
 
 describe("GET /api/catalog/stats", () => {
@@ -1042,6 +1049,14 @@ describe("GET /api/catalog/stats", () => {
     expect(res.body.total).toBe(42);
     expect(res.body.verified).toBe(10);
     expect(Array.isArray(res.body.languageDistribution)).toBe(true);
+  });
+
+  it("returns 500 when the database throws", async () => {
+    // Use a lazy thenable to avoid unhandled rejection warnings
+    dbCallQueue.push({ then: (_: any, rej: any) => rej(new Error("DB error")) });
+    const res = await request(app).get("/api/catalog/stats");
+    expect(res.status).toBe(500);
+    expect(res.body.message).toMatch(/failed to fetch catalog stats/i);
   });
 });
 
@@ -1080,6 +1095,13 @@ describe("GET /api/genres", () => {
     const res = await request(app).get("/api/genres");
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
+  });
+
+  it("returns 500 when the database throws", async () => {
+    dbCallQueue.push({ then: (_: any, rej: any) => rej(new Error("DB error")) });
+    const res = await request(app).get("/api/genres");
+    expect(res.status).toBe(500);
+    expect(res.body.message).toMatch(/failed to fetch genres/i);
   });
 });
 
