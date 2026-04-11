@@ -7,6 +7,7 @@
  * - User management (view, suspend, stats)
  * - Platform analytics
  * - Payout tracking (what you owe sellers, what's your cut)
+ * - Platform settings (Stripe, PayPal, feature flags)
  */
 
 import type { Express, Request, Response, NextFunction } from "express";
@@ -22,6 +23,12 @@ import {
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte, count } from "drizzle-orm";
 import { refundPayment } from "./payments";
+import {
+  getAllSettings,
+  setSettings,
+  SECRET_KEYS,
+  maskSecret,
+} from "./platform-settings";
 
 // Admin-only middleware
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
@@ -368,6 +375,66 @@ export function registerAdminRoutes(app: Express) {
       return res
         .status(500)
         .json({ message: `Failed to start seeder: ${err.message}` });
+    }
+  });
+
+  // ═══ Platform Settings ═══
+
+  /**
+   * GET /api/admin/settings
+   * Returns all platform settings.  Secret values (keys, tokens) are masked
+   * so they are safe to send to the browser without exposing raw credentials.
+   */
+  app.get("/api/admin/settings", requireAdmin, async (_req, res) => {
+    try {
+      const raw = await getAllSettings();
+      const masked: Record<string, string | null> = {};
+      for (const [key, value] of Object.entries(raw)) {
+        masked[key] = SECRET_KEYS.has(key) ? maskSecret(value) : value;
+      }
+      return res.json(masked);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch settings" });
+    }
+  });
+
+  /**
+   * PUT /api/admin/settings
+   * Upserts platform settings.  Blank values for secret fields are ignored
+   * so that existing secrets are preserved when the admin submits without
+   * re-entering them (masked placeholder values).
+   *
+   * Body: Record<string, string>
+   */
+  app.put("/api/admin/settings", requireAdmin, async (req, res) => {
+    try {
+      const incoming = req.body as Record<string, string>;
+      if (typeof incoming !== "object" || Array.isArray(incoming)) {
+        return res.status(400).json({ message: "Body must be a JSON object" });
+      }
+
+      // Masked placeholder pattern: one or more bullet characters followed by
+      // 1–4 non-bullet characters (e.g. "••••••••abcd").  We skip these so
+      // that existing secrets are preserved when the admin submits without
+      // re-entering them.
+      const maskedPattern = /^•+[^•]{1,4}$/;
+
+      const toSave: Record<string, string | null> = {};
+      for (const [key, value] of Object.entries(incoming)) {
+        if (SECRET_KEYS.has(key)) {
+          // Skip blank or masked placeholder — keep the existing DB value
+          if (!value || value === "" || maskedPattern.test(value)) continue;
+        }
+        toSave[key] = typeof value === "string" && value !== "" ? value : null;
+      }
+
+      if (Object.keys(toSave).length > 0) {
+        await setSettings(toSave);
+      }
+
+      return res.json({ message: "Settings saved" });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to save settings" });
     }
   });
 }

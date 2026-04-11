@@ -29,6 +29,13 @@
       "when": 1744392000000,
       "tag": "0003_rating_and_password_reset",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1775940157685,
+      "tag": "0004_productive_justice",
+      "breakpoints": true
     }
   ]
 }

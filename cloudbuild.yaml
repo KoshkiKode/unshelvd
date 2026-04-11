@@ -59,6 +59,7 @@ steps:
       - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE_NAME}:latest"
       - "--build-arg=VITE_THRIFTBOOKS_AFF_ID=${_THRIFTBOOKS_AFF_ID}"
       - "--build-arg=VITE_ADSENSE_CLIENT=${_ADSENSE_CLIENT}"
+      - "--build-arg=VITE_STRIPE_PUBLISHABLE_KEY=${_STRIPE_PK}"
       - "."
 
   # 2. Push to Artifact Registry
@@ -147,7 +148,7 @@ steps:
       # Stripe secrets (add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET to Secret
       # Manager first — see DEPLOY.md):
       - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest,STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest"
-      - "--set-env-vars=NODE_ENV=production,VITE_STRIPE_PUBLISHABLE_KEY=${_STRIPE_PK}"
+      - "--set-env-vars=NODE_ENV=production"
 
 images:
   - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE_NAME}"

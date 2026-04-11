@@ -17,11 +17,46 @@ import Stripe from "stripe";
 import { db } from "./storage";
 import { transactions, books, users } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
+import { getSetting, isEnabled } from "./platform-settings";
 
-// Platform fee: 10%
+// Platform fee: configurable, default 10%
 export const PLATFORM_FEE_PERCENT = 0.10;
 
 // Stripe initialization
+// Priority: DB setting (admin-configured) → environment variable
+// Using a function so we always get the latest key without restarting.
+const _stripeCache: { instance: Stripe | null; key: string | null } = {
+  instance: null,
+  key: null,
+};
+
+export async function getStripe(): Promise<Stripe | null> {
+  // DB setting takes priority over env var
+  const dbKey = await getSetting("stripe_secret_key");
+  const key = dbKey || process.env.STRIPE_SECRET_KEY || null;
+
+  if (!key) return null;
+
+  // Re-use cached instance if key hasn't changed
+  if (_stripeCache.instance && _stripeCache.key === key) {
+    return _stripeCache.instance;
+  }
+
+  _stripeCache.instance = new Stripe(key);
+  _stripeCache.key = key;
+  return _stripeCache.instance;
+}
+
+/** True when Stripe is configured and enabled. */
+export async function isStripeEnabled(): Promise<boolean> {
+  const enabled = await isEnabled("stripe_enabled", true);
+  if (!enabled) return false;
+  const s = await getStripe();
+  return s !== null;
+}
+
+// Keep backward-compatible export for direct imports that haven't been updated.
+// This is synchronously null at startup; use getStripe() for async reads.
 const stripeKey = process.env.STRIPE_SECRET_KEY;
 export const stripe = stripeKey ? new Stripe(stripeKey) : null;
 
