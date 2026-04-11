@@ -3,6 +3,7 @@ import { useLocation, Redirect, useSearch } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
+import type { Book } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -94,7 +95,7 @@ export default function AddBook() {
   const editBookId = editParams.get("edit") ? parseInt(editParams.get("edit")!) : null;
 
   // Fetch existing book when editing
-  const { data: editBook } = useQuery<any>({
+  const { data: editBook } = useQuery<Book>({
     queryKey: [`/api/books/${editBookId}`],
     enabled: editBookId != null,
   });

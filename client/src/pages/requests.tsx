@@ -15,8 +15,15 @@ import type { BookRequest } from "@shared/schema";
 
 const PAGE_SIZE = 20;
 
+interface RequestUser {
+  id: number;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
 interface RequestsResponse {
-  requests: (BookRequest & { user: any })[];
+  requests: (BookRequest & { user: RequestUser | null })[];
   total: number;
 }
 

@@ -19,6 +19,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 
 export default function Dashboard() {
@@ -29,6 +33,7 @@ export default function Dashboard() {
   // State for "Mark as Shipped" dialog
   const [shipDialogOpen, setShipDialogOpen] = useState(false);
   const [shipTxId, setShipTxId] = useState<number | null>(null);
+  const [deleteDialogBook, setDeleteDialogBook] = useState<Book | null>(null);
   const [carrier, setCarrier] = useState("");
   const [tracking, setTracking] = useState("");
 
@@ -388,11 +393,7 @@ export default function Dashboard() {
                     className="h-7 w-7 text-destructive hover:text-destructive"
                     title="Delete listing"
                     data-testid={`delete-listing-${book.id}`}
-                    onClick={() => {
-                      if (confirm(`Delete "${book.title}"?`)) {
-                        deleteBookMutation.mutate(book.id);
-                      }
-                    }}
+                    onClick={() => setDeleteDialogBook(book)}
                     disabled={deleteBookMutation.isPending}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -617,6 +618,32 @@ function TransactionCard({
           <span className="text-[10px] text-green-600 font-medium">✓ Payout sent</span>
         )}
       </div>
+
+      {/* Delete listing confirmation dialog */}
+      <AlertDialog open={!!deleteDialogBook} onOpenChange={(v) => { if (!v) setDeleteDialogBook(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete listing?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove "{deleteDialogBook?.title}" from your listings? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteDialogBook) {
+                  deleteBookMutation.mutate(deleteDialogBook.id);
+                  setDeleteDialogBook(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

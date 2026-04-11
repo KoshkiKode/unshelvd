@@ -19,9 +19,9 @@ export default function Settings() {
 
   const [profile, setProfile] = useState({
     displayName: user?.displayName || "",
-    bio: (user as any)?.bio || "",
-    location: (user as any)?.location || "",
-    avatarUrl: (user as any)?.avatarUrl || "",
+    bio: user?.bio || "",
+    location: user?.location || "",
+    avatarUrl: user?.avatarUrl || "",
   });
 
   const [passwords, setPasswords] = useState({
