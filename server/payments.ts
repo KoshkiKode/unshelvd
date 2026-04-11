@@ -19,7 +19,7 @@ import { transactions, books, users } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 
 // Platform fee: 10%
-export const PLATFORM_FEE_PERCENT = 0.115;
+export const PLATFORM_FEE_PERCENT = 0.10;
 
 // Stripe initialization
 const stripeKey = process.env.STRIPE_SECRET_KEY;
@@ -167,6 +167,7 @@ export async function createPaymentIntent(buyerId: number, bookId: number, offer
   if (stripe) {
     // Create PaymentIntent on OUR account (not the seller's)
     // Money comes to us first — we transfer to seller after delivery
+    // Idempotency key prevents duplicate charges if the request is retried.
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100), // cents
       currency: "usd",
@@ -180,7 +181,7 @@ export async function createPaymentIntent(buyerId: number, bookId: number, offer
       },
       // Automatic payment methods — supports cards, Apple Pay, Google Pay, etc.
       automatic_payment_methods: { enabled: true },
-    });
+    }, { idempotencyKey: `checkout_${transaction.id}` });
 
     clientSecret = paymentIntent.client_secret;
 
@@ -209,6 +210,8 @@ export async function confirmPayment(transactionId: number, userId: number) {
   const [tx] = await db.select().from(transactions).where(eq(transactions.id, transactionId));
   if (!tx) throw new Error("Transaction not found");
   if (tx.buyerId !== userId) throw new Error("Not your transaction");
+  // Idempotent: webhook and browser client may both call this; treat already-paid as success.
+  if (tx.status === "paid") return { status: "paid" };
   if (tx.status !== "pending") throw new Error("Transaction already processed");
 
   if (stripe && tx.stripePaymentIntentId) {
@@ -330,6 +333,56 @@ export async function handleTransferFailed(transferId: string) {
   await db.update(transactions)
     .set({ status: "disputed", updatedAt: new Date() })
     .where(eq(transactions.id, tx.id));
+}
+
+/**
+ * Issue a refund for a transaction and re-list the book.
+ * Allowed for pending / paid / shipped transactions.
+ * Completed transactions (payout already sent) cannot be automatically reversed.
+ */
+export async function refundPayment(transactionId: number) {
+  const [tx] = await db.select().from(transactions).where(eq(transactions.id, transactionId));
+  if (!tx) throw new Error("Transaction not found");
+
+  const refundableStatuses = ["pending", "paid", "shipped"];
+  if (!tx.status || !refundableStatuses.includes(tx.status)) {
+    throw new Error(`Cannot refund a transaction with status "${tx.status}"`);
+  }
+
+  // Issue Stripe refund when a PaymentIntent was created and the payment may have been captured.
+  // "pending" transactions have a PaymentIntent but the buyer has not paid yet, so there
+  // is nothing to refund through Stripe; we just cancel the record in our DB.
+  if (stripe && tx.stripePaymentIntentId && tx.status !== "pending") {
+    await stripe.refunds.create(
+      { payment_intent: tx.stripePaymentIntentId },
+      { idempotencyKey: `refund_${transactionId}` },
+    );
+  }
+
+  await db.update(transactions)
+    .set({ status: "refunded", updatedAt: new Date() })
+    .where(eq(transactions.id, transactionId));
+
+  // Re-list the book so the seller can sell it again.
+  await db.update(books).set({ status: "for-sale" }).where(eq(books.id, tx.bookId));
+
+  return { status: "refunded" };
+}
+
+/**
+ * Called by webhook: a charge was refunded (e.g. via Stripe Dashboard).
+ * Syncs the transaction status without re-issuing a duplicate API refund.
+ */
+export async function handleChargeRefunded(paymentIntentId: string) {
+  const [tx] = await db.select().from(transactions)
+    .where(eq(transactions.stripePaymentIntentId, paymentIntentId));
+  if (!tx || tx.status === "refunded") return;
+
+  await db.update(transactions)
+    .set({ status: "refunded", updatedAt: new Date() })
+    .where(eq(transactions.id, tx.id));
+
+  await db.update(books).set({ status: "for-sale" }).where(eq(books.id, tx.bookId));
 }
 
 export async function getUserTransactions(userId: number) {

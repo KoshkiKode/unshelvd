@@ -81,6 +81,8 @@ vi.mock("../../server/payments", () => ({
   failPayment: vi.fn(),
   handleSellerAccountUpdated: vi.fn(),
   handleTransferFailed: vi.fn(),
+  handleChargeRefunded: vi.fn(),
+  refundPayment: vi.fn(),
   markShipped: vi.fn(),
   confirmDelivery: vi.fn(),
   getUserTransactions: vi.fn().mockResolvedValue([]),
@@ -730,6 +732,35 @@ describe("POST /api/webhooks/stripe (dev mode)", () => {
             charges_enabled: true,
           },
         },
+      });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ received: true });
+  });
+
+  it("handles charge.refunded event", async () => {
+    const { handleChargeRefunded } = await import("../../server/payments");
+    const res = await request(app)
+      .post("/api/webhooks/stripe")
+      .send({
+        type: "charge.refunded",
+        data: {
+          object: {
+            id: "ch_test",
+            payment_intent: "pi_test123",
+          },
+        },
+      });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ received: true });
+    expect(handleChargeRefunded).toHaveBeenCalledWith("pi_test123");
+  });
+
+  it("handles charge.refunded event with no payment_intent gracefully", async () => {
+    const res = await request(app)
+      .post("/api/webhooks/stripe")
+      .send({
+        type: "charge.refunded",
+        data: { object: { id: "ch_test" } },
       });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ received: true });

@@ -21,6 +21,7 @@ import {
   messages,
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte, count } from "drizzle-orm";
+import { refundPayment } from "./payments";
 
 // Admin-only middleware
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
@@ -321,32 +322,10 @@ export function registerAdminRoutes(app: Express) {
     async (req, res) => {
       try {
         const id = parseInt(req.params.id as string);
-        const [tx] = await db
-          .select()
-          .from(transactions)
-          .where(eq(transactions.id, id));
-        if (!tx)
-          return res.status(404).json({ message: "Transaction not found" });
-
-        // In production, issue Stripe refund here:
-        // if (tx.stripePaymentIntentId) {
-        //   await stripe.refunds.create({ payment_intent: tx.stripePaymentIntentId });
-        // }
-
-        await db
-          .update(transactions)
-          .set({ status: "refunded", updatedAt: new Date() })
-          .where(eq(transactions.id, id));
-
-        // Re-list the book
-        await db
-          .update(books)
-          .set({ status: "for-sale" })
-          .where(eq(books.id, tx.bookId));
-
+        await refundPayment(id);
         return res.json({ message: "Transaction refunded" });
-      } catch (err) {
-        return res.status(500).json({ message: "Refund failed" });
+      } catch (err: any) {
+        return res.status(400).json({ message: err.message || "Refund failed" });
       }
     },
   );
