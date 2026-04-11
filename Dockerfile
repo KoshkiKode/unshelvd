@@ -10,17 +10,16 @@ RUN npm ci
 # Copy source
 COPY . .
 
-# Accept affiliate ID and AdSense client ID at build time
+# Accept build-time env vars for the Vite client bundle
 ARG VITE_THRIFTBOOKS_AFF_ID
 ENV VITE_THRIFTBOOKS_AFF_ID=$VITE_THRIFTBOOKS_AFF_ID
 ARG VITE_ADSENSE_CLIENT
 ENV VITE_ADSENSE_CLIENT=$VITE_ADSENSE_CLIENT
+ARG VITE_STRIPE_PUBLISHABLE_KEY
+ENV VITE_STRIPE_PUBLISHABLE_KEY=$VITE_STRIPE_PUBLISHABLE_KEY
 
 # Build frontend + backend
 RUN SKIP_ENV_VERIFY=true npm run build
-
-# Generate migrations (schema snapshot for auto-migrate on startup)
-RUN npx drizzle-kit generate --config=drizzle.config.ts || true
 
 # ---- Production Stage ----
 FROM node:20-alpine AS runner
