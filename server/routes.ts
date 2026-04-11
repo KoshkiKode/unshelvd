@@ -32,6 +32,11 @@ import {
   createSellerAccount,
   checkSellerStatus,
 } from "./payments";
+import {
+  createPayPalOrder,
+  capturePayPalOrder,
+  isPayPalEnabled,
+} from "./paypal";
 import { registerAdminRoutes } from "./admin";
 import { validatePassword } from "@shared/password-policy";
 import { sanitizeLikeInput, parseIntParam } from "./security";
@@ -1103,6 +1108,68 @@ export async function registerRoutes(
     } catch (err) {
       console.error(`[webhook] Error handling ${event.type}:`, err);
       return res.status(500).json({ message: "Webhook handler error" });
+    }
+  });
+
+  // ── PayPal checkout routes ──────────────────────────────────────────────
+
+  /** Check whether PayPal is enabled for this deployment. */
+  app.get("/api/payments/paypal/status", async (_req, res) => {
+    const enabled = await isPayPalEnabled();
+    return res.json({ enabled });
+  });
+
+  /** Create a PayPal order for a book purchase. */
+  app.post("/api/payments/paypal/create-order", requireAuth, async (req, res) => {
+    try {
+      const enabled = await isPayPalEnabled();
+      if (!enabled) {
+        return res.status(503).json({ message: "PayPal payments are not enabled" });
+      }
+
+      const { bookId, offerId } = req.body as { bookId?: number; offerId?: number };
+      if (!bookId) return res.status(400).json({ message: "bookId is required" });
+
+      const [book] = await db.select().from(books).where(eq(books.id, bookId));
+      if (!book) return res.status(404).json({ message: "Book not found" });
+      if (!book.price) return res.status(400).json({ message: "Book has no price" });
+      if (book.userId === req.user!.id) {
+        return res.status(400).json({ message: "You cannot buy your own book" });
+      }
+
+      const origin = req.headers.origin || `https://${req.headers.host}`;
+      const { orderId, approveUrl } = await createPayPalOrder({
+        bookId,
+        buyerId: req.user!.id,
+        sellerId: book.userId,
+        amount: book.price,
+        returnUrl: `${origin}/#/paypal/return?bookId=${bookId}${offerId ? `&offerId=${offerId}` : ""}`,
+        cancelUrl: `${origin}/#/paypal/cancel`,
+      });
+
+      return res.json({ orderId, approveUrl });
+    } catch (err: any) {
+      console.error("[PayPal create-order]", err);
+      return res.status(500).json({ message: err.message || "Failed to create PayPal order" });
+    }
+  });
+
+  /** Capture an approved PayPal order. */
+  app.post("/api/payments/paypal/capture-order", requireAuth, async (req, res) => {
+    try {
+      const enabled = await isPayPalEnabled();
+      if (!enabled) {
+        return res.status(503).json({ message: "PayPal payments are not enabled" });
+      }
+
+      const { orderId } = req.body as { orderId?: string };
+      if (!orderId) return res.status(400).json({ message: "orderId is required" });
+
+      const result = await capturePayPalOrder(orderId);
+      return res.json(result);
+    } catch (err: any) {
+      console.error("[PayPal capture-order]", err);
+      return res.status(500).json({ message: err.message || "Failed to capture PayPal order" });
     }
   });
 

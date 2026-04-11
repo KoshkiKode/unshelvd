@@ -342,6 +342,21 @@ export const updateOfferSchema = z.object({
   counterAmount: z.number().min(0.01).nullable().optional(),
 });
 
+// ═══════════════════════════════════════════════════════════════
+// PLATFORM SETTINGS — admin-managed key/value configuration store
+// Keys: stripe_enabled, stripe_secret_key, stripe_publishable_key,
+//       stripe_webhook_secret, paypal_enabled, paypal_client_id,
+//       paypal_client_secret, platform_fee_percent,
+//       maintenance_mode, registrations_enabled, etc.
+// ═══════════════════════════════════════════════════════════════
+export const platformSettings = pgTable("platform_settings", {
+  key: text("key").primaryKey(),
+  value: text("value"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type PlatformSetting = typeof platformSettings.$inferSelect;
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;

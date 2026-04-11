@@ -1,6 +1,6 @@
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   Shield,
   Users,
@@ -16,12 +16,22 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
+  Wallet,
+  Settings,
+  Save,
+  Eye,
+  EyeOff,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -32,7 +42,7 @@ import {
 } from "@/components/ui/select";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface StatCardProps {
   title: string;
@@ -170,6 +180,86 @@ export default function AdminDashboard() {
   const [seedQueries, setSeedQueries] = useState("");
   const [seeding, setSeeding] = useState(false);
 
+  // ── Platform Settings / Integrations ──
+  const { data: settingsData, isLoading: settingsLoading } = useQuery<Record<string, string | null>>({
+    queryKey: ["/api/admin/settings"],
+    enabled: user?.role === "admin",
+  });
+
+  // Local form state for integrations (initialised once settings load)
+  const [stripeEnabled, setStripeEnabled] = useState(false);
+  const [stripePublishableKey, setStripePublishableKey] = useState("");
+  const [stripeSecretKey, setStripeSecretKey] = useState("");
+  const [stripeWebhookSecret, setStripeWebhookSecret] = useState("");
+
+  const [paypalEnabled, setPaypalEnabled] = useState(false);
+  const [paypalClientId, setPaypalClientId] = useState("");
+  const [paypalClientSecret, setPaypalClientSecret] = useState("");
+  const [paypalMode, setPaypalMode] = useState("sandbox");
+
+  const [platformFee, setPlatformFee] = useState("10");
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [registrationsEnabled, setRegistrationsEnabled] = useState(true);
+
+  // Populate form fields when settings arrive (use useEffect to avoid rendering side-effects)
+  useEffect(() => {
+    if (!settingsData) return;
+    setStripeEnabled(settingsData.stripe_enabled === "true");
+    setStripePublishableKey(settingsData.stripe_publishable_key ?? "");
+    setStripeSecretKey(settingsData.stripe_secret_key ?? "");
+    setStripeWebhookSecret(settingsData.stripe_webhook_secret ?? "");
+    setPaypalEnabled(settingsData.paypal_enabled === "true");
+    setPaypalClientId(settingsData.paypal_client_id ?? "");
+    setPaypalClientSecret(settingsData.paypal_client_secret ?? "");
+    setPaypalMode(settingsData.paypal_mode ?? "sandbox");
+    setPlatformFee(settingsData.platform_fee_percent ?? "10");
+    setMaintenanceMode(settingsData.maintenance_mode === "true");
+    setRegistrationsEnabled(settingsData.registrations_enabled !== "false");
+  }, [settingsData]);
+
+  // Show/hide secret fields
+  const [showStripeSecret, setShowStripeSecret] = useState(false);
+  const [showStripeWebhook, setShowStripeWebhook] = useState(false);
+  const [showPaypalSecret, setShowPaypalSecret] = useState(false);
+
+  const saveSettingsMutation = useMutation({
+    mutationFn: async (payload: Record<string, string>) => {
+      const res = await apiRequest("PUT", "/api/admin/settings", payload);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
+      toast({ title: "Settings saved" });
+    },
+    onError: (err: Error) => toast({ title: "Save failed", description: err.message, variant: "destructive" }),
+  });
+
+  const handleSaveStripe = () => {
+    saveSettingsMutation.mutate({
+      stripe_enabled: String(stripeEnabled),
+      stripe_publishable_key: stripePublishableKey,
+      stripe_secret_key: stripeSecretKey,
+      stripe_webhook_secret: stripeWebhookSecret,
+    });
+  };
+
+  const handleSavePayPal = () => {
+    saveSettingsMutation.mutate({
+      paypal_enabled: String(paypalEnabled),
+      paypal_client_id: paypalClientId,
+      paypal_client_secret: paypalClientSecret,
+      paypal_mode: paypalMode,
+    });
+  };
+
+  const handleSavePlatform = () => {
+    saveSettingsMutation.mutate({
+      platform_fee_percent: platformFee,
+      maintenance_mode: String(maintenanceMode),
+      registrations_enabled: String(registrationsEnabled),
+    });
+  };
+
   const handleSeed = async () => {
     const lines = seedQueries.split("\n").map((l) => l.trim()).filter(Boolean);
     if (lines.length === 0) {
@@ -210,6 +300,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="revenue">Revenue</TabsTrigger>
+          <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="seeder">Catalog Seeder</TabsTrigger>
         </TabsList>
 
@@ -434,6 +525,251 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <p className="text-muted-foreground">Could not load revenue data.</p>
+          )}
+        </TabsContent>
+
+        {/* ─── INTEGRATIONS ─── */}
+        <TabsContent value="integrations">
+          {settingsLoading ? (
+            <div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-48" />)}</div>
+          ) : (
+            <div className="space-y-6">
+
+              {/* ── Stripe ── */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-5 w-5 text-indigo-500" />
+                      <CardTitle>Stripe</CardTitle>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="stripe-toggle" className="text-sm text-muted-foreground">
+                        {stripeEnabled ? "Enabled" : "Disabled"}
+                      </Label>
+                      <Switch
+                        id="stripe-toggle"
+                        checked={stripeEnabled}
+                        onCheckedChange={setStripeEnabled}
+                      />
+                    </div>
+                  </div>
+                  <CardDescription>
+                    Accept credit and debit card payments via Stripe Connect.
+                    Keys entered here override the environment variables set at deploy time.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="stripe-pk" className="text-xs font-medium">Publishable Key</Label>
+                    <Input
+                      id="stripe-pk"
+                      placeholder="pk_live_... or pk_test_..."
+                      value={stripePublishableKey}
+                      onChange={(e) => setStripePublishableKey(e.target.value)}
+                      className="mt-1 font-mono text-xs"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Safe to expose in the browser. Also update your deployment's <code>_STRIPE_PK</code> build arg for the baked-in fallback.
+                    </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="stripe-sk" className="text-xs font-medium">Secret Key</Label>
+                    <div className="relative mt-1">
+                      <Input
+                        id="stripe-sk"
+                        type={showStripeSecret ? "text" : "password"}
+                        placeholder="sk_live_... or sk_test_..."
+                        value={stripeSecretKey}
+                        onChange={(e) => setStripeSecretKey(e.target.value)}
+                        className="font-mono text-xs pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowStripeSecret((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showStripeSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Leave blank to keep the existing key. The current key is shown masked.
+                    </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="stripe-wh" className="text-xs font-medium">Webhook Secret</Label>
+                    <div className="relative mt-1">
+                      <Input
+                        id="stripe-wh"
+                        type={showStripeWebhook ? "text" : "password"}
+                        placeholder="whsec_..."
+                        value={stripeWebhookSecret}
+                        onChange={(e) => setStripeWebhookSecret(e.target.value)}
+                        className="font-mono text-xs pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowStripeWebhook((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showStripeWebhook ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleSaveStripe}
+                    disabled={saveSettingsMutation.isPending}
+                    className="mt-2"
+                  >
+                    {saveSettingsMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                    Save Stripe Settings
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* ── PayPal ── */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Wallet className="h-5 w-5 text-blue-500" />
+                      <CardTitle>PayPal</CardTitle>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="paypal-toggle" className="text-sm text-muted-foreground">
+                        {paypalEnabled ? "Enabled" : "Disabled"}
+                      </Label>
+                      <Switch
+                        id="paypal-toggle"
+                        checked={paypalEnabled}
+                        onCheckedChange={setPaypalEnabled}
+                      />
+                    </div>
+                  </div>
+                  <CardDescription>
+                    Accept payments via PayPal. Uses the PayPal Orders v2 REST API.
+                    Create an app at <a href="https://developer.paypal.com" target="_blank" rel="noreferrer" className="underline">developer.paypal.com</a>.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="paypal-mode" className="text-xs font-medium">Mode</Label>
+                    <Select value={paypalMode} onValueChange={setPaypalMode}>
+                      <SelectTrigger id="paypal-mode" className="mt-1 w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sandbox">Sandbox (testing)</SelectItem>
+                        <SelectItem value="live">Live (production)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="paypal-cid" className="text-xs font-medium">Client ID</Label>
+                    <Input
+                      id="paypal-cid"
+                      placeholder="AXxx..."
+                      value={paypalClientId}
+                      onChange={(e) => setPaypalClientId(e.target.value)}
+                      className="mt-1 font-mono text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="paypal-csecret" className="text-xs font-medium">Client Secret</Label>
+                    <div className="relative mt-1">
+                      <Input
+                        id="paypal-csecret"
+                        type={showPaypalSecret ? "text" : "password"}
+                        placeholder="EHxx..."
+                        value={paypalClientSecret}
+                        onChange={(e) => setPaypalClientSecret(e.target.value)}
+                        className="font-mono text-xs pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPaypalSecret((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showPaypalSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Leave blank to keep the existing secret.</p>
+                  </div>
+                  <Button
+                    onClick={handleSavePayPal}
+                    disabled={saveSettingsMutation.isPending}
+                    className="mt-2"
+                  >
+                    {saveSettingsMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                    Save PayPal Settings
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* ── Platform Feature Flags ── */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Settings className="h-5 w-5 text-gray-500" />
+                    <CardTitle>Platform Settings</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Control platform behaviour without redeploying.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Maintenance Mode</p>
+                      <p className="text-xs text-muted-foreground">
+                        Shows a maintenance message to non-admin users. Admin access is unaffected.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={maintenanceMode}
+                      onCheckedChange={setMaintenanceMode}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">New Registrations</p>
+                      <p className="text-xs text-muted-foreground">
+                        Allow new users to create accounts.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={registrationsEnabled}
+                      onCheckedChange={setRegistrationsEnabled}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="platform-fee" className="text-xs font-medium">Platform Fee (%)</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input
+                        id="platform-fee"
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.5}
+                        value={platformFee}
+                        onChange={(e) => setPlatformFee(e.target.value)}
+                        className="w-28"
+                      />
+                      <span className="text-sm text-muted-foreground">% taken from each sale</span>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleSavePlatform}
+                    disabled={saveSettingsMutation.isPending}
+                    className="mt-2"
+                  >
+                    {saveSettingsMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                    Save Platform Settings
+                  </Button>
+                </CardContent>
+              </Card>
+
+            </div>
           )}
         </TabsContent>
 
