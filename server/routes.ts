@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage, pool } from "./storage";
 import {
   insertUserSchema,
   loginSchema,
@@ -37,9 +37,11 @@ import { z } from "zod";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import createMemoryStore from "memorystore";
 import bcrypt from "bcryptjs";
 
+const PgSessionStore = connectPgSimple(session);
 const MemoryStore = createMemoryStore(session);
 import { ZodError } from "zod";
 
@@ -80,15 +82,32 @@ export async function registerRoutes(
   app: Express,
 ): Promise<Server> {
   // Session setup
-  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+  const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+  const SESSION_PRUNE_INTERVAL_S = 15 * 60;        // prune expired sessions every 15 min
+
+  // In production use a PostgreSQL-backed session store so sessions survive
+  // across multiple Cloud Run instances.  In development fall back to the
+  // in-memory store to avoid requiring a database connection.
+  const sessionStore =
+    process.env.NODE_ENV === "production" && process.env.DATABASE_URL
+      ? new PgSessionStore({
+          pool,
+          tableName: "user_sessions",
+          // Auto-create the session table on first connect
+          createTableIfMissing: true,
+          ttl: SESSION_TTL_MS / 1000, // pg store uses seconds
+          pruneSessionInterval: SESSION_PRUNE_INTERVAL_S,
+        })
+      : new MemoryStore({ checkPeriod: SESSION_TTL_MS });
+
   app.use(
     session({
       secret: process.env.SESSION_SECRET || "unshelvd-dev-secret-change-me",
       resave: false,
       saveUninitialized: false,
-      store: new MemoryStore({ checkPeriod: sessionTtl }),
+      store: sessionStore,
       cookie: {
-        maxAge: sessionTtl,
+        maxAge: SESSION_TTL_MS,
         // For Capacitor native apps making cross-origin requests:
         sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         secure: process.env.NODE_ENV === "production",
@@ -138,6 +157,21 @@ export async function registerRoutes(
 
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // === HEALTH CHECK ===
+  app.get("/api/health", async (_req, res) => {
+    try {
+      // Use two separate queries so the timeout applies only to the
+      // session-level config, not as part of a multi-statement string.
+      await pool.query("SET LOCAL statement_timeout = 3000");
+      await pool.query("SELECT 1");
+      res.json({ status: "ok", db: "ok", timestamp: new Date().toISOString() });
+    } catch (err: any) {
+      res
+        .status(503)
+        .json({ status: "degraded", db: "error", error: err.message, timestamp: new Date().toISOString() });
+    }
+  });
 
   // === AUTH ROUTES ===
   app.post("/api/auth/register", async (req, res) => {

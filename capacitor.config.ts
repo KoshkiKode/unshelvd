@@ -20,7 +20,13 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: "https",
     iosScheme: "https",
-    allowNavigation: ["*"],
+    // Restrict navigation to only the domains the app genuinely needs.
+    // Payments (Stripe), book covers (Open Library), and our own backend.
+    allowNavigation: [
+      "*.koshkikode.com",
+      "*.stripe.com",
+      "*.openlibrary.org",
+    ],
   },
 
   plugins: {

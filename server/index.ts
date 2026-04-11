@@ -4,6 +4,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import cors from "cors";
 import { applySecurityMiddleware } from "./security";
+import { pool } from "./storage";
 import { runMigrations } from "./migrate";
 import { runAutoSeed } from "./auto-seed";
 
@@ -79,7 +80,7 @@ app.use(
 app.use(express.urlencoded({ extended: false }));
 
 // Security middleware (Helmet headers + rate limiting)
-applySecurityMiddleware(app);
+applySecurityMiddleware(app, pool);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {

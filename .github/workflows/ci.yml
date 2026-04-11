@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+
+jobs:
+  test:
+    name: Type-check, Build & Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npm run check
+
+      - name: Build
+        run: npm run build
+        env:
+          SKIP_ENV_VERIFY: "true"
+
+      - name: Run tests
+        run: npm test
+        env:
+          NODE_ENV: test

@@ -381,6 +381,10 @@ async function seed() {
       const adminEmail = process.env.ADMIN_EMAIL || `${adminUsername}@unshelvd.com`;
 
       console.log(`Admin username: ${adminUsername}  email: ${adminEmail}  password: ${adminPass}`);
+      if (process.env.NODE_ENV === 'production') {
+        console.log('⚠️  Admin credentials logged above. Store them immediately — they will not be shown again.');
+        console.log('   To avoid this log in production, set ADMIN_EMAIL, ADMIN_USERNAME, and ADMIN_PASSWORD in Secret Manager.');
+      }
 
       await client.query(
         'INSERT INTO users (username, display_name, email, password, role, location) VALUES ($1, $2, $3, $4, $5, $6)',

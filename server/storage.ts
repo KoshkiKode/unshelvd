@@ -23,6 +23,9 @@ pool.on("error", (err) => {
   console.error("Unexpected pool error on idle client:", err.message);
 });
 
+// Export pool for reuse (session store, rate limiter, etc.)
+export { pool };
+
 export const db = drizzle(pool);
 
 export interface IStorage {

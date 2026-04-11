@@ -8,20 +8,29 @@
 #   DATABASE_URL          — Cloud SQL Unix-socket connection string
 #   SESSION_SECRET        — random 32-byte hex string
 #
-# Optional secrets for Stripe payments (see DEPLOY.md § "Stripe Payments"):
+# Secrets for Stripe payments (see DEPLOY.md § "Stripe Payments"):
 #   STRIPE_SECRET_KEY     — Stripe server-side secret key  (sk_live_... / sk_test_...)
 #   STRIPE_WEBHOOK_SECRET — Stripe webhook signing secret  (whsec_...)
+#
+# Optional admin credential secrets (see DEPLOY.md § "Admin Credentials"):
+#   ADMIN_EMAIL           — admin account email
+#   ADMIN_USERNAME        — admin account username
+#   ADMIN_PASSWORD        — admin account password (strong, randomly generated)
 #
 # NOTE: VITE_STRIPE_PUBLISHABLE_KEY is a build-time env var, not a runtime secret.
 #       Pass it via --substitutions=_STRIPE_PK=pk_live_... (see substitutions below).
 #
 # Substitutions (override with --substitutions flag):
-#   _REGION           GCP region                   (default: us-central1)
-#   _SERVICE_NAME     Cloud Run service name        (default: unshelvd)
-#   _REPO             Artifact Registry repo name   (default: unshelvd)
-#   _SQL_INSTANCE     Cloud SQL instance name       (default: unshelvd-db)
-#   _MEMORY           Cloud Run memory allocation   (default: 512Mi)
-#   _MAX_INSTANCES    Cloud Run max instances       (default: 3)
+#   _REGION               GCP region                   (default: us-central1)
+#   _SERVICE_NAME         Cloud Run service name        (default: unshelvd)
+#   _REPO                 Artifact Registry repo name   (default: unshelvd)
+#   _SQL_INSTANCE         Cloud SQL instance name       (default: unshelvd-db)
+#   _MEMORY               Cloud Run memory allocation   (default: 512Mi)
+#   _MIN_INSTANCES        Cloud Run min instances       (default: 1 — keeps one warm for WebSocket)
+#   _MAX_INSTANCES        Cloud Run max instances       (default: 3)
+#   _STRIPE_PK            Stripe publishable key        (default: "" — payments disabled)
+#   _THRIFTBOOKS_AFF_ID   ThriftBooks affiliate ID      (default: "" — affiliate links disabled)
+#   _ADSENSE_CLIENT       AdSense publisher ID          (default: "" — ads disabled)
 
 substitutions:
   _REGION: us-central1
@@ -29,11 +38,15 @@ substitutions:
   _REPO: unshelvd
   _SQL_INSTANCE: unshelvd-db
   _MEMORY: 512Mi
+  _MIN_INSTANCES: "1"
   _MAX_INSTANCES: "3"
   # Stripe publishable key — safe to embed at build time (not a secret).
   # Override at deploy time:  --substitutions=_STRIPE_PK=pk_live_...
   # Leave blank to run in dev/no-payment mode.
   _STRIPE_PK: ""
+  # Affiliate and ad IDs — safe to bake into the client bundle at build time.
+  _THRIFTBOOKS_AFF_ID: ""
+  _ADSENSE_CLIENT: ""
 
 steps:
   # 1. Build the Docker image
@@ -44,6 +57,8 @@ steps:
       - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE_NAME}:$COMMIT_SHA"
       - "-t"
       - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE_NAME}:latest"
+      - "--build-arg=VITE_THRIFTBOOKS_AFF_ID=${_THRIFTBOOKS_AFF_ID}"
+      - "--build-arg=VITE_ADSENSE_CLIENT=${_ADSENSE_CLIENT}"
       - "."
 
   # 2. Push to Artifact Registry
@@ -85,6 +100,11 @@ steps:
       - "--args=script/seed.js"
       - "--region=${_REGION}"
       - "--set-cloudsql-instances=${PROJECT_ID}:${_REGION}:${_SQL_INSTANCE}"
+      # Admin credential secrets are optional.
+      # If ADMIN_EMAIL, ADMIN_USERNAME, or ADMIN_PASSWORD do not yet exist in
+      # Secret Manager, remove them from --set-secrets below and the seed script
+      # will auto-generate credentials (printed to the job log — save immediately).
+      # Create them first with: see DEPLOY.md § "Admin Credentials"
       - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest"
       - "--set-env-vars=NODE_ENV=production"
       - "--max-retries=1"
@@ -95,12 +115,17 @@ steps:
   # 5. Deploy the main Cloud Run service
   #
   # ── Stripe secrets ──────────────────────────────────────────────────────────
-  # To enable payments, add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET to
-  # Secret Manager first (see DEPLOY.md § "Stripe Payments"), then uncomment
-  # the two secrets below in --set-secrets and pass _STRIPE_PK at deploy time:
+  # Add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET to Secret Manager first
+  # (see DEPLOY.md § "Stripe Payments"), then pass _STRIPE_PK at deploy time:
   #
   #   gcloud builds submit --config=cloudbuild.yaml \
   #     --substitutions=_STRIPE_PK=pk_live_...
+  #
+  # ── Admin credentials ───────────────────────────────────────────────────────
+  # Set ADMIN_EMAIL, ADMIN_USERNAME, ADMIN_PASSWORD in Secret Manager (once).
+  # The service reads them at runtime to prevent auto-generated credentials from
+  # being printed in logs.  If any are absent the secrets mount is skipped — see
+  # the comment on --set-secrets below.
   #
   # ────────────────────────────────────────────────────────────────────────────
   - name: "gcr.io/cloud-builders/gcloud"
@@ -115,12 +140,13 @@ steps:
       - "--port=8080"
       - "--memory=${_MEMORY}"
       - "--cpu=1"
-      - "--min-instances=0"
+      - "--min-instances=${_MIN_INSTANCES}"
       - "--max-instances=${_MAX_INSTANCES}"
       - "--startup-cpu-boost"
       - "--set-cloudsql-instances=${PROJECT_ID}:${_REGION}:${_SQL_INSTANCE}"
-      # Add ,STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest when Stripe secrets exist in Secret Manager
-      - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest"
+      # Stripe secrets (add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET to Secret
+      # Manager first — see DEPLOY.md):
+      - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest,STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest"
       - "--set-env-vars=NODE_ENV=production,VITE_STRIPE_PUBLISHABLE_KEY=${_STRIPE_PK}"
 
 images:
