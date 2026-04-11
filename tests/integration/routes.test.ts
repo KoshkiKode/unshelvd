@@ -119,6 +119,17 @@ vi.mock("bcryptjs", () => ({
 import { storage } from "../../server/storage";
 import { registerRoutes } from "../../server/routes";
 import bcrypt from "bcryptjs";
+import {
+  createPaymentIntent,
+  confirmPayment,
+  markShipped,
+  confirmDelivery,
+  getUserTransactions,
+  createSellerAccount,
+  checkSellerStatus,
+  handleChargeRefunded,
+} from "../../server/payments";
+import { validatePassword } from "../../shared/password-policy";
 
 // ─── test helpers ──────────────────────────────────────────────────────────
 
@@ -815,7 +826,6 @@ describe("POST /api/webhooks/stripe (dev mode)", () => {
   });
 
   it("handles charge.refunded event", async () => {
-    const { handleChargeRefunded } = await import("../../server/payments");
     const res = await request(app)
       .post("/api/webhooks/stripe")
       .send({
@@ -1152,7 +1162,6 @@ describe("POST /api/payments/checkout (requires auth)", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    const { createPaymentIntent } = await import("../../server/payments");
     vi.mocked(createPaymentIntent).mockResolvedValueOnce({
       clientSecret: "pi_test_secret",
       transactionId: 7,
@@ -1168,7 +1177,6 @@ describe("POST /api/payments/checkout (requires auth)", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    const { createPaymentIntent } = await import("../../server/payments");
     vi.mocked(createPaymentIntent).mockRejectedValueOnce(new Error("Book not available"));
 
     const res = await agent.post("/api/payments/checkout").send({ bookId: 3 });
@@ -1203,7 +1211,6 @@ describe("POST /api/payments/:id/confirm (requires auth)", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    const { confirmPayment } = await import("../../server/payments");
     vi.mocked(confirmPayment).mockResolvedValueOnce({ id: 1, status: "confirmed" } as any);
 
     const res = await agent.post("/api/payments/1/confirm");
@@ -1224,7 +1231,6 @@ describe("POST /api/payments/:id/confirm (requires auth)", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    const { confirmPayment } = await import("../../server/payments");
     vi.mocked(confirmPayment).mockRejectedValueOnce(new Error("Not authorized"));
 
     const res = await agent.post("/api/payments/1/confirm");
@@ -1251,7 +1257,6 @@ describe("POST /api/payments/:id/ship (requires auth)", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    const { markShipped } = await import("../../server/payments");
     vi.mocked(markShipped).mockResolvedValueOnce({ id: 1, status: "shipped" } as any);
 
     const res = await agent.post("/api/payments/1/ship").send({
@@ -1275,7 +1280,6 @@ describe("POST /api/payments/:id/ship (requires auth)", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    const { markShipped } = await import("../../server/payments");
     vi.mocked(markShipped).mockRejectedValueOnce(new Error("Only seller can mark shipped"));
 
     const res = await agent.post("/api/payments/1/ship").send({});
@@ -1302,7 +1306,6 @@ describe("POST /api/payments/:id/deliver (requires auth)", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    const { confirmDelivery } = await import("../../server/payments");
     vi.mocked(confirmDelivery).mockResolvedValueOnce({ id: 1, status: "delivered" } as any);
 
     const res = await agent.post("/api/payments/1/deliver");
@@ -1323,7 +1326,6 @@ describe("POST /api/payments/:id/deliver (requires auth)", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    const { confirmDelivery } = await import("../../server/payments");
     vi.mocked(confirmDelivery).mockRejectedValueOnce(new Error("Only buyer can confirm"));
 
     const res = await agent.post("/api/payments/1/deliver");
@@ -1350,7 +1352,6 @@ describe("GET /api/payments/transactions (requires auth)", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    const { getUserTransactions } = await import("../../server/payments");
     const txns = [{ id: 1, status: "delivered", buyerId: TEST_USER.id }];
     vi.mocked(getUserTransactions).mockResolvedValueOnce(txns as any);
 
@@ -1364,7 +1365,6 @@ describe("GET /api/payments/transactions (requires auth)", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    const { getUserTransactions } = await import("../../server/payments");
     vi.mocked(getUserTransactions).mockRejectedValueOnce(new Error("DB error"));
 
     const res = await agent.get("/api/payments/transactions");
@@ -1395,7 +1395,6 @@ describe("POST /api/seller/connect (requires auth)", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    const { createSellerAccount } = await import("../../server/payments");
     vi.mocked(createSellerAccount).mockResolvedValueOnce({ url: "https://connect.stripe.com/setup" } as any);
 
     const res = await agent.post("/api/seller/connect").send({ returnUrl: "https://example.com/dashboard" });
@@ -1407,7 +1406,6 @@ describe("POST /api/seller/connect (requires auth)", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    const { createSellerAccount } = await import("../../server/payments");
     vi.mocked(createSellerAccount).mockRejectedValueOnce(new Error("Stripe error"));
 
     const res = await agent.post("/api/seller/connect").send({});
@@ -1434,7 +1432,6 @@ describe("GET /api/seller/status (requires auth)", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    const { checkSellerStatus } = await import("../../server/payments");
     vi.mocked(checkSellerStatus).mockResolvedValueOnce({ onboarded: true, accountId: "acct_123" } as any);
 
     const res = await agent.get("/api/seller/status");
@@ -1446,7 +1443,6 @@ describe("GET /api/seller/status (requires auth)", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    const { checkSellerStatus } = await import("../../server/payments");
     vi.mocked(checkSellerStatus).mockRejectedValueOnce(new Error("No account found"));
 
     const res = await agent.get("/api/seller/status");
@@ -1473,7 +1469,6 @@ describe("GET /api/seller/connect/complete (requires auth)", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    const { checkSellerStatus } = await import("../../server/payments");
     vi.mocked(checkSellerStatus).mockResolvedValueOnce({ onboarded: true, accountId: "acct_123" } as any);
 
     const res = await agent.get("/api/seller/connect/complete");
@@ -1485,7 +1480,6 @@ describe("GET /api/seller/connect/complete (requires auth)", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    const { checkSellerStatus } = await import("../../server/payments");
     vi.mocked(checkSellerStatus).mockRejectedValueOnce(new Error("Account error"));
 
     const res = await agent.get("/api/seller/connect/complete");
@@ -2397,7 +2391,6 @@ describe("POST /api/auth/change-password (requires auth)", () => {
   });
 
   it("returns 400 when the new password fails policy validation", async () => {
-    const { validatePassword } = await import("../../shared/password-policy");
     vi.mocked(validatePassword).mockReturnValueOnce({ valid: false, errors: ["Password too weak"] });
 
     const agent = await loginAs(app, TEST_USER);
