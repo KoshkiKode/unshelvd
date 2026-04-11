@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch, Link } from "wouter";
 import BookCard from "@/components/book-card";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, BookOpen, SlidersHorizontal, ArrowRight } from "lucide-react";
+import { Search, BookOpen, SlidersHorizontal, ArrowRight, ArrowUp } from "lucide-react";
 import type { Book, CatalogEntry } from "@shared/schema";
 
 interface CatalogResponse {
@@ -29,6 +29,13 @@ export default function Browse() {
   const [sort, setSort] = useState("newest");
   const [status, setStatus] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setShowBackToTop(window.scrollY > window.innerHeight);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // Fetch genres dynamically from API, fall back to hardcoded list
   const { data: dynamicGenres } = useQuery<string[]>({
@@ -217,6 +224,18 @@ export default function Browse() {
       <div className="mt-8 flex justify-center">
         <AdBanner size="leaderboard" />
       </div>
+
+      {/* Back to top */}
+      {showBackToTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="fixed bottom-6 right-6 z-50 h-10 w-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
+          aria-label="Back to top"
+          data-testid="back-to-top"
+        >
+          <ArrowUp className="h-4 w-4" />
+        </button>
+      )}
     </div>
   );
 }

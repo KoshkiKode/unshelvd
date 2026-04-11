@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BookOpen, Plus, MessageSquare, DollarSign, FileText, ArrowRight,
   CreditCard, CheckCircle, Loader2, Truck, Package, Clock, AlertCircle,
-  ExternalLink, ShoppingBag, TrendingUp, Banknote,
+  ExternalLink, ShoppingBag, TrendingUp, Banknote, Pencil, Trash2,
 } from "lucide-react";
 import type { Book } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
@@ -19,6 +19,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 
 export default function Dashboard() {
@@ -29,6 +33,7 @@ export default function Dashboard() {
   // State for "Mark as Shipped" dialog
   const [shipDialogOpen, setShipDialogOpen] = useState(false);
   const [shipTxId, setShipTxId] = useState<number | null>(null);
+  const [deleteDialogBook, setDeleteDialogBook] = useState<Book | null>(null);
   const [carrier, setCarrier] = useState("");
   const [tracking, setTracking] = useState("");
 
@@ -94,8 +99,8 @@ export default function Dashboard() {
     enabled: !!user,
   });
 
-  const { data: requests } = useQuery<any[]>({
-    queryKey: ["/api/requests"],
+  const { data: requestsData } = useQuery<{ requests: any[]; total: number }>({
+    queryKey: [`/api/requests?status=open&limit=100`],
     enabled: !!user,
   });
 
@@ -137,12 +142,27 @@ export default function Dashboard() {
     },
   });
 
+  const deleteBookMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/books/${id}`);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/books/user/${user?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/books"] });
+      toast({ title: "Book removed", description: "Your listing has been deleted." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to delete", description: err.message, variant: "destructive" });
+    },
+  });
+
   if (!user) return <Redirect to="/login" />;
 
   const activeListings = books?.filter((b) => b.status === "for-sale" || b.status === "open-to-offers").length || 0;
   const pendingOffers = offers?.received.filter((o) => o.status === "pending").length || 0;
   const unreadMessages = unread?.count || 0;
-  const myRequests = requests?.filter((r) => r.userId === user.id && r.status === "open").length || 0;
+  const myRequests = requestsData?.requests?.filter((r) => r.userId === user.id && r.status === "open").length || 0;
   const activeTxCount = (transactions?.purchases.filter(t => t.status !== "completed" && t.status !== "refunded").length || 0)
     + (transactions?.sales.filter(t => t.status !== "completed" && t.status !== "refunded").length || 0);
 
@@ -341,8 +361,8 @@ export default function Dashboard() {
         {books && books.length > 0 ? (
           <div className="space-y-2">
             {books.slice(0, 5).map((book) => (
-              <Link key={book.id} href={`/book/${book.id}`}>
-                <div className="flex items-center gap-3 p-3 border rounded-lg bg-card hover:shadow-sm transition-shadow cursor-pointer" data-testid={`listing-${book.id}`}>
+              <div key={book.id} className="flex items-center gap-3 p-3 border rounded-lg bg-card" data-testid={`listing-${book.id}`}>
+                <Link href={`/book/${book.id}`} className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity cursor-pointer">
                   <div className="h-12 w-9 rounded bg-muted flex items-center justify-center flex-shrink-0">
                     {book.coverUrl ? (
                       <img src={book.coverUrl} alt="" className="h-12 w-9 rounded object-cover" />
@@ -354,14 +374,32 @@ export default function Dashboard() {
                     <p className="font-serif text-sm font-medium truncate">{book.title}</p>
                     <p className="text-xs text-muted-foreground">{book.author}</p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right mr-2">
                     {book.price != null && (
                       <p className="text-sm font-semibold text-primary">${book.price.toFixed(2)}</p>
                     )}
                     <p className="text-[10px] text-muted-foreground capitalize">{book.status.replace(/-/g, " ")}</p>
                   </div>
+                </Link>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <Link href={`/dashboard/add-book?edit=${book.id}`}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Edit listing" data-testid={`edit-listing-${book.id}`}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-destructive hover:text-destructive"
+                    title="Delete listing"
+                    data-testid={`delete-listing-${book.id}`}
+                    onClick={() => setDeleteDialogBook(book)}
+                    disabled={deleteBookMutation.isPending}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         ) : (
@@ -580,6 +618,32 @@ function TransactionCard({
           <span className="text-[10px] text-green-600 font-medium">✓ Payout sent</span>
         )}
       </div>
+
+      {/* Delete listing confirmation dialog */}
+      <AlertDialog open={!!deleteDialogBook} onOpenChange={(v) => { if (!v) setDeleteDialogBook(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete listing?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove "{deleteDialogBook?.title}" from your listings? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteDialogBook) {
+                  deleteBookMutation.mutate(deleteDialogBook.id);
+                  setDeleteDialogBook(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

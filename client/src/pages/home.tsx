@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import BookCard from "@/components/book-card";
 import CatalogCard from "@/components/catalog-card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowRight, BookOpen, Search, Users } from "lucide-react";
+import { useState } from "react";
 import type { Book, BookRequest, CatalogEntry } from "@shared/schema";
 
 interface CatalogResponse {
@@ -23,9 +25,13 @@ export default function Home() {
     queryKey: ["/api/catalog?limit=10"],
   });
 
-  const { data: requests, isLoading: requestsLoading } = useQuery<(BookRequest & { user: any })[]>({
-    queryKey: ["/api/requests"],
+  const { data: requestsData, isLoading: requestsLoading } = useQuery<{ requests: (BookRequest & { user: any })[]; total: number }>({
+    queryKey: ["/api/requests?status=open&limit=6"],
   });
+  const requests = requestsData?.requests;
+
+  const [, setLocation] = useLocation();
+  const [heroSearch, setHeroSearch] = useState("");
 
   const hasUserBooks = books && books.length > 0;
   const catalogBooks = catalogData?.books || [];
@@ -42,6 +48,28 @@ export default function Home() {
           <p className="text-lg md:text-xl text-muted-foreground max-w-lg mb-8">
             A community marketplace for buying, selling, and trading books. Discover hidden gems from fellow readers.
           </p>
+          <form
+            className="flex gap-2 mb-6 max-w-md"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (heroSearch.trim()) {
+                setLocation(`/browse?search=${encodeURIComponent(heroSearch.trim())}`);
+              }
+            }}
+          >
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search by title or author..."
+                value={heroSearch}
+                onChange={(e) => setHeroSearch(e.target.value)}
+                className="pl-9"
+                data-testid="hero-search-input"
+              />
+            </div>
+            <Button type="submit" data-testid="hero-search-btn">Search</Button>
+          </form>
           <div className="flex flex-wrap gap-3">
             <Link href="/browse">
               <Button size="lg" className="font-medium" data-testid="hero-browse">

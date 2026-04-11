@@ -455,26 +455,26 @@ describe("GET /api/requests", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     app = await buildApp();
-    (mockStorage.getBookRequests as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (mockStorage.getBookRequests as ReturnType<typeof vi.fn>).mockResolvedValue({ requests: [], total: 0 });
     (mockStorage.getUser as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   });
 
   it("returns an array", async () => {
     const res = await request(app).get("/api/requests");
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
+    expect(Array.isArray(res.body.requests)).toBe(true);
   });
 
   it("enriches each request with user info", async () => {
     const req1 = { id: 1, title: "Dune", userId: 7, status: "open", createdAt: new Date() };
     const user7 = { id: 7, username: "frank", displayName: "Frank Herbert", avatarUrl: null };
 
-    (mockStorage.getBookRequests as ReturnType<typeof vi.fn>).mockResolvedValueOnce([req1]);
+    (mockStorage.getBookRequests as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ requests: [req1], total: 1 });
     (mockStorage.getUser as ReturnType<typeof vi.fn>).mockResolvedValueOnce(user7);
 
     const res = await request(app).get("/api/requests");
     expect(res.status).toBe(200);
-    expect(res.body[0].user.username).toBe("frank");
+    expect(res.body.requests[0].user.username).toBe("frank");
   });
 });
 

@@ -4,7 +4,7 @@ import { useSearch } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, BookOpen } from "lucide-react";
+import { Search, BookOpen, ArrowUp } from "lucide-react";
 import CatalogCard from "@/components/catalog-card";
 import type { CatalogEntry } from "@shared/schema";
 
@@ -19,6 +19,13 @@ export default function Catalog() {
   const [search, setSearch] = useState(params.get("q") || "");
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [page, setPage] = useState(1);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setShowBackToTop(window.scrollY > window.innerHeight);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const queryParams = new URLSearchParams();
   if (debouncedSearch) queryParams.set("q", debouncedSearch);
@@ -99,6 +106,17 @@ export default function Catalog() {
           <h3 className="font-serif text-lg font-medium mb-1">No books found</h3>
           <p className="text-sm text-muted-foreground">Try adjusting your search or filters</p>
         </div>
+      )}
+
+      {showBackToTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="fixed bottom-6 right-6 z-50 h-10 w-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
+          aria-label="Back to top"
+          data-testid="catalog-back-to-top"
+        >
+          <ArrowUp className="h-4 w-4" />
+        </button>
       )}
     </div>
   );

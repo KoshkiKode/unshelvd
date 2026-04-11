@@ -9,9 +9,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { BookOpen, Plus, MessageSquare, User, DollarSign } from "lucide-react";
+import { BookOpen, Plus, MessageSquare, User, DollarSign, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import type { BookRequest } from "@shared/schema";
+
+const PAGE_SIZE = 20;
+
+interface RequestUser {
+  id: number;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+interface RequestsResponse {
+  requests: (BookRequest & { user: RequestUser | null })[];
+  total: number;
+}
 
 export default function Requests() {
   const { user } = useAuth();
@@ -19,10 +33,21 @@ export default function Requests() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: "", author: "", edition: "", description: "", maxPrice: "" });
+  const [statusFilter, setStatusFilter] = useState<"open" | "all">("open");
+  const [page, setPage] = useState(1);
 
-  const { data: requests, isLoading } = useQuery<(BookRequest & { user: any })[]>({
-    queryKey: ["/api/requests"],
+  const queryParams = new URLSearchParams();
+  if (statusFilter === "open") queryParams.set("status", "open");
+  queryParams.set("limit", String(PAGE_SIZE));
+  queryParams.set("offset", String((page - 1) * PAGE_SIZE));
+
+  const { data, isLoading } = useQuery<RequestsResponse>({
+    queryKey: [`/api/requests?${queryParams.toString()}`],
   });
+
+  const requests = data?.requests || [];
+  const total = data?.total || 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -47,7 +72,7 @@ export default function Requests() {
 
   return (
     <div className="container mx-auto max-w-4xl px-4 py-8" data-testid="requests-page">
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold mb-2">Book Requests</h1>
           <p className="text-muted-foreground">Community members looking for specific books</p>
@@ -127,6 +152,31 @@ export default function Requests() {
         )}
       </div>
 
+      {/* Status filter */}
+      <div className="flex gap-2 mb-6">
+        <Button
+          variant={statusFilter === "open" ? "default" : "outline"}
+          size="sm"
+          onClick={() => { setStatusFilter("open"); setPage(1); }}
+          data-testid="filter-open"
+        >
+          Open
+        </Button>
+        <Button
+          variant={statusFilter === "all" ? "default" : "outline"}
+          size="sm"
+          onClick={() => { setStatusFilter("all"); setPage(1); }}
+          data-testid="filter-all"
+        >
+          All
+        </Button>
+        {total > 0 && (
+          <span className="ml-auto text-sm text-muted-foreground self-center">
+            {total} {statusFilter === "open" ? "open" : ""} request{total !== 1 ? "s" : ""}
+          </span>
+        )}
+      </div>
+
       {/* Requests list */}
       {isLoading ? (
         <div className="space-y-3">
@@ -134,52 +184,83 @@ export default function Requests() {
             <Skeleton key={i} className="h-32 rounded-lg" />
           ))}
         </div>
-      ) : requests && requests.length > 0 ? (
-        <div className="space-y-3" data-testid="requests-list">
-          {requests.map((req) => (
-            <div
-              key={req.id}
-              className="border rounded-lg p-5 bg-card hover:shadow-md transition-shadow"
-              data-testid={`request-card-${req.id}`}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-serif font-semibold">{req.title}</h3>
-                    <Badge variant={req.status === "open" ? "default" : "secondary"} className="text-[10px]">
-                      {req.status}
-                    </Badge>
-                  </div>
-                  {req.author && <p className="text-sm text-muted-foreground mb-1">by {req.author}</p>}
-                  {req.edition && <p className="text-xs text-muted-foreground mb-2">Edition: {req.edition}</p>}
-                  {req.description && <p className="text-sm text-muted-foreground mb-3">{req.description}</p>}
+      ) : requests.length > 0 ? (
+        <>
+          <div className="space-y-3" data-testid="requests-list">
+            {requests.map((req) => (
+              <div
+                key={req.id}
+                className="border rounded-lg p-5 bg-card hover:shadow-md transition-shadow"
+                data-testid={`request-card-${req.id}`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-serif font-semibold">{req.title}</h3>
+                      <Badge variant={req.status === "open" ? "default" : "secondary"} className="text-[10px]">
+                        {req.status}
+                      </Badge>
+                    </div>
+                    {req.author && <p className="text-sm text-muted-foreground mb-1">by {req.author}</p>}
+                    {req.edition && <p className="text-xs text-muted-foreground mb-2">Edition: {req.edition}</p>}
+                    {req.description && <p className="text-sm text-muted-foreground mb-3">{req.description}</p>}
 
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    {req.maxPrice && (
-                      <span className="flex items-center gap-1 font-medium text-primary">
-                        <DollarSign className="h-3 w-3" />
-                        Budget: ${req.maxPrice}
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      {req.maxPrice && (
+                        <span className="flex items-center gap-1 font-medium text-primary">
+                          <DollarSign className="h-3 w-3" />
+                          Budget: ${req.maxPrice}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        {req.user?.displayName || "Unknown"}
                       </span>
-                    )}
-                    <span className="flex items-center gap-1">
-                      <User className="h-3 w-3" />
-                      {req.user?.displayName || "Unknown"}
-                    </span>
+                    </div>
                   </div>
-                </div>
 
-                {user && req.userId !== user.id && req.status === "open" && (
-                  <Link href={`/dashboard/messages?user=${req.userId}`}>
-                    <Button variant="outline" size="sm" data-testid={`reply-request-${req.id}`}>
-                      <MessageSquare className="h-3.5 w-3.5 mr-1" />
-                      I Have This
-                    </Button>
-                  </Link>
-                )}
+                  {user && req.userId !== user.id && req.status === "open" && (
+                    <Link href={`/dashboard/messages?user=${req.userId}`}>
+                      <Button variant="outline" size="sm" data-testid={`reply-request-${req.id}`}>
+                        <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                        I Have This
+                      </Button>
+                    </Link>
+                  )}
+                </div>
               </div>
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 mt-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                data-testid="requests-prev"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                data-testid="requests-next"
+              >
+                Next
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       ) : (
         <div className="text-center py-20 border rounded-lg bg-card">
           <BookOpen className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />

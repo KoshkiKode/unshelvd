@@ -88,12 +88,12 @@ export default function About() {
           <div className="text-center p-3 rounded-lg bg-muted border border-border">
             <p className="font-serif text-xl font-bold">9%</p>
             <p className="text-[10px] text-muted-foreground mt-1">Phase 2</p>
-            <p className="text-[10px] text-muted-foreground">1,000 users</p>
+            <p className="text-[10px] text-muted-foreground">500 sales/mo</p>
           </div>
           <div className="text-center p-3 rounded-lg bg-muted border border-border">
             <p className="font-serif text-xl font-bold">7.5%</p>
             <p className="text-[10px] text-muted-foreground mt-1">Phase 3</p>
-            <p className="text-[10px] text-muted-foreground">10,000 users</p>
+            <p className="text-[10px] text-muted-foreground">2,500 sales/mo</p>
           </div>
           <div className="text-center p-3 rounded-lg bg-muted border border-border">
             <p className="font-serif text-xl font-bold">5%</p>
@@ -148,8 +148,8 @@ export default function About() {
             <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
               Currently 10% of each sale. This covers server infrastructure, payment processing
               (Stripe takes ~3%), and development. The fee is on a public roadmap to decrease
-              to 5% — tied to monthly sales volume. At 500 books sold per month, it drops to 9%.
-              At 2,500 books per month, 7.5%. Long-term target is 5%. Listing books, browsing,
+              to 5% — tied to monthly sales volume. At 500 sales/mo, it drops to 9%.
+              At 2,500 sales/mo, 7.5%. Long-term target is 5%. Listing books, browsing,
               messaging, and making offers are all free.
             </AccordionContent>
           </AccordionItem>

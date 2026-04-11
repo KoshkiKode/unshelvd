@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation, Redirect, useSearch } from "wouter";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
+import type { Book } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -90,6 +91,15 @@ export default function AddBook() {
   const queryClient = useQueryClient();
   const searchStr = useSearch();
 
+  const editParams = new URLSearchParams(searchStr);
+  const editBookId = editParams.get("edit") ? parseInt(editParams.get("edit")!) : null;
+
+  // Fetch existing book when editing
+  const { data: editBook } = useQuery<Book>({
+    queryKey: [`/api/books/${editBookId}`],
+    enabled: editBookId != null,
+  });
+
   // Desktop-only: dismiss state for "email yourself a link" banner
   const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
   const [isDesktop, setIsDesktop] = useState(
@@ -176,6 +186,34 @@ export default function AddBook() {
     }
   }, [searchStr, toast]);
 
+  // Pre-fill form when editing an existing book
+  useEffect(() => {
+    if (!editBook) return;
+    setForm({
+      title: editBook.title || "",
+      author: editBook.author || "",
+      isbn: editBook.isbn || "",
+      coverUrl: editBook.coverUrl || "",
+      description: editBook.description || "",
+      condition: editBook.condition || "good",
+      status: editBook.status || "for-sale",
+      price: editBook.price != null ? String(editBook.price) : "",
+      genre: editBook.genre ? editBook.genre.split(",").map((g: string) => g.trim()) : [],
+      publisher: editBook.publisher || "",
+      edition: editBook.edition || "",
+      year: editBook.year != null ? String(editBook.year) : "",
+      language: editBook.language || "",
+      originalLanguage: editBook.originalLanguage || "",
+      countryOfOrigin: editBook.countryOfOrigin || "",
+      printCountry: editBook.printCountry || "",
+      era: editBook.era || "",
+      script: editBook.script || "",
+      calendarSystem: editBook.calendarSystem || "",
+      calendarYear: editBook.calendarYear || "",
+      textDirection: editBook.textDirection || "",
+    });
+  }, [editBook]);
+
   // Debounced search
   useEffect(() => {
     if (searchQuery.length < 2) {
@@ -236,7 +274,7 @@ export default function AddBook() {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/books", {
+      const payload = {
         title: form.title,
         author: form.author,
         isbn: form.isbn || null,
@@ -258,14 +296,33 @@ export default function AddBook() {
         calendarSystem: form.calendarSystem || null,
         calendarYear: form.calendarYear || null,
         textDirection: form.textDirection || null,
-      });
+      };
+      if (editBookId) {
+        const res = await apiRequest("PATCH", `/api/books/${editBookId}`, payload);
+        return await res.json();
+      } else {
+        const res = await apiRequest("POST", "/api/books", payload);
+        return await res.json();
+      }
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({
         queryKey: [`/api/books/user/${user?.id}`],
       });
       queryClient.invalidateQueries({ queryKey: ["/api/books"] });
-      toast({ title: "Book listed!" });
+      if (editBookId) {
+        toast({ title: "Book updated!" });
+      } else {
+        const matched = data?.matchedRequests ?? [];
+        if (matched.length > 0) {
+          toast({
+            title: "Book listed!",
+            description: `Matches ${matched.length} open request${matched.length > 1 ? "s" : ""}. Check the Requests page.`,
+          });
+        } else {
+          toast({ title: "Book listed!" });
+        }
+      }
       setLocation("/dashboard");
     },
     onError: (err: Error) => {
@@ -308,7 +365,7 @@ export default function AddBook() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="font-serif text-2xl">Add a Book</CardTitle>
+          <CardTitle className="font-serif text-2xl">{editBookId ? "Edit Listing" : "Add a Book"}</CardTitle>
         </CardHeader>
         <CardContent>
           {/* Desktop: offer to email a link so users can add the book via phone camera */}
@@ -909,7 +966,7 @@ export default function AddBook() {
               {mutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               ) : null}
-              List Book
+              {editBookId ? "Save Changes" : "List Book"}
             </Button>
           </form>
         </CardContent>

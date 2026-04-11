@@ -323,7 +323,26 @@ export async function registerRoutes(
       }
 
       const book = await storage.createBook(req.user!.id, { ...data, workId });
-      return res.json(book);
+
+      // Check for matching open requests (case-insensitive title/author match)
+      let matchedRequests: { id: number; title: string; userId: number }[] = [];
+      try {
+        const { requests: openRequests } = await storage.getBookRequests({ status: "open", limit: 100 });
+        const titleLower = data.title.toLowerCase();
+        const authorLower = data.author.toLowerCase();
+        matchedRequests = openRequests
+          .filter((r) => {
+            const reqTitle = r.title.toLowerCase();
+            const reqAuthor = r.author?.toLowerCase() || "";
+            return reqTitle.includes(titleLower) || titleLower.includes(reqTitle) ||
+              (reqAuthor && (reqAuthor.includes(authorLower) || authorLower.includes(reqAuthor)));
+          })
+          .map((r) => ({ id: r.id, title: r.title, userId: r.userId }));
+      } catch {
+        // Non-fatal
+      }
+
+      return res.json({ ...book, matchedRequests });
     } catch (err) {
       if (err instanceof ZodError) {
         return res
@@ -430,8 +449,10 @@ export async function registerRoutes(
   app.get("/api/requests", async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
-      const requests = await storage.getBookRequests(
-        status ? { status } : undefined,
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const { requests, total } = await storage.getBookRequests(
+        { status, limit, offset },
       );
 
       // Enrich with user info
@@ -452,7 +473,7 @@ export async function registerRoutes(
         }),
       );
 
-      return res.json(enriched);
+      return res.json({ requests: enriched, total });
     } catch (err) {
       return res.status(500).json({ message: "Failed to fetch requests" });
     }
@@ -1035,6 +1056,53 @@ export async function registerRoutes(
   });
 
   // === USER ROUTES ===
+  app.patch("/api/users/me", requireAuth, async (req, res) => {
+    try {
+      const allowedFields = z.object({
+        displayName: z.string().min(1).max(100).optional(),
+        bio: z.string().max(500).optional(),
+        location: z.string().max(100).optional(),
+        avatarUrl: z.string().url().optional().or(z.literal("")),
+      });
+      const data = allowedFields.parse(req.body);
+      const updated = await storage.updateUser(req.user!.id, data);
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      const { password, ...safeUser } = updated;
+      return res.json(safeUser);
+    } catch (err) {
+      if (err instanceof ZodError)
+        return res.status(400).json({ message: err.errors[0]?.message });
+      return res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  app.post("/api/auth/change-password", requireAuth, async (req, res) => {
+    try {
+      const { currentPassword, newPassword } = z.object({
+        currentPassword: z.string().min(1),
+        newPassword: z.string().min(1),
+      }).parse(req.body);
+
+      const user = await storage.getUser(req.user!.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const valid = await bcrypt.compare(currentPassword, user.password);
+      if (!valid) return res.status(400).json({ message: "Current password is incorrect" });
+
+      const pwResult = validatePassword(newPassword, {});
+      if (!pwResult.valid)
+        return res.status(400).json({ message: pwResult.errors?.[0] || "Password does not meet requirements" });
+
+      const hashed = await bcrypt.hash(newPassword, 12);
+      await storage.updateUser(req.user!.id, { password: hashed });
+      return res.json({ message: "Password updated" });
+    } catch (err) {
+      if (err instanceof ZodError)
+        return res.status(400).json({ message: err.errors[0]?.message });
+      return res.status(500).json({ message: "Failed to change password" });
+    }
+  });
+
   app.get("/api/users/:id", async (req, res) => {
     try {
       const id = parseIntParam(req.params.id);

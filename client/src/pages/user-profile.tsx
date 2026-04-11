@@ -5,7 +5,7 @@ import BookCard from "@/components/book-card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { User as UserIcon, MapPin, Star, Calendar, MessageSquare, BookOpen, ShoppingBag } from "lucide-react";
+import { User as UserIcon, MapPin, Star, Calendar, MessageSquare, BookOpen, ShoppingBag, Settings } from "lucide-react";
 import type { Book, User } from "@shared/schema";
 
 export default function UserProfile() {
@@ -101,6 +101,14 @@ export default function UserProfile() {
             <Button variant="outline" size="sm">
               <MessageSquare className="h-4 w-4 mr-1.5" />
               Message
+            </Button>
+          </Link>
+        )}
+        {currentUser && currentUser.id === parseInt(id!) && (
+          <Link href="/dashboard/settings">
+            <Button variant="outline" size="sm" data-testid="edit-profile-btn">
+              <Settings className="h-4 w-4 mr-1.5" />
+              Edit Profile
             </Button>
           </Link>
         )}

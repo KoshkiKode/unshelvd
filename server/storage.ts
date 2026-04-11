@@ -42,7 +42,7 @@ export interface IStorage {
   deleteBook(id: number, userId: number): Promise<boolean>;
 
   // Book Requests
-  getBookRequests(filters?: { status?: string }): Promise<BookRequest[]>;
+  getBookRequests(filters?: { status?: string; limit?: number; offset?: number }): Promise<{ requests: BookRequest[]; total: number }>;
   getBookRequest(id: number): Promise<BookRequest | undefined>;
   createBookRequest(userId: number, request: InsertBookRequest): Promise<BookRequest>;
   updateBookRequest(id: number, userId: number, data: Partial<BookRequest>): Promise<BookRequest | undefined>;
@@ -214,11 +214,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Book Requests
-  async getBookRequests(filters?: { status?: string }): Promise<BookRequest[]> {
-    if (filters?.status) {
-      return await db.select().from(bookRequests).where(eq(bookRequests.status, filters.status)).orderBy(desc(bookRequests.id));
-    }
-    return await db.select().from(bookRequests).orderBy(desc(bookRequests.id));
+  async getBookRequests(filters?: { status?: string; limit?: number; offset?: number }): Promise<{ requests: BookRequest[]; total: number }> {
+    const limit = filters?.limit ?? 20;
+    const offset = filters?.offset ?? 0;
+
+    const where = filters?.status ? eq(bookRequests.status, filters.status) : undefined;
+
+    const [countResult, rows] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(bookRequests).where(where),
+      db.select().from(bookRequests).where(where).orderBy(desc(bookRequests.id)).limit(limit).offset(offset),
+    ]);
+
+    return { requests: rows, total: countResult[0]?.count ?? 0 };
   }
 
   async getBookRequest(id: number): Promise<BookRequest | undefined> {
