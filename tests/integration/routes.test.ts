@@ -119,6 +119,17 @@ vi.mock("bcryptjs", () => ({
 import { storage } from "../../server/storage";
 import { registerRoutes } from "../../server/routes";
 import bcrypt from "bcryptjs";
+import {
+  createPaymentIntent,
+  confirmPayment,
+  markShipped,
+  confirmDelivery,
+  getUserTransactions,
+  createSellerAccount,
+  checkSellerStatus,
+  handleChargeRefunded,
+} from "../../server/payments";
+import { validatePassword } from "../../shared/password-policy";
 
 // ─── test helpers ──────────────────────────────────────────────────────────
 
@@ -258,6 +269,54 @@ describe("POST /api/auth/login", () => {
 
     expect(res.status).toBe(401);
   });
+
+  it("returns 401 when the password is wrong", async () => {
+    const user = {
+      id: 1,
+      email: "alice@example.com",
+      password: "$2b$12$wronghash",
+      username: "alice",
+      displayName: "Alice",
+    };
+    mockStorage.getUserByEmail.mockResolvedValueOnce(user);
+    vi.mocked(bcrypt.compare).mockResolvedValueOnce(false as any);
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "alice@example.com", password: "wrongpass" });
+
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 200 and user data on successful login", async () => {
+    const user = {
+      id: 1,
+      email: "alice@example.com",
+      password: "$2b$12$mockedhash",
+      username: "alice",
+      displayName: "Alice",
+      bio: null,
+      avatarUrl: null,
+      location: null,
+      rating: 0,
+      totalSales: 0,
+      totalPurchases: 0,
+      role: "user",
+      stripeAccountId: null,
+      stripeOnboarded: false,
+      createdAt: new Date(),
+    };
+    mockStorage.getUserByEmail.mockResolvedValueOnce(user);
+    vi.mocked(bcrypt.compare).mockResolvedValueOnce(true as any);
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "alice@example.com", password: "correctpass" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.username).toBe("alice");
+    expect(res.body.password).toBeUndefined();
+  });
 });
 
 describe("GET /api/auth/me", () => {
@@ -265,12 +324,41 @@ describe("GET /api/auth/me", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    dbCallQueue.length = 0;
     app = await buildApp();
   });
 
   it("returns 401 when not authenticated", async () => {
     const res = await request(app).get("/api/auth/me");
     expect(res.status).toBe(401);
+  });
+
+  it("returns the current user (without password) when authenticated", async () => {
+    const AUTH_USER = {
+      id: 42,
+      username: "tester",
+      displayName: "Test User",
+      email: "tester@example.com",
+      password: "$2b$12$mockedhash",
+      bio: null,
+      avatarUrl: null,
+      location: null,
+      rating: 0,
+      totalSales: 0,
+      totalPurchases: 0,
+      role: "user",
+      stripeAccountId: null,
+      stripeOnboarded: false,
+      createdAt: new Date(),
+    };
+    const agent = await loginAs(app, AUTH_USER);
+    mockStorage.getUser.mockResolvedValueOnce(AUTH_USER);
+
+    const res = await agent.get("/api/auth/me");
+
+    expect(res.status).toBe(200);
+    expect(res.body.username).toBe("tester");
+    expect(res.body.password).toBeUndefined();
   });
 });
 
@@ -738,7 +826,6 @@ describe("POST /api/webhooks/stripe (dev mode)", () => {
   });
 
   it("handles charge.refunded event", async () => {
-    const { handleChargeRefunded } = await import("../../server/payments");
     const res = await request(app)
       .post("/api/webhooks/stripe")
       .send({
@@ -1070,6 +1157,40 @@ describe("POST /api/payments/checkout (requires auth)", () => {
       .send({ bookId: 1 });
     expect(res.status).toBe(401);
   });
+
+  it("creates a payment intent and returns it when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(createPaymentIntent).mockResolvedValueOnce({
+      clientSecret: "pi_test_secret",
+      transactionId: 7,
+    } as any);
+
+    const res = await agent.post("/api/payments/checkout").send({ bookId: 3 });
+    expect(res.status).toBe(200);
+    expect(res.body.clientSecret).toBe("pi_test_secret");
+    expect(res.body.transactionId).toBe(7);
+  });
+
+  it("returns 400 when checkout fails", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(createPaymentIntent).mockRejectedValueOnce(new Error("Book not available"));
+
+    const res = await agent.post("/api/payments/checkout").send({ bookId: 3 });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Book not available/);
+  });
+
+  it("returns 400 when bookId is missing", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/payments/checkout").send({});
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("POST /api/payments/:id/confirm (requires auth)", () => {
@@ -1084,6 +1205,37 @@ describe("POST /api/payments/:id/confirm (requires auth)", () => {
   it("returns 401 when not authenticated", async () => {
     const res = await request(app).post("/api/payments/1/confirm");
     expect(res.status).toBe(401);
+  });
+
+  it("confirms payment and returns result when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(confirmPayment).mockResolvedValueOnce({ id: 1, status: "confirmed" } as any);
+
+    const res = await agent.post("/api/payments/1/confirm");
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("confirmed");
+  });
+
+  it("returns 400 for a non-numeric transaction id", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/payments/abc/confirm");
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Invalid transaction ID/i);
+  });
+
+  it("returns 400 when confirmation fails", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(confirmPayment).mockRejectedValueOnce(new Error("Not authorized"));
+
+    const res = await agent.post("/api/payments/1/confirm");
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Not authorized/);
   });
 });
 
@@ -1100,6 +1252,40 @@ describe("POST /api/payments/:id/ship (requires auth)", () => {
     const res = await request(app).post("/api/payments/1/ship");
     expect(res.status).toBe(401);
   });
+
+  it("marks shipment and returns result when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(markShipped).mockResolvedValueOnce({ id: 1, status: "shipped" } as any);
+
+    const res = await agent.post("/api/payments/1/ship").send({
+      carrier: "USPS",
+      trackingNumber: "9400111899220400000000",
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("shipped");
+  });
+
+  it("returns 400 for a non-numeric transaction id", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/payments/xyz/ship");
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Invalid transaction ID/i);
+  });
+
+  it("returns 400 when marking shipped fails", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(markShipped).mockRejectedValueOnce(new Error("Only seller can mark shipped"));
+
+    const res = await agent.post("/api/payments/1/ship").send({});
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Only seller/);
+  });
 });
 
 describe("POST /api/payments/:id/deliver (requires auth)", () => {
@@ -1115,6 +1301,37 @@ describe("POST /api/payments/:id/deliver (requires auth)", () => {
     const res = await request(app).post("/api/payments/1/deliver");
     expect(res.status).toBe(401);
   });
+
+  it("confirms delivery and returns result when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(confirmDelivery).mockResolvedValueOnce({ id: 1, status: "delivered" } as any);
+
+    const res = await agent.post("/api/payments/1/deliver");
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("delivered");
+  });
+
+  it("returns 400 for a non-numeric transaction id", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/payments/abc/deliver");
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Invalid transaction ID/i);
+  });
+
+  it("returns 400 when delivery confirmation fails", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(confirmDelivery).mockRejectedValueOnce(new Error("Only buyer can confirm"));
+
+    const res = await agent.post("/api/payments/1/deliver");
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Only buyer/);
+  });
 });
 
 describe("GET /api/payments/transactions (requires auth)", () => {
@@ -1129,6 +1346,30 @@ describe("GET /api/payments/transactions (requires auth)", () => {
   it("returns 401 when not authenticated", async () => {
     const res = await request(app).get("/api/payments/transactions");
     expect(res.status).toBe(401);
+  });
+
+  it("returns the transaction list for the authenticated user", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const txns = [{ id: 1, status: "delivered", buyerId: TEST_USER.id }];
+    vi.mocked(getUserTransactions).mockResolvedValueOnce(txns as any);
+
+    const res = await agent.get("/api/payments/transactions");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].id).toBe(1);
+  });
+
+  it("returns 500 when fetching transactions fails", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(getUserTransactions).mockRejectedValueOnce(new Error("DB error"));
+
+    const res = await agent.get("/api/payments/transactions");
+    expect(res.status).toBe(500);
+    expect(res.body.message).toMatch(/Failed to fetch transactions/i);
   });
 });
 
@@ -1149,6 +1390,28 @@ describe("POST /api/seller/connect (requires auth)", () => {
     const res = await request(app).post("/api/seller/connect").send({});
     expect(res.status).toBe(401);
   });
+
+  it("creates a seller account and returns the result when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(createSellerAccount).mockResolvedValueOnce({ url: "https://connect.stripe.com/setup" } as any);
+
+    const res = await agent.post("/api/seller/connect").send({ returnUrl: "https://example.com/dashboard" });
+    expect(res.status).toBe(200);
+    expect(res.body.url).toBe("https://connect.stripe.com/setup");
+  });
+
+  it("returns 400 when creating a seller account fails", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(createSellerAccount).mockRejectedValueOnce(new Error("Stripe error"));
+
+    const res = await agent.post("/api/seller/connect").send({});
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Stripe error/);
+  });
 });
 
 describe("GET /api/seller/status (requires auth)", () => {
@@ -1164,6 +1427,28 @@ describe("GET /api/seller/status (requires auth)", () => {
     const res = await request(app).get("/api/seller/status");
     expect(res.status).toBe(401);
   });
+
+  it("returns seller status when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(checkSellerStatus).mockResolvedValueOnce({ onboarded: true, accountId: "acct_123" } as any);
+
+    const res = await agent.get("/api/seller/status");
+    expect(res.status).toBe(200);
+    expect(res.body.onboarded).toBe(true);
+  });
+
+  it("returns 400 when checking status fails", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(checkSellerStatus).mockRejectedValueOnce(new Error("No account found"));
+
+    const res = await agent.get("/api/seller/status");
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/No account found/);
+  });
 });
 
 describe("GET /api/seller/connect/complete (requires auth)", () => {
@@ -1178,6 +1463,28 @@ describe("GET /api/seller/connect/complete (requires auth)", () => {
   it("returns 401 when not authenticated", async () => {
     const res = await request(app).get("/api/seller/connect/complete");
     expect(res.status).toBe(401);
+  });
+
+  it("returns updated seller status when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(checkSellerStatus).mockResolvedValueOnce({ onboarded: true, accountId: "acct_123" } as any);
+
+    const res = await agent.get("/api/seller/connect/complete");
+    expect(res.status).toBe(200);
+    expect(res.body.onboarded).toBe(true);
+  });
+
+  it("returns 400 when status check fails", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(checkSellerStatus).mockRejectedValueOnce(new Error("Account error"));
+
+    const res = await agent.get("/api/seller/connect/complete");
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Account error/);
   });
 });
 
@@ -1963,5 +2270,162 @@ describe("POST /api/works/resolve — authenticated", () => {
     // The mocked resolveWork returns { workId: 1, isNew: false, confidence: "high" }
     expect(res.body.workId).toBe(1);
     expect(res.body.confidence).toBe("high");
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// PATCH /api/users/me — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("PATCH /api/users/me (requires auth)", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(app).patch("/api/users/me").send({ displayName: "New Name" });
+    expect(res.status).toBe(401);
+  });
+
+  it("updates the user profile and returns it (without password) when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const updated = { ...TEST_USER, displayName: "Updated Name", bio: "Hello!" };
+    mockStorage.updateUser.mockResolvedValueOnce(updated);
+
+    const res = await agent.patch("/api/users/me").send({ displayName: "Updated Name", bio: "Hello!" });
+    expect(res.status).toBe(200);
+    expect(res.body.displayName).toBe("Updated Name");
+    expect(res.body.bio).toBe("Hello!");
+    expect(res.body.password).toBeUndefined();
+  });
+
+  it("returns 404 when the user is not found", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    mockStorage.updateUser.mockResolvedValueOnce(undefined);
+
+    const res = await agent.patch("/api/users/me").send({ displayName: "Updated Name" });
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/User not found/i);
+  });
+
+  it("returns 400 when an invalid avatarUrl is supplied", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.patch("/api/users/me").send({ avatarUrl: "not-a-url" });
+    expect(res.status).toBe(400);
+  });
+
+  it("accepts an empty string avatarUrl (clears the avatar)", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const updated = { ...TEST_USER, avatarUrl: "" };
+    mockStorage.updateUser.mockResolvedValueOnce(updated);
+
+    const res = await agent.patch("/api/users/me").send({ avatarUrl: "" });
+    expect(res.status).toBe(200);
+    expect(res.body.avatarUrl).toBe("");
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/auth/change-password — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/auth/change-password (requires auth)", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(app)
+      .post("/api/auth/change-password")
+      .send({ currentPassword: "old", newPassword: "new" });
+    expect(res.status).toBe(401);
+  });
+
+  it("changes the password successfully when current password is correct", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    // deserializeUser
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+    // getUser inside the handler
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(bcrypt.compare).mockResolvedValueOnce(true as any);
+    mockStorage.updateUser.mockResolvedValueOnce({ ...TEST_USER, password: "$2b$12$newhash" });
+
+    const res = await agent.post("/api/auth/change-password").send({
+      currentPassword: "OldPassword1!",
+      newPassword: "NewPassword1!",
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/Password updated/i);
+  });
+
+  it("returns 400 when the current password is incorrect", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(bcrypt.compare).mockResolvedValueOnce(false as any);
+
+    const res = await agent.post("/api/auth/change-password").send({
+      currentPassword: "WrongPassword1!",
+      newPassword: "NewPassword1!",
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Current password is incorrect/i);
+  });
+
+  it("returns 400 when the new password fails policy validation", async () => {
+    vi.mocked(validatePassword).mockReturnValueOnce({ valid: false, errors: ["Password too weak"] });
+
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(bcrypt.compare).mockResolvedValueOnce(true as any);
+
+    const res = await agent.post("/api/auth/change-password").send({
+      currentPassword: "OldPassword1!",
+      newPassword: "weak",
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Password too weak/i);
+  });
+
+  it("returns 400 when required fields are missing", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/auth/change-password").send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when the user cannot be found", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+    // handler's own getUser call returns nothing
+    mockStorage.getUser.mockResolvedValueOnce(undefined);
+
+    const res = await agent.post("/api/auth/change-password").send({
+      currentPassword: "OldPassword1!",
+      newPassword: "NewPassword1!",
+    });
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/User not found/i);
   });
 });
