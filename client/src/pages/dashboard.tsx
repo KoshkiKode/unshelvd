@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 
+const RATING_LABELS = ["", "Poor", "Fair", "Good", "Very good", "Excellent"] as const;
+
 export default function Dashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -528,7 +530,7 @@ export default function Dashboard() {
             </div>
             {ratingValue > 0 && (
               <p className="text-center text-sm text-muted-foreground">
-                {["", "Poor", "Fair", "Good", "Very good", "Excellent"][ratingValue]}
+                {RATING_LABELS[ratingValue]}
               </p>
             )}
           </div>
