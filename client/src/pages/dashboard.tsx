@@ -455,6 +455,31 @@ export default function Dashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Delete listing confirmation dialog */}
+      <AlertDialog open={!!deleteDialogBook} onOpenChange={(v) => { if (!v) setDeleteDialogBook(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete listing?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove "{deleteDialogBook?.title}" from your listings? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteDialogBook) {
+                  deleteBookMutation.mutate(deleteDialogBook.id);
+                  setDeleteDialogBook(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -618,32 +643,6 @@ function TransactionCard({
           <span className="text-[10px] text-green-600 font-medium">✓ Payout sent</span>
         )}
       </div>
-
-      {/* Delete listing confirmation dialog */}
-      <AlertDialog open={!!deleteDialogBook} onOpenChange={(v) => { if (!v) setDeleteDialogBook(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete listing?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to remove "{deleteDialogBook?.title}" from your listings? This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                if (deleteDialogBook) {
-                  deleteBookMutation.mutate(deleteDialogBook.id);
-                  setDeleteDialogBook(null);
-                }
-              }}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

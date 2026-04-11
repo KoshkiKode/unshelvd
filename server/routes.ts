@@ -546,6 +546,21 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/requests/:id", requireAuth, async (req, res) => {
+    try {
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid request ID" });
+      const deleted = await storage.deleteBookRequest(id, req.user!.id);
+      if (!deleted)
+        return res
+          .status(404)
+          .json({ message: "Request not found or not yours" });
+      return res.json({ message: "Request deleted" });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to delete request" });
+    }
+  });
+
   // === BOOK SEARCH (Open Library) ===
   app.get("/api/search/books", async (req, res) => {
     try {
@@ -1186,6 +1201,10 @@ export async function registerRoutes(
   app.post("/api/messages", requireAuth, async (req, res) => {
     try {
       const data = insertMessageSchema.parse(req.body);
+      if (data.receiverId === req.user!.id)
+        return res.status(400).json({ message: "Cannot send a message to yourself" });
+      const receiver = await storage.getUser(data.receiverId);
+      if (!receiver) return res.status(404).json({ message: "Recipient not found" });
       const message = await storage.createMessage(req.user!.id, data);
       return res.json(message);
     } catch (err) {

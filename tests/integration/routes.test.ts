@@ -2120,7 +2120,8 @@ describe("POST /api/messages — authenticated", () => {
 
   it("sends a message and returns it when authenticated", async () => {
     const agent = await loginAs(app, TEST_USER);
-    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER); // passport deserializeUser
+    mockStorage.getUser.mockResolvedValueOnce({ id: 7, username: "other" }); // receiver validation
 
     const msg = { id: 99, content: "Hey there", senderId: TEST_USER.id, receiverId: 7 };
     mockStorage.createMessage.mockResolvedValueOnce(msg);

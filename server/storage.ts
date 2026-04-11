@@ -6,7 +6,7 @@ import {
 } from "@shared/schema";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { eq, and, or, like, desc, asc, gte, lte, sql, ilike } from "drizzle-orm";
+import { eq, and, or, like, desc, asc, gte, lte, sql, ilike, inArray } from "drizzle-orm";
 import { sanitizeLikeInput } from "./security";
 
 // Unix socket connections (Cloud SQL) don't use SSL
@@ -49,6 +49,7 @@ export interface IStorage {
   getBookRequest(id: number): Promise<BookRequest | undefined>;
   createBookRequest(userId: number, request: InsertBookRequest): Promise<BookRequest>;
   updateBookRequest(id: number, userId: number, data: Partial<BookRequest>): Promise<BookRequest | undefined>;
+  deleteBookRequest(id: number, userId: number): Promise<boolean>;
 
   // Messages
   getConversations(userId: number): Promise<any[]>;
@@ -246,6 +247,11 @@ export class DatabaseStorage implements IStorage {
     return rows[0];
   }
 
+  async deleteBookRequest(id: number, userId: number): Promise<boolean> {
+    const rows = await db.delete(bookRequests).where(and(eq(bookRequests.id, id), eq(bookRequests.userId, userId))).returning();
+    return rows.length > 0;
+  }
+
   // Messages
   async getConversations(userId: number): Promise<any[]> {
     const allMessages = await db.select().from(messages)
@@ -262,10 +268,16 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Enrich with user info
+    // Batch-load all conversation partners in a single query
+    const otherUserIds = Array.from(convMap.keys());
+    if (otherUserIds.length === 0) return [];
+
+    const partnerRows = await db.select().from(users).where(inArray(users.id, otherUserIds));
+    const partnerMap = new Map(partnerRows.map(u => [u.id, u]));
+
     const conversations = [];
     for (const conv of Array.from(convMap.values())) {
-      const user = await this.getUser(conv.otherUserId);
+      const user = partnerMap.get(conv.otherUserId);
       if (user) {
         conversations.push({
           ...conv,
@@ -314,10 +326,25 @@ export class DatabaseStorage implements IStorage {
     const sent = await db.select().from(offers).where(eq(offers.buyerId, userId)).orderBy(desc(offers.id));
     const received = await db.select().from(offers).where(eq(offers.sellerId, userId)).orderBy(desc(offers.id));
 
-    const enrichOffer = async (offer: Offer) => {
-      const book = await this.getBook(offer.bookId);
-      const buyer = await this.getUser(offer.buyerId);
-      const seller = await this.getUser(offer.sellerId);
+    const allOffers = [...sent, ...received];
+    if (allOffers.length === 0) return { sent: [], received: [] };
+
+    // Batch-load all related books and users in 3 queries total
+    const bookIds = [...new Set(allOffers.map(o => o.bookId))];
+    const userIds = [...new Set(allOffers.flatMap(o => [o.buyerId, o.sellerId]))];
+
+    const [bookRows, userRows] = await Promise.all([
+      db.select().from(books).where(inArray(books.id, bookIds)),
+      db.select().from(users).where(inArray(users.id, userIds)),
+    ]);
+
+    const bookMap = new Map(bookRows.map(b => [b.id, b]));
+    const userMap = new Map(userRows.map(u => [u.id, u]));
+
+    const enrich = (offer: Offer) => {
+      const book = bookMap.get(offer.bookId);
+      const buyer = userMap.get(offer.buyerId);
+      const seller = userMap.get(offer.sellerId);
       return {
         ...offer,
         book: book ? { id: book.id, title: book.title, author: book.author, coverUrl: book.coverUrl } : null,
@@ -327,8 +354,8 @@ export class DatabaseStorage implements IStorage {
     };
 
     return {
-      sent: await Promise.all(sent.map(enrichOffer)),
-      received: await Promise.all(received.map(enrichOffer)),
+      sent: sent.map(enrich),
+      received: received.map(enrich),
     };
   }
 
@@ -351,6 +378,13 @@ export class DatabaseStorage implements IStorage {
   async updateOffer(id: number, userId: number, status: string, counterAmount?: number | null): Promise<Offer | undefined> {
     const offer = await this.getOffer(id);
     if (!offer || offer.sellerId !== userId) return undefined;
+
+    // Prevent accepting an offer if the book already has another accepted offer
+    if (status === "accepted") {
+      const [existing] = await db.select().from(offers)
+        .where(and(eq(offers.bookId, offer.bookId), eq(offers.status, "accepted")));
+      if (existing && existing.id !== id) return undefined;
+    }
 
     const updates: any = { status };
     if (counterAmount !== undefined && counterAmount !== null) {
