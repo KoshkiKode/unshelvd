@@ -13,10 +13,10 @@ import type { Pool } from "pg";
 import type { Express, Request, Response, NextFunction } from "express";
 
 // Rate limiter window durations — defined at module level for easy tuning
-const AUTH_WINDOW_MS = 15 * 60 * 1_000;  // 15 minutes
-const PAYMENT_WINDOW_MS = 60 * 1_000;    // 1 minute
-const API_WINDOW_MS = 60 * 1_000;        // 1 minute
-const SEARCH_WINDOW_MS = 60 * 1_000;     // 1 minute
+const AUTH_WINDOW_MS = 15 * 60 * 1000;  // 15 minutes
+const PAYMENT_WINDOW_MS = 60 * 1000;    // 1 minute
+const API_WINDOW_MS = 60 * 1000;        // 1 minute
+const SEARCH_WINDOW_MS = 60 * 1000;     // 1 minute
 
 /**
  * PostgreSQL-backed rate limit store for express-rate-limit.
@@ -256,8 +256,13 @@ export function validateIdParam(req: Request, res: Response, next: NextFunction)
 }
 
 /**
- * Strip HTML/script tags from string input (defense in depth)
+ * Strip HTML/script tags from string input (defense in depth).
+ * Removes complete tags (<tag>) and then removes any opening angle bracket
+ * that begins an HTML tag but lacks a closing `>` (e.g. `<script`), while
+ * preserving standalone `<` used in plain text (e.g. `a < b`).
  */
 export function stripHtml(input: string): string {
-  return input.replace(/<[^>]*>/g, "");
+  return input
+    .replace(/<[^>]*>/g, "")          // remove complete HTML tags
+    .replace(/<(?=[!/a-zA-Z])/g, ""); // remove incomplete tag openers (e.g. <script)
 }

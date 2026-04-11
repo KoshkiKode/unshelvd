@@ -24,12 +24,24 @@ android {
         release {
             def keystoreFile = file('unshelvd-release.keystore')
             if (keystoreFile.exists()) {
+                def ksPassword = System.getenv('KEYSTORE_PASSWORD')
+                def kPassword  = System.getenv('KEY_PASSWORD')
+                if (!ksPassword) {
+                    throw new GradleException(
+                        "KEYSTORE_PASSWORD environment variable is required for release builds. " +
+                        "Set it in your CI secrets or export it locally."
+                    )
+                }
+                if (!kPassword) {
+                    throw new GradleException(
+                        "KEY_PASSWORD environment variable is required for release builds. " +
+                        "Set it in your CI secrets or export it locally."
+                    )
+                }
                 storeFile keystoreFile
-                // Passwords MUST be provided via environment variables — no fallback.
-                // Set KEYSTORE_PASSWORD and KEY_PASSWORD in CI secrets or locally.
-                storePassword System.getenv('KEYSTORE_PASSWORD')
+                storePassword ksPassword
                 keyAlias System.getenv('KEY_ALIAS') ?: 'unshelvd'
-                keyPassword System.getenv('KEY_PASSWORD')
+                keyPassword kPassword
             }
         }
     }

@@ -160,9 +160,10 @@ export async function registerRoutes(
   // === HEALTH CHECK ===
   app.get("/api/health", async (_req, res) => {
     try {
-      // Quick DB connectivity check with a 3-second statement timeout so the
-      // health endpoint never hangs waiting for a slow or unresponsive database.
-      await pool.query("SET statement_timeout = 3000; SELECT 1");
+      // Use two separate queries so the timeout applies only to the
+      // session-level config, not as part of a multi-statement string.
+      await pool.query("SET LOCAL statement_timeout = 3000");
+      await pool.query("SELECT 1");
       res.json({ status: "ok", db: "ok", timestamp: new Date().toISOString() });
     } catch (err: any) {
       res
