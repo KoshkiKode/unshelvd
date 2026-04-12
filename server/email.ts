@@ -204,6 +204,21 @@ function esc(s: string): string {
 
 const APP_URL = "https://unshelvd.koshkikode.com";
 
+/** Email address verification — sent after account creation. */
+export async function sendEmailVerification(
+  to: string,
+  displayName: string,
+  verifyUrl: string,
+): Promise<void> {
+  const html = wrap(
+    h1(`Verify your email address`) +
+      p(`Hi ${esc(displayName)}! Please verify your email address to unlock all features of Unshelv'd.`) +
+      p("This link expires in <strong>24 hours</strong>.") +
+      button("Verify Email", verifyUrl),
+  );
+  await sendEmail(to, "Verify your Unshelv'd email address", html);
+}
+
 /** Password reset email — sent when user requests a reset link. */
 export async function sendPasswordReset(
   to: string,

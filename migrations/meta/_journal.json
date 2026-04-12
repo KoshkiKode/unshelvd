@@ -43,6 +43,13 @@
       "when": 1744416590000,
       "tag": "0005_paypal_transaction_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1744500000000,
+      "tag": "0006_v1_features",
+      "breakpoints": true
     }
   ]
 }

@@ -54,12 +54,19 @@ export const users = pgTable("users", {
   ratingCount: integer("rating_count").default(0),
   totalSales: integer("total_sales").default(0),
   totalPurchases: integer("total_purchases").default(0),
-  role: text("role").default("user"),  // "user" | "admin" | "suspended"
+  role: text("role").default("user"),  // "user" | "admin" | "suspended" | "deleted"
   stripeAccountId: text("stripe_account_id"),  // Stripe Connect Express account ID
   stripeOnboarded: boolean("stripe_onboarded").default(false), // completed Stripe onboarding
   // Password reset (token-based, no email service required)
   passwordResetToken: text("password_reset_token"),
   passwordResetExpiry: timestamp("password_reset_expiry"),
+  // Email verification
+  emailVerified: boolean("email_verified").default(false),
+  emailVerifyToken: text("email_verify_token"),
+  emailVerifyExpiry: timestamp("email_verify_expiry"),
+  // Buyer reputation (rated by sellers)
+  buyerRating: real("buyer_rating").default(0),
+  buyerRatingCount: integer("buyer_rating_count").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -291,10 +298,13 @@ export const transactions = pgTable("transactions", {
   // PayPal
   paypalOrderId: text("paypal_order_id"),          // PayPal order ID (created before capture)
   paypalCaptureId: text("paypal_capture_id"),      // PayPal capture ID (set after successful capture)
+  paypalAuthorizationId: text("paypal_authorization_id"), // PayPal auth ID (authorize-then-capture escrow)
   // Status flow: pending → paid → shipped → delivered → completed | disputed | refunded
   status: text("status").default("pending"),
   // Buyer rating (1-5) given after transaction is completed
   buyerRating: integer("buyer_rating"),
+  // Seller rating of buyer (1-5) given after transaction is completed
+  sellerRating: integer("seller_rating"),
   // Tracking
   shippingCarrier: text("shipping_carrier"),
   trackingNumber: text("tracking_number"),

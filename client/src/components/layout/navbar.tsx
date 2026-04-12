@@ -1,18 +1,21 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { BookOpen, Menu, MessageSquare, Search, LayoutDashboard, User, LogOut, Sun, Moon, Info, Globe2, Shield, Library, Settings } from "lucide-react";
+import { BookOpen, Menu, MessageSquare, Search, LayoutDashboard, User, LogOut, Sun, Moon, Info, Globe2, Shield, Library, Settings, Mail } from "lucide-react";
 import { useState } from "react";
 import { useI18n } from "@/i18n/use-i18n";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { Locale } from "@/i18n/translations";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { toast } = useToast();
   const [dark, setDark] = useState(() => {
     try {
       return localStorage.getItem("theme") === "dark";
@@ -35,6 +38,19 @@ export default function Navbar() {
     queryKey: ["/api/messages/unread/count"],
     enabled: !!user,
     refetchInterval: 15000,
+  });
+
+  const resendMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/auth/resend-verification");
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Verification email sent", description: "Check your inbox for the verification link." });
+    },
+    onError: () => {
+      toast({ title: "Failed to send", description: "Please try again later.", variant: "destructive" });
+    },
   });
 
   const unreadCount = unreadData?.count || 0;
@@ -210,6 +226,26 @@ export default function Navbar() {
           </Sheet>
         </div>
       </nav>
+      {/* Email verification banner — shown to logged-in users who haven't verified yet */}
+      {user && (user as any).emailVerified === false && (
+        <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 px-4 py-2">
+          <div className="container mx-auto flex items-center justify-between gap-3 max-w-6xl">
+            <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300">
+              <Mail className="h-4 w-4 flex-shrink-0" />
+              <span>Please verify your email address to unlock all features.</span>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0 text-xs h-7 border-amber-400 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+              onClick={() => resendMutation.mutate()}
+              disabled={resendMutation.isPending}
+            >
+              Resend email
+            </Button>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

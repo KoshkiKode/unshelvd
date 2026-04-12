@@ -43,6 +43,13 @@ export default function Dashboard() {
   const [rateTx, setRateTx] = useState<any | null>(null);
   const [ratingValue, setRatingValue] = useState(0);
 
+  // State for "Rate Buyer" dialog (seller rates buyer)
+  const [rateBuyerTx, setRateBuyerTx] = useState<any | null>(null);
+  const [rateBuyerValue, setRateBuyerValue] = useState(0);
+
+  // State for dispute confirm dialog
+  const [disputeTx, setDisputeTx] = useState<any | null>(null);
+
   const { data: sellerStatus, isLoading: sellerLoading } = useQuery<{
     connected: boolean;
     onboarded: boolean;
@@ -161,6 +168,37 @@ export default function Dashboard() {
     },
     onError: (err: Error) => {
       toast({ title: "Failed to submit rating", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const rateBuyerMutation = useMutation({
+    mutationFn: async ({ id, rating }: { id: number; rating: number }) => {
+      const res = await apiRequest("POST", `/api/transactions/${id}/rate-buyer`, { rating });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/payments/transactions"] });
+      toast({ title: "Rating submitted!", description: "Thanks for rating the buyer." });
+      setRateBuyerTx(null);
+      setRateBuyerValue(0);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to submit rating", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const disputeMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/payments/${id}/dispute`);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/payments/transactions"] });
+      toast({ title: "Dispute opened", description: "Our team will review this transaction and contact you." });
+      setDisputeTx(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to open dispute", description: err.message, variant: "destructive" });
     },
   });
 
@@ -339,6 +377,7 @@ export default function Dashboard() {
                       onConfirmDelivery={() => deliverMutation.mutate(tx.id)}
                       confirming={deliverMutation.isPending && deliverMutation.variables === tx.id}
                       onRate={tx.status === "completed" && !tx.buyerRating ? () => { setRateTx(tx); setRatingValue(0); } : undefined}
+                      onDispute={["paid", "shipped"].includes(tx.status) ? () => setDisputeTx(tx) : undefined}
                     />
                   ))}
                 </div>
@@ -361,6 +400,7 @@ export default function Dashboard() {
                         setShipTxId(tx.id);
                         setShipDialogOpen(true);
                       }}
+                      onRateBuyer={tx.status === "completed" && !tx.sellerRating ? () => { setRateBuyerTx(tx); setRateBuyerValue(0); } : undefined}
                     />
                   ))}
                 </div>
@@ -546,6 +586,73 @@ export default function Dashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Rate Buyer dialog (seller rates buyer) */}
+      <Dialog open={!!rateBuyerTx} onOpenChange={(v) => { if (!v) { setRateBuyerTx(null); setRateBuyerValue(0); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rate your buyer</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <p className="text-sm text-muted-foreground mb-4">
+              How was <strong>{rateBuyerTx?.buyer?.displayName}</strong> as a buyer for{" "}
+              <em>{rateBuyerTx?.book?.title}</em>?
+            </p>
+            <div className="flex gap-2 justify-center mb-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setRateBuyerValue(star)}
+                  className={`text-3xl transition-colors ${star <= rateBuyerValue ? "text-yellow-400" : "text-muted-foreground/30"}`}
+                  aria-label={`${star} star${star !== 1 ? "s" : ""}`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+            {rateBuyerValue > 0 && (
+              <p className="text-center text-sm text-muted-foreground">
+                {RATING_LABELS[rateBuyerValue]}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRateBuyerTx(null); setRateBuyerValue(0); }}>Skip</Button>
+            <Button
+              disabled={rateBuyerValue === 0 || rateBuyerMutation.isPending}
+              onClick={() => rateBuyerTx && rateBuyerMutation.mutate({ id: rateBuyerTx.id, rating: rateBuyerValue })}
+            >
+              {rateBuyerMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Submit Rating
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dispute confirmation dialog */}
+      <AlertDialog open={!!disputeTx} onOpenChange={(v) => { if (!v) setDisputeTx(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Open a dispute?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will flag <em>{disputeTx?.book?.title}</em> for review by our team.
+              Please only open a dispute if the item hasn't arrived, arrived damaged, or significantly
+              differs from the listing. We'll contact you within 2 business days.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => disputeTx && disputeMutation.mutate(disputeTx.id)}
+            >
+              {disputeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Open Dispute
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -654,6 +761,8 @@ function TransactionCard({
   onConfirmDelivery,
   confirming,
   onRate,
+  onRateBuyer,
+  onDispute,
 }: {
   tx: any;
   role: "buyer" | "seller";
@@ -661,6 +770,8 @@ function TransactionCard({
   onConfirmDelivery?: () => void;
   confirming?: boolean;
   onRate?: () => void;
+  onRateBuyer?: () => void;
+  onDispute?: () => void;
 }) {
   const status = TX_STATUS[tx.status] ?? { label: tx.status, color: "", icon: null };
 
@@ -707,6 +818,12 @@ function TransactionCard({
             Got it!
           </Button>
         )}
+        {role === "buyer" && onDispute && (
+          <Button size="sm" variant="outline" onClick={onDispute} className="text-xs h-7 gap-1 text-destructive border-destructive/30 hover:bg-destructive/10">
+            <AlertCircle className="h-3 w-3" />
+            Dispute
+          </Button>
+        )}
         {tx.status === "completed" && role === "buyer" && (
           <>
             <span className="text-[10px] text-green-600 font-medium">✓ Payout sent</span>
@@ -717,6 +834,18 @@ function TransactionCard({
             )}
             {tx.buyerRating && (
               <span className="text-[10px] text-yellow-600">{"★".repeat(tx.buyerRating)}</span>
+            )}
+          </>
+        )}
+        {tx.status === "completed" && role === "seller" && (
+          <>
+            {onRateBuyer && (
+              <Button size="sm" variant="outline" onClick={onRateBuyer} className="text-xs h-7 gap-1 text-yellow-600 border-yellow-300 hover:bg-yellow-50">
+                ★ Rate buyer
+              </Button>
+            )}
+            {tx.sellerRating && (
+              <span className="text-[10px] text-yellow-600">{"★".repeat(tx.sellerRating)}</span>
             )}
           </>
         )}

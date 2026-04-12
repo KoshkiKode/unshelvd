@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Redirect, Link } from "wouter";
@@ -10,12 +10,17 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ArrowLeft, Loader2, User, Lock } from "lucide-react";
+import { ArrowLeft, Loader2, User, Lock, Trash2, Upload, ImageIcon, AlertTriangle } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function Settings() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile] = useState({
     displayName: user?.displayName || "",
@@ -30,18 +35,23 @@ export default function Settings() {
     confirmPassword: "",
   });
 
+  const [deletePassword, setDeletePassword] = useState("");
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+
   const profileMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("PATCH", "/api/users/me", {
         displayName: profile.displayName || undefined,
         bio: profile.bio || undefined,
         location: profile.location || undefined,
-        avatarUrl: profile.avatarUrl || undefined,
+        avatarUrl: avatarPreview || profile.avatarUrl || undefined,
       });
       return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      setAvatarPreview(null);
       toast({ title: "Profile updated!" });
     },
     onError: (err: Error) => {
@@ -73,7 +83,45 @@ export default function Settings() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", "/api/users/me", { password: deletePassword });
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.message || "Failed to delete account");
+      }
+      return await res.json();
+    },
+    onSuccess: async () => {
+      toast({ title: "Account deleted", description: "Your account has been permanently removed." });
+      await logout();
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to delete account", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please select an image file.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 1_048_576) {
+      toast({ title: "File too large", description: "Avatar image must be under 1 MB.", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setAvatarPreview(ev.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
   if (!user) return <Redirect to="/login" />;
+
+  const displayAvatar = avatarPreview || profile.avatarUrl;
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8" data-testid="settings-page">
@@ -94,6 +142,43 @@ export default function Settings() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Avatar upload */}
+          <div className="space-y-1.5">
+            <Label>Profile Photo</Label>
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 rounded-full bg-muted border flex items-center justify-center overflow-hidden flex-shrink-0">
+                {displayAvatar ? (
+                  <img src={displayAvatar} alt="Avatar" className="h-16 w-16 object-cover" />
+                ) : (
+                  <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="hidden"
+                  onChange={handleAvatarChange}
+                  data-testid="avatar-file-input"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => avatarInputRef.current?.click()}
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  Upload Photo
+                </Button>
+                <p className="text-[11px] text-muted-foreground">JPEG, PNG, WebP or GIF · Max 1 MB</p>
+              </div>
+            </div>
+            {avatarPreview && (
+              <p className="text-xs text-muted-foreground">New photo selected — save profile to apply.</p>
+            )}
+          </div>
           <div className="space-y-1.5">
             <Label htmlFor="displayName">Display Name</Label>
             <Input
@@ -125,17 +210,6 @@ export default function Settings() {
               data-testid="settings-location"
             />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="avatarUrl">Avatar URL</Label>
-            <Input
-              id="avatarUrl"
-              type="url"
-              value={profile.avatarUrl}
-              onChange={(e) => setProfile({ ...profile, avatarUrl: e.target.value })}
-              placeholder="https://..."
-              data-testid="settings-avatar-url"
-            />
-          </div>
           <Button
             onClick={() => profileMutation.mutate()}
             disabled={profileMutation.isPending}
@@ -148,7 +222,7 @@ export default function Settings() {
       </Card>
 
       {/* Password section */}
-      <Card>
+      <Card className="mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 font-serif text-lg">
             <Lock className="h-5 w-5" />
@@ -200,6 +274,75 @@ export default function Settings() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Danger zone — Account deletion */}
+      <Card className="border-destructive/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 font-serif text-lg text-destructive">
+            <Trash2 className="h-5 w-5" />
+            Delete Account
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Permanently delete your account and remove all personal data. Transaction history is
+            anonymised but retained for compliance. This action <strong>cannot be undone</strong>.
+          </p>
+          <p className="text-sm text-muted-foreground mb-4">
+            You cannot delete your account while you have active transactions. Please complete or
+            cancel all orders first.
+          </p>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setShowDeleteDialog(true)}
+            data-testid="delete-account-btn"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete My Account
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Delete account confirmation dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Delete your account?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <span className="block">
+                This will permanently anonymise your account. Your listings, messages, and personal
+                details will be removed. Transaction records are retained for accounting.
+              </span>
+              <span className="block font-medium text-foreground">
+                Enter your password to confirm:
+              </span>
+              <Input
+                type="password"
+                placeholder="Your password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                autoComplete="current-password"
+                data-testid="delete-confirm-password"
+              />
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeletePassword("")}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={!deletePassword || deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate()}
+            >
+              {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Yes, delete my account
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

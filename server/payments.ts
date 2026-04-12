@@ -18,6 +18,7 @@ import { db } from "./storage";
 import { transactions, books, users } from "@shared/schema";
 import { eq, desc, sql, and, or } from "drizzle-orm";
 import { getSetting, isEnabled } from "./platform-settings";
+import { capturePayPalAuthorization, voidPayPalAuthorization } from "./paypal";
 
 // Platform fee: configurable, default 10%
 export const PLATFORM_FEE_PERCENT = 0.10;
@@ -312,9 +313,17 @@ export async function confirmDelivery(transactionId: number, userId: number) {
   if (tx.status === "completed") return { status: "completed" };
   if (tx.status !== "shipped") throw new Error("Not shipped yet");
 
-  // Transfer seller's payout to their connected Stripe account
+  // Transfer seller's payout: Stripe transfer for Stripe payments,
+  // PayPal authorization capture for PayPal payments.
   const s = await getStripe();
-  if (s) {
+  if (tx.paypalAuthorizationId) {
+    // PayPal escrow: capture the held authorization so funds move to our account.
+    // Seller payout is handled manually (or via PayPal Payouts API — future work).
+    const { captureId } = await capturePayPalAuthorization(tx.paypalAuthorizationId);
+    await db.update(transactions)
+      .set({ paypalCaptureId: captureId })
+      .where(eq(transactions.id, transactionId));
+  } else if (s) {
     const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
     if (seller?.stripeAccountId) {
       const transfer = await s.transfers.create({
@@ -432,6 +441,13 @@ export async function refundPayment(transactionId: number) {
     await s.refunds.create(
       { payment_intent: tx.stripePaymentIntentId },
       { idempotencyKey: `refund_${transactionId}` },
+    );
+  }
+
+  // Void a PayPal authorization if present (releases the hold on the buyer's account)
+  if (tx.paypalAuthorizationId && !tx.paypalCaptureId) {
+    await voidPayPalAuthorization(tx.paypalAuthorizationId).catch((err) =>
+      console.error("[refund] PayPal void authorization failed:", err),
     );
   }
 

@@ -110,7 +110,7 @@ vi.mock("../../server/admin", () => ({
 vi.mock("../../server/paypal", () => ({
   isPayPalEnabled: vi.fn(),
   createPayPalOrder: vi.fn(),
-  capturePayPalOrder: vi.fn(),
+  authorizePayPalOrder: vi.fn(),
 }));
 
 vi.mock("../../server/work-resolver", () => ({
@@ -147,7 +147,7 @@ import {
   checkSellerStatus,
   handleChargeRefunded,
 } from "../../server/payments";
-import { isPayPalEnabled, createPayPalOrder, capturePayPalOrder } from "../../server/paypal";
+import { isPayPalEnabled, createPayPalOrder, authorizePayPalOrder } from "../../server/paypal";
 import { validatePassword } from "../../shared/password-policy";
 
 // ─── test helpers ──────────────────────────────────────────────────────────
@@ -2357,14 +2357,6 @@ describe("PATCH /api/users/me (requires auth)", () => {
     expect(res.body.message).toMatch(/User not found/i);
   });
 
-  it("returns 400 when an invalid avatarUrl is supplied", async () => {
-    const agent = await loginAs(app, TEST_USER);
-    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
-
-    const res = await agent.patch("/api/users/me").send({ avatarUrl: "not-a-url" });
-    expect(res.status).toBe(400);
-  });
-
   it("accepts an empty string avatarUrl (clears the avatar)", async () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
@@ -3039,10 +3031,10 @@ describe("POST /api/payments/paypal/capture-order — authenticated", () => {
 
     // 1) SELECT transaction by paypalOrderId → found, buyer matches
     pushDbResults([{ id: 7, buyerId: TEST_USER.id, sellerId: 99, bookId: 1, amount: 15.0, sellerPayout: 13.5, status: "pending", paypalOrderId: "ORDER123" }]);
-    // 2) capturePayPalOrder succeeds
-    vi.mocked(capturePayPalOrder).mockResolvedValueOnce({
-      captureId: "CAP456",
-      status: "COMPLETED",
+    // 2) authorizePayPalOrder succeeds (funds held)
+    vi.mocked(authorizePayPalOrder).mockResolvedValueOnce({
+      authorizationId: "AUTH456",
+      status: "CREATED",
     });
     // 3) UPDATE transaction status → paid (no return needed)
     // 4) SELECT seller
@@ -3052,11 +3044,11 @@ describe("POST /api/payments/paypal/capture-order — authenticated", () => {
 
     const res = await agent.post("/api/payments/paypal/capture-order").send({ orderId: "ORDER123" });
     expect(res.status).toBe(200);
-    expect(res.body.captureId).toBe("CAP456");
-    expect(res.body.status).toBe("COMPLETED");
+    expect(res.body.authorizationId).toBe("AUTH456");
+    expect(res.body.status).toBe("CREATED");
   });
 
-  it("returns 500 when capturePayPalOrder throws", async () => {
+  it("returns 500 when authorizePayPalOrder throws", async () => {
     vi.mocked(isPayPalEnabled).mockResolvedValueOnce(true);
 
     const agent = await loginAs(app, TEST_USER);
@@ -3065,11 +3057,11 @@ describe("POST /api/payments/paypal/capture-order — authenticated", () => {
     // 1) SELECT transaction by paypalOrderId → found, buyer matches
     pushDbResults([{ id: 7, buyerId: TEST_USER.id, sellerId: 99, bookId: 1, amount: 15.0, status: "pending", paypalOrderId: "ORDER123" }]);
 
-    vi.mocked(capturePayPalOrder).mockRejectedValueOnce(new Error("Capture failed"));
+    vi.mocked(authorizePayPalOrder).mockRejectedValueOnce(new Error("Authorize failed"));
 
     const res = await agent.post("/api/payments/paypal/capture-order").send({ orderId: "ORDER123" });
     expect(res.status).toBe(500);
-    expect(res.body.message).toMatch(/Capture failed/i);
+    expect(res.body.message).toMatch(/Authorize failed/i);
   });
 });
 
