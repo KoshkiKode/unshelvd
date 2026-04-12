@@ -96,6 +96,8 @@ declare global {
       totalPurchases: number | null;
       role: string | null;
       emailVerified: boolean | null;
+      emailVerifyToken: string | null;
+      emailVerifyExpiry: Date | null;
       createdAt: string | null;
     }
   }
@@ -392,7 +394,7 @@ export async function registerRoutes(
       return res.status(401).json({ message: "Not authenticated" });
     }
     // Strip sensitive token fields before sending to the client
-    const { emailVerifyToken, emailVerifyExpiry, ...safeUser } = req.user as any;
+    const { emailVerifyToken, emailVerifyExpiry, ...safeUser } = req.user;
     return res.json(safeUser);
   });
 

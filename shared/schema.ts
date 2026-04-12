@@ -381,3 +381,6 @@ export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Offer = typeof offers.$inferSelect;
 export type InsertOffer = z.infer<typeof insertOfferSchema>;
+
+/** Transaction statuses that represent a terminal (finished) state — no further action needed. */
+export const TERMINAL_TX_STATUSES: string[] = ["completed", "refunded", "failed", "cancelled"];

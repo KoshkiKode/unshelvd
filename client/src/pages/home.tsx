@@ -15,6 +15,17 @@ interface CatalogResponse {
   total: number;
 }
 
+interface RequestUser {
+  id: number;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+interface RequestWithUser extends BookRequest {
+  user: RequestUser | null;
+}
+
 const fallbackGenres = ["Fiction", "Non-Fiction", "Textbooks", "Sci-Fi", "Mystery", "Biography", "Poetry", "Philosophy", "History", "Rare"];
 
 export default function Home() {
@@ -26,7 +37,7 @@ export default function Home() {
     queryKey: ["/api/catalog?limit=10"],
   });
 
-  const { data: requestsData, isLoading: requestsLoading } = useQuery<{ requests: (BookRequest & { user: { id: number; username: string; displayName: string; avatarUrl: string | null } | null })[]; total: number }>({
+  const { data: requestsData, isLoading: requestsLoading } = useQuery<{ requests: RequestWithUser[]; total: number }>({
     queryKey: ["/api/requests?status=open&limit=6"],
   });
   const requests = requestsData?.requests;
