@@ -233,7 +233,7 @@ export async function sendNewOffer(
       p(`<strong>${buyerName}</strong> has made an offer on your listing.`) +
       highlight(`📖 <strong>${bookTitle}</strong><br>Offer amount: <strong>$${amount.toFixed(2)}</strong>`) +
       p("Log in to accept, decline, or counter the offer.") +
-      button("View Offer", `${APP_URL}/#/offers`),
+      button("View Offer", `${APP_URL}/#/dashboard/offers`),
   );
   await sendEmail(to, `New offer on "${bookTitle}"`, html);
 }
@@ -258,10 +258,10 @@ export async function sendOfferUpdated(
 
   if (status === "accepted") {
     body += p("Great news! The seller accepted your offer. Head to your offers page to proceed with payment.");
-    body += button("Complete Purchase", `${APP_URL}/#/offers`);
+    body += button("Complete Purchase", `${APP_URL}/#/dashboard/offers`);
   } else if (status === "countered" && counterAmount) {
     body += p(`The seller has made a counter-offer of <strong>$${counterAmount.toFixed(2)}</strong>.`);
-    body += button("View Counter-Offer", `${APP_URL}/#/offers`);
+    body += button("View Counter-Offer", `${APP_URL}/#/dashboard/offers`);
   } else {
     body += p("The seller has declined your offer. You can browse other listings or make a new offer.");
     body += button("Browse Books", `${APP_URL}/#/browse`);
@@ -282,7 +282,7 @@ export async function sendPaymentReceived(
       p(`<strong>${buyerName}</strong> has paid for your book.`) +
       highlight(`📖 <strong>${bookTitle}</strong><br>Amount: <strong>$${amount.toFixed(2)}</strong>`) +
       p("Please ship the book as soon as possible and enter the tracking number in your transactions page.") +
-      button("Mark as Shipped", `${APP_URL}/#/transactions`),
+      button("Mark as Shipped", `${APP_URL}/#/dashboard`),
   );
   await sendEmail(to, `Payment received for "${bookTitle}"`, html);
 }
@@ -308,7 +308,7 @@ export async function sendBookShipped(
       highlight(`📖 <strong>${bookTitle}</strong>`) +
       trackingInfo +
       p("Once your book arrives, please confirm delivery so the seller receives their payment.") +
-      button("Confirm Delivery", `${APP_URL}/#/transactions`),
+      button("Confirm Delivery", `${APP_URL}/#/dashboard`),
   );
   await sendEmail(to, `Your copy of "${bookTitle}" has been shipped!`, html);
 }
@@ -325,7 +325,7 @@ export async function sendDeliveryConfirmed(
       p(`<strong>${buyerName}</strong> confirmed receipt of your book.`) +
       highlight(`📖 <strong>${bookTitle}</strong><br>Your payout: <strong>$${payout.toFixed(2)}</strong>`) +
       p("Your earnings will be transferred to your connected Stripe account within 2–7 business days.") +
-      button("View Transaction", `${APP_URL}/#/transactions`),
+      button("View Transaction", `${APP_URL}/#/dashboard`),
   );
   await sendEmail(to, `Sale complete for "${bookTitle}"`, html);
 }
@@ -340,7 +340,7 @@ export async function sendNewMessage(
   const html = wrap(
     h1(`New message from ${senderName}`) +
       highlight(`"${safePreview}"`) +
-      button("Reply", `${APP_URL}/#/messages`),
+      button("Reply", `${APP_URL}/#/dashboard/messages`),
   );
   await sendEmail(to, `New message from ${senderName}`, html);
 }
@@ -356,7 +356,7 @@ export async function sendMatchedListing(
     h1("A book you requested is available! 🔔") +
       p(`Hi ${requesterName}! Good news — a seller just listed a copy of a book that matches one of your requests.`) +
       highlight(`📖 <strong>${bookTitle}</strong>`) +
-      button("View Listing", `${APP_URL}/#/books/${bookId}`),
+      button("View Listing", `${APP_URL}/#/book/${bookId}`),
   );
   await sendEmail(to, `"${bookTitle}" is now available on Unshelv'd`, html);
 }
@@ -376,7 +376,7 @@ export async function sendAutoCompleted(
     h1("Transaction auto-completed") +
       highlight(`📖 <strong>${bookTitle}</strong>`) +
       p(msg) +
-      button("View Transactions", `${APP_URL}/#/transactions`),
+      button("View Transactions", `${APP_URL}/#/dashboard`),
   );
   await sendEmail(to, `Transaction auto-completed for "${bookTitle}"`, html);
 }

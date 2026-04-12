@@ -29,6 +29,7 @@ import {
   SECRET_KEYS,
   maskSecret,
 } from "./platform-settings";
+import { invalidateEmailCache } from "./email";
 
 // Admin-only middleware
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
@@ -430,6 +431,12 @@ export function registerAdminRoutes(app: Express) {
 
       if (Object.keys(toSave).length > 0) {
         await setSettings(toSave);
+
+        // Invalidate the email transporter cache if any email setting changed
+        const emailKeys = ["email_enabled", "email_smtp_host", "email_smtp_port", "email_smtp_user", "email_smtp_pass", "email_from"];
+        if (emailKeys.some((k) => k in toSave)) {
+          invalidateEmailCache();
+        }
       }
 
       return res.json({ message: "Settings saved" });

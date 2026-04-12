@@ -104,6 +104,13 @@ const productionCspDirectives = {
     "'self'",
     // Stripe.js — needed for payment forms
     "https://js.stripe.com",
+    // PayPal SDK
+    "https://www.paypal.com",
+    "https://www.sandbox.paypal.com",
+    "https://www.paypalobjects.com",
+    // Google AdSense (optional — only active when VITE_ADSENSE_CLIENT is set)
+    "https://pagead2.googlesyndication.com",
+    "https://partner.googleadservices.com",
   ],
   styleSrc: [
     "'self'",
@@ -122,6 +129,9 @@ const productionCspDirectives = {
     "https://images.isbndb.com",
     // Stripe-hosted images
     "https://*.stripe.com",
+    // PayPal-hosted images
+    "https://www.paypalobjects.com",
+    "https://*.paypal.com",
     // Allow any HTTPS image (book covers come from many sources)
     "https:",
   ],
@@ -130,11 +140,21 @@ const productionCspDirectives = {
     "https://api.stripe.com",
     // Open Library search API (catalog import)
     "https://openlibrary.org",
+    // PayPal API
+    "https://www.paypal.com",
+    "https://www.sandbox.paypal.com",
+    "https://api-m.paypal.com",
+    "https://api-m.sandbox.paypal.com",
+    // Google AdSense
+    "https://pagead2.googlesyndication.com",
   ],
   frameSrc: [
     // Stripe payment iframes
     "https://js.stripe.com",
     "https://hooks.stripe.com",
+    // PayPal checkout popup/iframe
+    "https://www.paypal.com",
+    "https://www.sandbox.paypal.com",
   ],
   objectSrc: ["'none'"],
   baseUri: ["'self'"],
