@@ -19,7 +19,7 @@ export default function PrivacyPolicy() {
         <section>
           <h2 className="font-serif text-lg font-semibold text-foreground mb-2">1. Who We Are</h2>
           <p>
-            Unshelv'd ("we", "us", "our") is a peer-to-peer book marketplace operated by KoshkiKode.
+            Unshelv'd ("we", "us", "our") is a peer-to-peer book marketplace operated by KoshkiKode LLC.
             Our website is <a href="https://unshelvd.koshkikode.com" className="text-primary underline">unshelvd.koshkikode.com</a>.
             If you have questions about this policy, message us through the app.
           </p>

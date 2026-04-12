@@ -31,7 +31,7 @@ export default function Footer() {
 
           {/* Copyright + attribution */}
           <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground">
-            <p>© {new Date().getFullYear()} KoshkiKode. MIT License.</p>
+            <p>© {new Date().getFullYear()} KoshkiKode LLC. MIT License.</p>
             <p>
               Book covers &amp; metadata courtesy of{" "}
               <a

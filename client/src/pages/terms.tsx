@@ -21,7 +21,7 @@ export default function TermsOfService() {
           <p>
             By creating an account or using Unshelv'd you agree to these Terms of Service ("Terms").
             If you do not agree, do not use the platform. These Terms form a binding agreement between
-            you and KoshkiKode ("we", "us").
+            you and KoshkiKode LLC ("we", "us").
           </p>
         </section>
 
@@ -144,7 +144,7 @@ export default function TermsOfService() {
         <section>
           <h2 className="font-serif text-lg font-semibold text-foreground mb-2">13. Governing Law</h2>
           <p>
-            These Terms are governed by the laws of the jurisdiction in which KoshkiKode is registered,
+            These Terms are governed by the laws of the State of Michigan, where KoshkiKode LLC is registered,
             without regard to conflict-of-law provisions.
           </p>
         </section>
