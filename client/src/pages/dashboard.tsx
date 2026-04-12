@@ -12,7 +12,7 @@ import {
   CreditCard, CheckCircle, Loader2, Truck, Package, Clock, AlertCircle,
   ExternalLink, ShoppingBag, TrendingUp, Banknote, Pencil, Trash2, XCircle,
 } from "lucide-react";
-import type { Book, Transaction } from "@shared/schema";
+import type { Book, Transaction, Offer, BookRequest } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState, type ReactNode } from "react";
@@ -112,7 +112,7 @@ export default function Dashboard() {
     enabled: !!user,
   });
 
-  const { data: offers } = useQuery<{ sent: any[]; received: any[] }>({
+  const { data: offers } = useQuery<{ sent: Offer[]; received: Offer[] }>({
     queryKey: ["/api/offers"],
     enabled: !!user,
   });
@@ -122,7 +122,7 @@ export default function Dashboard() {
     enabled: !!user,
   });
 
-  const { data: requestsData } = useQuery<{ requests: any[]; total: number }>({
+  const { data: requestsData } = useQuery<{ requests: BookRequest[]; total: number }>({
     queryKey: [`/api/requests?status=open&limit=100`],
     enabled: !!user,
   });

@@ -37,7 +37,7 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
   if (!req.isAuthenticated?.() || !req.user) {
     return res.status(401).json({ message: "Not authenticated" });
   }
-  if ((req.user as any).role !== "admin") {
+  if (req.user.role !== "admin") {
     return res.status(403).json({ message: "Admin access required" });
   }
   next();
@@ -432,7 +432,7 @@ export function registerAdminRoutes(app: Express) {
 
   // ═══ Check admin status ═══
   app.get("/api/admin/check", requireAdmin, async (req, res) => {
-    return res.json({ isAdmin: true, userId: (req.user as any).id });
+    return res.json({ isAdmin: true, userId: req.user.id });
   });
 
   // 🏃‍♂️ Catalog Seeder (run from admin panel)

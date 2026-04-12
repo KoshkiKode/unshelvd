@@ -94,6 +94,8 @@ declare global {
       rating: number | null;
       totalSales: number | null;
       totalPurchases: number | null;
+      role: string | null;
+      emailVerified: boolean | null;
       createdAt: string | null;
     }
   }
@@ -103,7 +105,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "Not authenticated" });
   }
-  const role = (req.user as any)?.role;
+  const role = req.user?.role;
   if (role === "suspended") {
     return res.status(403).json({ message: "Account suspended" });
   }

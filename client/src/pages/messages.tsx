@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { MessageSquare, Send, User, ArrowLeft } from "lucide-react";
-import type { Message } from "@shared/schema";
+import type { Message, User } from "@shared/schema";
 
 interface Conversation {
   otherUserId: number;
@@ -41,7 +41,7 @@ export default function Messages() {
     refetchInterval: 3000,
   });
 
-  const { data: selectedUserInfo } = useQuery<any>({
+  const { data: selectedUserInfo } = useQuery<Omit<User, "password">>({
     queryKey: [`/api/users/${selectedUserId}`],
     enabled: !!selectedUserId,
   });
