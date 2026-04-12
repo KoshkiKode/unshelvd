@@ -2733,12 +2733,11 @@ describe("POST /api/transactions/:id/rate — authenticated", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    // select(transactions) → tx, update(transactions) → ignored,
-    // select(users) → seller, update(users) → ignored
+    // select(transactions) → tx, atomic update(transactions) → returns updated tx,
+    // update(users) → ignored
     pushDbResults(
       [{ id: 1, buyerId: TEST_USER.id, sellerId: 5, status: "completed", buyerRating: null }],
-      [],
-      [{ id: 5, rating: 4, ratingCount: 2 }],
+      [{ id: 1, buyerId: TEST_USER.id, sellerId: 5, status: "completed", buyerRating: 5 }],
       [],
     );
 

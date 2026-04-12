@@ -377,7 +377,20 @@ export class DatabaseStorage implements IStorage {
 
   async updateOffer(id: number, userId: number, status: string, counterAmount?: number | null): Promise<Offer | undefined> {
     const offer = await this.getOffer(id);
-    if (!offer || offer.sellerId !== userId) return undefined;
+    if (!offer) return undefined;
+
+    const isSeller = offer.sellerId === userId;
+    const isBuyer = offer.buyerId === userId;
+    if (!isSeller && !isBuyer) return undefined;
+
+    // Sellers can respond to a pending offer (accept, decline, or counter).
+    if (isSeller && offer.status !== "pending") return undefined;
+
+    // Buyers can only accept or decline a countered offer — no counter-countering.
+    if (isBuyer) {
+      if (offer.status !== "countered") return undefined;
+      if (status === "countered") return undefined;
+    }
 
     // Prevent accepting an offer if the book already has another accepted offer
     if (status === "accepted") {

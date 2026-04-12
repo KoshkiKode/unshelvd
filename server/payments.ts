@@ -16,7 +16,7 @@
 import Stripe from "stripe";
 import { db } from "./storage";
 import { transactions, books, users } from "@shared/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and, or } from "drizzle-orm";
 import { getSetting, isEnabled } from "./platform-settings";
 
 // Platform fee: configurable, default 10%
@@ -177,12 +177,25 @@ export async function checkSellerStatus(userId: number) {
  * We transfer to the seller later after delivery confirmation.
  */
 export async function createPaymentIntent(buyerId: number, bookId: number, offerId?: number) {
-  const [book] = await db.select().from(books).where(eq(books.id, bookId));
-  if (!book) throw new Error("Book not found");
-  if (book.userId === buyerId) throw new Error("Cannot buy your own book");
-  if (book.status !== "for-sale" && book.status !== "open-to-offers") {
+  // First validate: book exists and buyer is not the seller.
+  const [bookCheck] = await db.select().from(books).where(eq(books.id, bookId));
+  if (!bookCheck) throw new Error("Book not found");
+  if (bookCheck.userId === buyerId) throw new Error("Cannot buy your own book");
+  if (bookCheck.status !== "for-sale" && bookCheck.status !== "open-to-offers") {
     throw new Error("Book is not for sale");
   }
+
+  // Atomically lock the book: flip status to 'not-for-sale' only if it's still available.
+  // This prevents two buyers from concurrently starting checkout for the same book.
+  const [book] = await db
+    .update(books)
+    .set({ status: "not-for-sale" })
+    .where(and(
+      eq(books.id, bookId),
+      or(eq(books.status, "for-sale"), eq(books.status, "open-to-offers")),
+    ))
+    .returning();
+  if (!book) throw new Error("Book is no longer available for purchase");
 
   let amount = book.price;
   if (!amount || amount <= 0) throw new Error("Book has no price set");

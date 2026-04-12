@@ -174,19 +174,22 @@ describe("createPaymentIntent — validation", () => {
 
   it("throws 'Book has no price set' when price is null", async () => {
     const book = { id: 10, userId: 5, status: "for-sale", price: null };
-    dbResults.push([book]);
+    dbResults.push([book]); // select check
+    dbResults.push([book]); // atomic lock update
     await expect(createPaymentIntent(1, 10)).rejects.toThrow("Book has no price set");
   });
 
   it("throws 'Book has no price set' when price is 0", async () => {
     const book = { id: 10, userId: 5, status: "for-sale", price: 0 };
-    dbResults.push([book]);
+    dbResults.push([book]); // select check
+    dbResults.push([book]); // atomic lock update
     await expect(createPaymentIntent(1, 10)).rejects.toThrow("Book has no price set");
   });
 
   it("throws 'Seller not found' when seller user does not exist", async () => {
     const book = { id: 10, userId: 5, status: "for-sale", price: 20.0 };
-    dbResults.push([book]);  // books select
+    dbResults.push([book]);  // select check
+    dbResults.push([book]);  // atomic lock update
     dbResults.push([]);       // users select → no seller
     await expect(createPaymentIntent(1, 10)).rejects.toThrow("Seller not found");
   });
@@ -213,7 +216,8 @@ describe("createPaymentIntent — validation", () => {
       status: "pending",
     };
 
-    dbResults.push([book]);        // books select
+    dbResults.push([book]);        // select check
+    dbResults.push([book]);        // atomic lock update
     dbResults.push([seller]);      // users select (seller)
     dbResults.push([transaction]); // insert transactions returning
 
@@ -240,7 +244,8 @@ describe("createPaymentIntent — validation", () => {
     const seller = { id: 5, displayName: "Seller", username: "seller" };
     const transaction = { id: 88, buyerId: 2, sellerId: 5, bookId: 11, amount: 10.0, platformFee: 1.0, sellerPayout: 9.0 };
 
-    dbResults.push([book]);
+    dbResults.push([book]);   // select check
+    dbResults.push([book]);   // atomic lock update
     dbResults.push([seller]);
     dbResults.push([transaction]);
 

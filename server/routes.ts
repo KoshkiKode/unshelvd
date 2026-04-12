@@ -16,7 +16,7 @@ import {
   transactions,
 } from "@shared/schema";
 import { db } from "./storage";
-import { eq, and, or, ilike, desc, asc, sql } from "drizzle-orm";
+import { eq, and, or, ilike, desc, asc, sql, isNull } from "drizzle-orm";
 import { resolveWork, getWorkEditions, updateWorkStats } from "./work-resolver";
 import {
   createPaymentIntent,
@@ -197,6 +197,10 @@ export async function registerRoutes(
   // === AUTH ROUTES ===
   app.post("/api/auth/register", async (req, res) => {
     try {
+      if (!(await isEnabled("registrations_enabled", true))) {
+        return res.status(403).json({ message: "Registrations are currently disabled" });
+      }
+
       const data = insertUserSchema.parse(req.body);
 
       // Full password policy validation with name context
@@ -1366,26 +1370,30 @@ export async function registerRoutes(
 
       const { rating } = z.object({ rating: z.number().int().min(1).max(5) }).parse(req.body);
 
+      // Fetch and validate the transaction
       const [tx] = await db.select().from(transactions).where(eq(transactions.id, txId));
       if (!tx) return res.status(404).json({ message: "Transaction not found" });
       if (tx.buyerId !== req.user!.id) return res.status(403).json({ message: "Only the buyer can rate this transaction" });
       if (tx.status !== "completed") return res.status(400).json({ message: "Can only rate completed transactions" });
-      if (tx.buyerRating !== null && tx.buyerRating !== undefined) {
+
+      // Atomic guard: only succeeds when no rating exists yet — eliminates the double-submit TOCTOU race
+      const [updated] = await db
+        .update(transactions)
+        .set({ buyerRating: rating })
+        .where(and(eq(transactions.id, txId), isNull(transactions.buyerRating)))
+        .returning();
+      if (!updated) {
         return res.status(400).json({ message: "You have already rated this transaction" });
       }
 
-      // Save rating on transaction
-      await db.update(transactions).set({ buyerRating: rating }).where(eq(transactions.id, txId));
-
-      // Recalculate seller's average rating
-      const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
-      if (seller) {
-        const oldCount = seller.ratingCount ?? 0;
-        const oldRating = seller.rating ?? 0;
-        const newCount = oldCount + 1;
-        const newRating = Math.round(((oldRating * oldCount + rating) / newCount) * 10) / 10;
-        await db.update(users).set({ rating: newRating, ratingCount: newCount }).where(eq(users.id, tx.sellerId));
-      }
+      // Atomically recalculate the seller's rating using SQL arithmetic — no read-then-write race
+      await db
+        .update(users)
+        .set({
+          ratingCount: sql`COALESCE(${users.ratingCount}, 0) + 1`,
+          rating: sql`ROUND(((COALESCE(${users.rating}, 0) * COALESCE(${users.ratingCount}, 0) + ${rating}) / (COALESCE(${users.ratingCount}, 0) + 1))::numeric, 1)`,
+        })
+        .where(eq(users.id, tx.sellerId));
 
       return res.json({ message: "Rating submitted", rating });
     } catch (err) {
@@ -1421,10 +1429,6 @@ export async function registerRoutes(
       sendPasswordReset(email, resetUrl).catch((err) =>
         console.error("[email] password-reset failed:", err),
       );
-      // In development also log the URL for easy testing without email configured
-      if (process.env.NODE_ENV !== "production") {
-        console.log(`[password-reset] Reset URL for ${email}: ${resetUrl}`);
-      }
 
       // Return the token in development; strip it in production
       const payload: Record<string, string> = { message: "If that email is registered, a reset link has been sent." };
@@ -1598,13 +1602,15 @@ export async function registerRoutes(
           .status(404)
           .json({ message: "Offer not found or not yours" });
 
-      // Notify the buyer of the status change (fire-and-forget)
-      storage.getUser(offer.buyerId).then((buyer) => {
-        if (!buyer) return;
+      // Notify the other party about the status change (fire-and-forget).
+      // If the seller responded → notify the buyer; if the buyer responded → notify the seller.
+      const notifyUserId = offer.sellerId === req.user!.id ? offer.buyerId : offer.sellerId;
+      storage.getUser(notifyUserId).then((recipient) => {
+        if (!recipient) return;
         storage.getBook(offer.bookId).then((book) => {
           if (!book) return;
           const status = data.status as "accepted" | "declined" | "countered";
-          sendOfferUpdated(buyer.email, status, book.title, data.counterAmount ?? null).catch(
+          sendOfferUpdated(recipient.email, status, book.title, data.counterAmount ?? null).catch(
             (err) => console.error("[email] offer-updated notification failed:", err),
           );
         }).catch(() => {});
