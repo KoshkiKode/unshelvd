@@ -33,6 +33,7 @@ import {
   checkSellerStatus,
   getStripe,
   isStripeEnabled,
+  calculateFees,
 } from "./payments";
 import {
   createPayPalOrder,
@@ -94,6 +95,9 @@ declare global {
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "Not authenticated" });
+  }
+  if ((req.user as any)?.role === "suspended") {
+    return res.status(403).json({ message: "Account suspended" });
   }
   next();
 }
@@ -294,7 +298,12 @@ export async function registerRoutes(
         search: req.query.search as string | undefined,
         genre: req.query.genre as string | undefined,
         condition: req.query.condition as string | undefined,
-        status: req.query.status as string | undefined,
+        // Only allow publicly-browsable statuses on this unauthenticated endpoint.
+        // Private shelves (wishlist, reading, not-for-sale, etc.) must not be
+        // returned to anonymous callers.
+        status: ["for-sale", "open-to-offers"].includes(req.query.status as string)
+          ? (req.query.status as string)
+          : undefined,
         minPrice:
           Number.isFinite(rawMinPrice) && rawMinPrice >= 0
             ? rawMinPrice
@@ -436,6 +445,30 @@ export async function registerRoutes(
       if (!id) return res.status(400).json({ message: "Invalid book ID" });
       // Validate update data with partial book schema
       const data = insertBookSchema.partial().parse(req.body);
+
+      // Prevent the seller from re-listing a book that has an active (in-flight) payment.
+      if (data.status && ["for-sale", "open-to-offers"].includes(data.status)) {
+        const [activeTx] = await db
+          .select({ id: transactions.id })
+          .from(transactions)
+          .where(
+            and(
+              eq(transactions.bookId, id),
+              or(
+                eq(transactions.status, "pending"),
+                eq(transactions.status, "paid"),
+                eq(transactions.status, "shipped"),
+              ),
+            ),
+          )
+          .limit(1);
+        if (activeTx) {
+          return res.status(409).json({
+            message: "Cannot re-list a book that has an active transaction",
+          });
+        }
+      }
+
       const book = await storage.updateBook(id, req.user!.id, data);
       if (!book)
         return res.status(404).json({ message: "Book not found or not yours" });
@@ -1258,24 +1291,71 @@ export async function registerRoutes(
       const { bookId, offerId } = req.body as { bookId?: number; offerId?: number };
       if (!bookId) return res.status(400).json({ message: "bookId is required" });
 
-      const [book] = await db.select().from(books).where(eq(books.id, bookId));
-      if (!book) return res.status(404).json({ message: "Book not found" });
-      if (!book.price) return res.status(400).json({ message: "Book has no price" });
-      if (book.userId === req.user!.id) {
+      // Validate buyer is not the seller before touching any state.
+      const [bookCheck] = await db.select().from(books).where(eq(books.id, bookId));
+      if (!bookCheck) return res.status(404).json({ message: "Book not found" });
+      if (!bookCheck.price) return res.status(400).json({ message: "Book has no price" });
+      if (bookCheck.userId === req.user!.id) {
         return res.status(400).json({ message: "You cannot buy your own book" });
       }
+      if (bookCheck.status !== "for-sale" && bookCheck.status !== "open-to-offers") {
+        return res.status(400).json({ message: "Book is not available for purchase" });
+      }
 
-      const origin = req.headers.origin || `https://${req.headers.host}`;
-      const { orderId, approveUrl } = await createPayPalOrder({
-        bookId,
+      // Atomically lock the book so a concurrent buyer can't purchase the same copy.
+      const [book] = await db
+        .update(books)
+        .set({ status: "not-for-sale" })
+        .where(and(
+          eq(books.id, bookId),
+          or(eq(books.status, "for-sale"), eq(books.status, "open-to-offers")),
+        ))
+        .returning();
+      if (!book) {
+        return res.status(409).json({ message: "Book is no longer available for purchase" });
+      }
+
+      const { platformFee, sellerPayout } = await calculateFees(book.price!);
+
+      // Create the pending transaction record before creating the PayPal order so
+      // we always have an audit trail, even if the buyer abandons the PayPal flow.
+      const [transaction] = await db.insert(transactions).values({
         buyerId: req.user!.id,
         sellerId: book.userId,
-        amount: book.price,
-        returnUrl: `${origin}/#/paypal/return?bookId=${bookId}${offerId ? `&offerId=${offerId}` : ""}`,
-        cancelUrl: `${origin}/#/paypal/cancel`,
-      });
+        bookId,
+        offerId: offerId || null,
+        amount: book.price!,
+        platformFee,
+        sellerPayout,
+        status: "pending",
+      }).returning();
 
-      return res.json({ orderId, approveUrl });
+      const origin = req.headers.origin || `https://${req.headers.host}`;
+      let orderId: string;
+      let approveUrl: string;
+      try {
+        ({ orderId, approveUrl } = await createPayPalOrder({
+          bookId,
+          buyerId: req.user!.id,
+          sellerId: book.userId,
+          amount: book.price!,
+          returnUrl: `${origin}/#/paypal/return?bookId=${bookId}${offerId ? `&offerId=${offerId}` : ""}`,
+          cancelUrl: `${origin}/#/paypal/cancel`,
+        }));
+      } catch (paypalErr) {
+        // PayPal API failed — roll back the book lock and transaction so the
+        // book doesn't get stuck as "not-for-sale" permanently.
+        await db.update(books).set({ status: bookCheck.status }).where(eq(books.id, bookId));
+        await db.delete(transactions).where(eq(transactions.id, transaction.id));
+        throw paypalErr;
+      }
+
+      // Store the PayPal order ID on the transaction for ownership checks at capture time.
+      await db.update(transactions)
+        .set({ paypalOrderId: orderId })
+        .where(eq(transactions.id, transaction.id));
+
+      return res.json({ orderId, approveUrl, transactionId: transaction.id });
     } catch (err: any) {
       console.error("[PayPal create-order]", err);
       return res.status(500).json({ message: err.message || "Failed to create PayPal order" });
@@ -1293,8 +1373,39 @@ export async function registerRoutes(
       const { orderId } = req.body as { orderId?: string };
       if (!orderId) return res.status(400).json({ message: "orderId is required" });
 
-      const result = await capturePayPalOrder(orderId);
-      return res.json(result);
+      // Verify the authenticated user is the buyer for this order.
+      const [tx] = await db
+        .select()
+        .from(transactions)
+        .where(eq(transactions.paypalOrderId, orderId))
+        .limit(1);
+      if (!tx) return res.status(404).json({ message: "Transaction not found for this order" });
+      if (tx.buyerId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorised to capture this order" });
+      }
+      if (tx.status !== "pending") {
+        return res.status(409).json({ message: "Order has already been captured or cancelled" });
+      }
+
+      const { captureId, status: captureStatus } = await capturePayPalOrder(orderId);
+
+      if (captureStatus === "COMPLETED") {
+        await db.update(transactions)
+          .set({ status: "paid", paypalCaptureId: captureId, updatedAt: new Date() })
+          .where(eq(transactions.id, tx.id));
+
+        // Notify the seller
+        const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
+        const [bookRow] = await db.select().from(books).where(eq(books.id, tx.bookId));
+        const buyerName = req.user!.displayName || req.user!.username;
+        if (seller && bookRow) {
+          sendPaymentReceived(seller.email, buyerName, bookRow.title, tx.amount).catch(
+            (err) => console.error("[email] payment-received notification failed:", err),
+          );
+        }
+      }
+
+      return res.json({ captureId, status: captureStatus, transactionId: tx.id });
     } catch (err: any) {
       console.error("[PayPal capture-order]", err);
       return res.status(500).json({ message: err.message || "Failed to capture PayPal order" });
@@ -1355,7 +1466,15 @@ export async function registerRoutes(
       if (!id) return res.status(400).json({ message: "Invalid user ID" });
       const user = await storage.getUser(id);
       if (!user) return res.status(404).json({ message: "User not found" });
-      const { password, ...safeUser } = user;
+      // Strip all internal/sensitive fields before returning to any caller.
+      const {
+        password,
+        passwordResetToken,
+        passwordResetExpiry,
+        stripeAccountId,
+        stripeOnboarded,
+        ...safeUser
+      } = user;
       return res.json(safeUser);
     } catch (err) {
       return res.status(500).json({ message: "Failed to fetch user" });

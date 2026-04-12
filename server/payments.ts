@@ -59,7 +59,7 @@ export async function isStripeEnabled(): Promise<boolean> {
 // Stripe key via the admin panel and we must pick it up without a restart.
 // Always call getStripe() inside async functions.
 
-async function calculateFees(amount: number) {
+export async function calculateFees(amount: number) {
   const dbFeeStr = await getSetting("platform_fee_percent");
   const dbFee = dbFeeStr !== null ? parseFloat(dbFeeStr) : NaN;
   const feePercent = !isNaN(dbFee) && dbFee >= 0 && dbFee <= 100
@@ -334,12 +334,24 @@ export async function confirmDelivery(transactionId: number, userId: number) {
     }
   }
 
-  await db.update(transactions).set({
+  // Atomically flip status only from "shipped" → "completed".
+  // If two concurrent callers both reach this point, only one will match the WHERE
+  // clause and get a row back; the other will get an empty array and exit early,
+  // preventing the sales/purchase counters from being double-incremented.
+  const [updated] = await db.update(transactions).set({
     status: "completed",
     deliveredAt: new Date(),
     completedAt: new Date(),
     updatedAt: new Date(),
-  }).where(eq(transactions.id, transactionId));
+  }).where(and(
+    eq(transactions.id, transactionId),
+    eq(transactions.status, "shipped"),
+  )).returning();
+
+  if (!updated) {
+    // Another concurrent call already completed the transition — idempotent success.
+    return { status: "completed" };
+  }
 
   // Atomic increments — no read-then-write race condition
   await db.update(users)

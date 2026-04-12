@@ -30,6 +30,7 @@ import {
   maskSecret,
 } from "./platform-settings";
 import { invalidateEmailCache } from "./email";
+import { parseIntParam } from "./security";
 
 // Admin-only middleware
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
@@ -185,9 +186,12 @@ export function registerAdminRoutes(app: Express) {
         }),
       );
 
-      const [{ count: total }] = await db
+      const countQuery = db
         .select({ count: sql<number>`count(*)::int` })
         .from(transactions);
+      const [{ count: total }] = status
+        ? await (countQuery.where(eq(transactions.status, status)) as any)
+        : await countQuery;
 
       return res.json({ transactions: enriched, total, limit, offset });
     } catch (err) {
@@ -269,7 +273,8 @@ export function registerAdminRoutes(app: Express) {
   // ═══ User Detail (admin view) ═══
   app.get("/api/admin/users/:id", requireAdmin, async (req, res) => {
     try {
-      const id = parseInt(req.params.id as string);
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid user ID" });
       const [user] = await db
         .select({
           id: users.id,
@@ -309,7 +314,8 @@ export function registerAdminRoutes(app: Express) {
   // ═══ Suspend/Unsuspend User ═══
   app.post("/api/admin/users/:id/suspend", requireAdmin, async (req, res) => {
     try {
-      const id = parseInt(req.params.id as string);
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid user ID" });
       const [user] = await db.select().from(users).where(eq(users.id, id));
       if (!user) return res.status(404).json({ message: "User not found" });
       if (user.role === "admin")
@@ -333,7 +339,8 @@ export function registerAdminRoutes(app: Express) {
     requireAdmin,
     async (req, res) => {
       try {
-        const id = parseInt(req.params.id as string);
+        const id = parseIntParam(req.params.id);
+        if (!id) return res.status(400).json({ message: "Invalid transaction ID" });
         await db
           .update(transactions)
           .set({ status: "disputed", updatedAt: new Date() })
@@ -351,7 +358,8 @@ export function registerAdminRoutes(app: Express) {
     requireAdmin,
     async (req, res) => {
       try {
-        const id = parseInt(req.params.id as string);
+        const id = parseIntParam(req.params.id);
+        if (!id) return res.status(400).json({ message: "Invalid transaction ID" });
         await refundPayment(id);
         return res.json({ message: "Transaction refunded" });
       } catch (err: any) {

@@ -365,6 +365,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createOffer(buyerId: number, sellerId: number, offer: InsertOffer): Promise<Offer> {
+    // Prevent duplicate pending offers from the same buyer for the same book.
+    const [existing] = await db.select({ id: offers.id }).from(offers)
+      .where(and(
+        eq(offers.buyerId, buyerId),
+        eq(offers.bookId, offer.bookId),
+        eq(offers.status, "pending"),
+      ))
+      .limit(1);
+    if (existing) {
+      throw new Error("You already have a pending offer for this book");
+    }
+
     const rows = await db.insert(offers).values({
       buyerId,
       sellerId,
@@ -404,7 +416,11 @@ export class DatabaseStorage implements IStorage {
       updates.counterAmount = counterAmount;
     }
 
-    const rows = await db.update(offers).set(updates).where(eq(offers.id, id)).returning();
+    // Include the current status in the WHERE clause so a stale-read can never
+    // silently overwrite a status that changed between the read above and this write.
+    const rows = await db.update(offers).set(updates)
+      .where(and(eq(offers.id, id), eq(offers.status, offer.status)))
+      .returning();
     return rows[0];
   }
 }

@@ -100,6 +100,7 @@ vi.mock("../../server/payments", () => ({
   checkSellerStatus: vi.fn(),
   getStripe: vi.fn().mockResolvedValue(null),
   isStripeEnabled: vi.fn().mockResolvedValue(false),
+  calculateFees: vi.fn().mockResolvedValue({ platformFee: 1.5, sellerPayout: 13.5 }),
 }));
 
 vi.mock("../../server/admin", () => ({
@@ -2945,7 +2946,14 @@ describe("POST /api/payments/paypal/create-order — authenticated", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    pushDbResults([{ id: 1, userId: 99, price: 15.0 }]);
+    const bookRow = { id: 1, userId: 99, price: 15.0, status: "for-sale" };
+    // 1) bookCheck SELECT
+    pushDbResults([bookRow]);
+    // 2) atomic UPDATE books → returns locked book
+    pushDbResults([bookRow]);
+    // 3) INSERT transactions → returns new transaction
+    pushDbResults([{ id: 7, buyerId: TEST_USER.id, sellerId: 99, bookId: 1, amount: 15.0, platformFee: 1.5, sellerPayout: 13.5, status: "pending" }]);
+    // 4) UPDATE transactions (set paypalOrderId) → no return needed
 
     vi.mocked(createPayPalOrder).mockResolvedValueOnce({
       orderId: "ORDER123",
@@ -2964,7 +2972,14 @@ describe("POST /api/payments/paypal/create-order — authenticated", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    pushDbResults([{ id: 1, userId: 99, price: 15.0 }]);
+    const bookRow = { id: 1, userId: 99, price: 15.0, status: "for-sale" };
+    // 1) bookCheck SELECT
+    pushDbResults([bookRow]);
+    // 2) atomic UPDATE books → returns locked book
+    pushDbResults([bookRow]);
+    // 3) INSERT transactions → returns new transaction
+    pushDbResults([{ id: 7, buyerId: TEST_USER.id, sellerId: 99, bookId: 1, amount: 15.0, platformFee: 1.5, sellerPayout: 13.5, status: "pending" }]);
+    // 4) rollback: UPDATE books (restore status) + DELETE transactions
 
     vi.mocked(createPayPalOrder).mockRejectedValueOnce(new Error("PayPal API error"));
 
@@ -3022,10 +3037,18 @@ describe("POST /api/payments/paypal/capture-order — authenticated", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
+    // 1) SELECT transaction by paypalOrderId → found, buyer matches
+    pushDbResults([{ id: 7, buyerId: TEST_USER.id, sellerId: 99, bookId: 1, amount: 15.0, sellerPayout: 13.5, status: "pending", paypalOrderId: "ORDER123" }]);
+    // 2) capturePayPalOrder succeeds
     vi.mocked(capturePayPalOrder).mockResolvedValueOnce({
       captureId: "CAP456",
       status: "COMPLETED",
     });
+    // 3) UPDATE transaction status → paid (no return needed)
+    // 4) SELECT seller
+    pushDbResults([{ id: 99, email: "seller@example.com", displayName: "Seller" }]);
+    // 5) SELECT book
+    pushDbResults([{ id: 1, title: "Dune", author: "Herbert" }]);
 
     const res = await agent.post("/api/payments/paypal/capture-order").send({ orderId: "ORDER123" });
     expect(res.status).toBe(200);
@@ -3038,6 +3061,9 @@ describe("POST /api/payments/paypal/capture-order — authenticated", () => {
 
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    // 1) SELECT transaction by paypalOrderId → found, buyer matches
+    pushDbResults([{ id: 7, buyerId: TEST_USER.id, sellerId: 99, bookId: 1, amount: 15.0, status: "pending", paypalOrderId: "ORDER123" }]);
 
     vi.mocked(capturePayPalOrder).mockRejectedValueOnce(new Error("Capture failed"));
 

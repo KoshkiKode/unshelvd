@@ -288,6 +288,9 @@ export const transactions = pgTable("transactions", {
   // Stripe
   stripePaymentIntentId: text("stripe_payment_intent_id"),
   stripeTransferId: text("stripe_transfer_id"),  // payout to seller
+  // PayPal
+  paypalOrderId: text("paypal_order_id"),          // PayPal order ID (created before capture)
+  paypalCaptureId: text("paypal_capture_id"),      // PayPal capture ID (set after successful capture)
   // Status flow: pending → paid → shipped → delivered → completed | disputed | refunded
   status: text("status").default("pending"),
   // Buyer rating (1-5) given after transaction is completed

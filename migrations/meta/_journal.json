@@ -36,6 +36,13 @@
       "when": 1775940157685,
       "tag": "0004_productive_justice",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1744416590000,
+      "tag": "0005_paypal_transaction_fields",
+      "breakpoints": true
     }
   ]
 }

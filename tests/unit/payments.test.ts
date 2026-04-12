@@ -332,7 +332,7 @@ describe("confirmDelivery", () => {
     const tx = { id: 1, buyerId: 5, sellerId: 7, bookId: 100, sellerPayout: 18.0, status: "shipped", stripeTransferId: null };
 
     dbResults.push([tx]);       // select transaction
-    dbResults.push(undefined);  // update transaction → completed
+    dbResults.push([tx]);       // update transaction → completed (.returning() gives back the row)
     dbResults.push(undefined);  // atomic update seller totalSales
     dbResults.push(undefined);  // atomic update buyer totalPurchases
 
@@ -345,7 +345,7 @@ describe("confirmDelivery", () => {
     const tx = { id: 2, buyerId: 5, sellerId: 7, bookId: 101, sellerPayout: 9.0, status: "shipped", stripeTransferId: null };
 
     dbResults.push([tx]);       // select transaction
-    dbResults.push(undefined);  // update transaction → completed
+    dbResults.push([tx]);       // update transaction → completed (.returning() gives back the row)
     dbResults.push(undefined);  // atomic update seller totalSales (safe even if user missing)
     dbResults.push(undefined);  // atomic update buyer totalPurchases (safe even if user missing)
 
