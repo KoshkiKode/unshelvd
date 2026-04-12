@@ -9,8 +9,6 @@ import type { Book } from "@shared/schema";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
-const PLATFORM_FEE = 0.10;
-
 interface CheckoutDialogProps {
   book: Book & { seller?: { displayName: string } };
   open: boolean;
@@ -91,6 +89,13 @@ export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDia
     staleTime: 5 * 60 * 1000,
   });
 
+  // Fetch the actual platform fee configured by admin.
+  const { data: feeInfo } = useQuery<{ platformFeePercent: number }>({
+    queryKey: ["/api/payments/fee-info"],
+    staleTime: 5 * 60 * 1000,
+  });
+  const platformFeePercent = feeInfo?.platformFeePercent ?? 10;
+
   // Memoize the Stripe promise so we only call loadStripe when the key changes.
   const stripePromise = useMemo(() => {
     const key = publicConfig?.stripePk;
@@ -98,7 +103,7 @@ export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDia
   }, [publicConfig?.stripePk]);
 
   const price = book.price || 0;
-  const fee = Math.round(price * PLATFORM_FEE * 100) / 100;
+  const fee = Math.round(price * (platformFeePercent / 100) * 100) / 100;
   const total = price;
 
   const handleClose = (v: boolean) => {
@@ -187,7 +192,7 @@ export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDia
                   <span>${price.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground text-xs">
-                  <span>Platform fee (10%)</span>
+                  <span>Platform fee ({platformFeePercent}%)</span>
                   <span>${fee.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground">

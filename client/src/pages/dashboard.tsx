@@ -246,8 +246,9 @@ export default function Dashboard() {
   const pendingOffers = offers?.received.filter((o) => o.status === "pending").length || 0;
   const unreadMessages = unread?.count || 0;
   const myRequests = requestsData?.requests?.filter((r) => r.userId === user.id && r.status === "open").length || 0;
-  const activeTxCount = (transactions?.purchases.filter(t => t.status !== "completed" && t.status !== "refunded").length || 0)
-    + (transactions?.sales.filter(t => t.status !== "completed" && t.status !== "refunded").length || 0);
+  const TERMINAL_TX_STATUSES = ["completed", "refunded", "failed", "cancelled"];
+  const activeTxCount = (transactions?.purchases.filter(t => !TERMINAL_TX_STATUSES.includes(t.status)).length || 0)
+    + (transactions?.sales.filter(t => !TERMINAL_TX_STATUSES.includes(t.status)).length || 0);
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8" data-testid="dashboard-page">
@@ -368,18 +369,18 @@ export default function Dashboard() {
               <TabsTrigger value="purchases" className="gap-1.5">
                 <ShoppingBag className="h-3.5 w-3.5" />
                 Purchases
-                {(transactions?.purchases?.filter(t => t.status !== "completed").length ?? 0) > 0 && (
+                {(transactions?.purchases?.filter(t => !TERMINAL_TX_STATUSES.includes(t.status)).length ?? 0) > 0 && (
                   <Badge variant="secondary" className="text-[10px] h-4 px-1 ml-0.5">
-                    {transactions!.purchases.filter(t => t.status !== "completed").length}
+                    {transactions!.purchases.filter(t => !TERMINAL_TX_STATUSES.includes(t.status)).length}
                   </Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger value="sales" className="gap-1.5">
                 <TrendingUp className="h-3.5 w-3.5" />
                 Sales
-                {(transactions?.sales?.filter(t => t.status !== "completed").length ?? 0) > 0 && (
+                {(transactions?.sales?.filter(t => !TERMINAL_TX_STATUSES.includes(t.status)).length ?? 0) > 0 && (
                   <Badge variant="secondary" className="text-[10px] h-4 px-1 ml-0.5">
-                    {transactions!.sales.filter(t => t.status !== "completed").length}
+                    {transactions!.sales.filter(t => !TERMINAL_TX_STATUSES.includes(t.status)).length}
                   </Badge>
                 )}
               </TabsTrigger>
