@@ -776,8 +776,7 @@ describe("GET /api/payments/fee-info", () => {
   it("returns the platform fee percentage", async () => {
     const res = await request(app).get("/api/payments/fee-info");
     expect(res.status).toBe(200);
-    // PLATFORM_FEE_PERCENT is mocked as 0.1 → 10%
-    expect(res.body.platformFeePercent).toBeDefined();
+    expect(res.body.platformFeePercent).toBe(10);
     expect(res.body).toHaveProperty("description");
   });
 });
