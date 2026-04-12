@@ -16,7 +16,7 @@
 import Stripe from "stripe";
 import { db } from "./storage";
 import { transactions, books, users } from "@shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { getSetting, isEnabled } from "./platform-settings";
 
 // Platform fee: configurable, default 10%
@@ -295,6 +295,8 @@ export async function confirmDelivery(transactionId: number, userId: number) {
   const [tx] = await db.select().from(transactions).where(eq(transactions.id, transactionId));
   if (!tx) throw new Error("Transaction not found");
   if (tx.buyerId !== userId) throw new Error("Not your purchase");
+  // Idempotent: treat already-completed as success (webhook + browser may both call this)
+  if (tx.status === "completed") return { status: "completed" };
   if (tx.status !== "shipped") throw new Error("Not shipped yet");
 
   // Transfer seller's payout to their connected Stripe account
@@ -310,7 +312,8 @@ export async function confirmDelivery(transactionId: number, userId: number) {
           transactionId: String(tx.id),
           bookId: String(tx.bookId),
         },
-      });
+        // Idempotency key: one transfer per transaction regardless of retries
+      }, { idempotencyKey: `transfer_${transactionId}` });
 
       await db.update(transactions)
         .set({ stripeTransferId: transfer.id })
@@ -325,11 +328,13 @@ export async function confirmDelivery(transactionId: number, userId: number) {
     updatedAt: new Date(),
   }).where(eq(transactions.id, transactionId));
 
-  // Update stats
-  const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
-  if (seller) await db.update(users).set({ totalSales: (seller.totalSales || 0) + 1 }).where(eq(users.id, tx.sellerId));
-  const [buyer] = await db.select().from(users).where(eq(users.id, tx.buyerId));
-  if (buyer) await db.update(users).set({ totalPurchases: (buyer.totalPurchases || 0) + 1 }).where(eq(users.id, tx.buyerId));
+  // Atomic increments — no read-then-write race condition
+  await db.update(users)
+    .set({ totalSales: sql`${users.totalSales} + 1` })
+    .where(eq(users.id, tx.sellerId));
+  await db.update(users)
+    .set({ totalPurchases: sql`${users.totalPurchases} + 1` })
+    .where(eq(users.id, tx.buyerId));
 
   return { status: "completed" };
 }
@@ -428,7 +433,12 @@ export async function handleChargeRefunded(paymentIntentId: string) {
     .set({ status: "refunded", updatedAt: new Date() })
     .where(eq(transactions.id, tx.id));
 
-  await db.update(books).set({ status: "for-sale" }).where(eq(books.id, tx.bookId));
+  // Only re-list the book if it hasn't already been delivered — a post-delivery
+  // chargeback (status "completed") means the book is physically with the buyer
+  // and re-listing it would be misleading.
+  if (tx.status !== "completed") {
+    await db.update(books).set({ status: "for-sale" }).where(eq(books.id, tx.bookId));
+  }
 }
 
 export async function getUserTransactions(userId: number) {
