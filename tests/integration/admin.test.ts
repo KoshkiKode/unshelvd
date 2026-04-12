@@ -135,7 +135,7 @@ vi.mock("bcryptjs", () => ({
 
 // ─── imports after mocks ────────────────────────────────────────────────────
 
-import { storage, pool, db } from "../../server/storage";
+import { storage, db } from "../../server/storage";
 import { registerRoutes } from "../../server/routes";
 import { getAllSettings, setSettings, maskSecret } from "../../server/platform-settings";
 import { refundPayment } from "../../server/payments";
