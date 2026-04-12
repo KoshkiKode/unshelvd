@@ -40,6 +40,17 @@ import {
 import { registerAdminRoutes } from "./admin";
 import { validatePassword } from "@shared/password-policy";
 import { sanitizeLikeInput, parseIntParam } from "./security";
+import {
+  sendPasswordReset,
+  sendWelcome,
+  sendNewOffer,
+  sendOfferUpdated,
+  sendPaymentReceived,
+  sendBookShipped,
+  sendDeliveryConfirmed,
+  sendNewMessage,
+  sendMatchedListing,
+} from "./email";
 import { z } from "zod";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
@@ -211,6 +222,11 @@ export async function registerRoutes(
         password: hashedPassword,
       });
 
+      // Send welcome email (fire-and-forget — never blocks registration)
+      sendWelcome(user.email, user.displayName).catch((err) =>
+        console.error("[email] welcome failed:", err),
+      );
+
       // Auto-login after registration
       const { password, ...safeUser } = user;
       req.login(safeUser as any, (err) => {
@@ -379,6 +395,19 @@ export async function registerRoutes(
               (reqAuthor && (reqAuthor.includes(authorLower) || authorLower.includes(reqAuthor)));
           })
           .map((r) => ({ id: r.id, title: r.title, userId: r.userId }));
+
+        // Notify matched request owners (fire-and-forget, deduplicated by userId)
+        const notifiedUsers = new Set<number>();
+        for (const match of matchedRequests) {
+          if (notifiedUsers.has(match.userId) || match.userId === req.user!.id) continue;
+          notifiedUsers.add(match.userId);
+          storage.getUser(match.userId).then((requester) => {
+            if (!requester) return;
+            sendMatchedListing(requester.email, requester.displayName, data.title, book.id).catch(
+              (err) => console.error("[email] matched-listing notification failed:", err),
+            );
+          }).catch(() => {});
+        }
       } catch {
         // Non-fatal
       }
@@ -985,6 +1014,27 @@ export async function registerRoutes(
       if (!id)
         return res.status(400).json({ message: "Invalid transaction ID" });
       const result = await confirmPayment(id, req.user!.id);
+
+      // Notify seller that payment was received (fire-and-forget)
+      if (result.status === "paid") {
+        const buyerName = req.user!.displayName || req.user!.username;
+        db.select({ sellerId: transactions.sellerId, bookId: transactions.bookId, amount: transactions.amount })
+          .from(transactions)
+          .where(eq(transactions.id, id))
+          .then(([tx]) => {
+            if (!tx) return;
+            Promise.all([
+              storage.getUser(tx.sellerId),
+              storage.getBook(tx.bookId),
+            ]).then(([seller, book]) => {
+              if (!seller || !book) return;
+              sendPaymentReceived(seller.email, buyerName, book.title, tx.amount).catch(
+                (err) => console.error("[email] payment-received notification failed:", err),
+              );
+            }).catch(() => {});
+          }).catch(() => {});
+      }
+
       return res.json(result);
     } catch (err: any) {
       return res
@@ -1010,6 +1060,25 @@ export async function registerRoutes(
         carrier,
         trackingNumber,
       );
+
+      // Notify buyer that their book was shipped (fire-and-forget)
+      const sellerName = req.user!.displayName || req.user!.username;
+      db.select({ buyerId: transactions.buyerId, bookId: transactions.bookId })
+        .from(transactions)
+        .where(eq(transactions.id, id))
+        .then(([tx]) => {
+          if (!tx) return;
+          Promise.all([
+            storage.getUser(tx.buyerId),
+            storage.getBook(tx.bookId),
+          ]).then(([buyer, book]) => {
+            if (!buyer || !book) return;
+            sendBookShipped(buyer.email, sellerName, book.title, carrier, trackingNumber).catch(
+              (err) => console.error("[email] book-shipped notification failed:", err),
+            );
+          }).catch(() => {});
+        }).catch(() => {});
+
       return res.json(result);
     } catch (err: any) {
       return res.status(400).json({ message: err.message || "Update failed" });
@@ -1023,6 +1092,25 @@ export async function registerRoutes(
       if (!id)
         return res.status(400).json({ message: "Invalid transaction ID" });
       const result = await confirmDelivery(id, req.user!.id);
+
+      // Notify seller that delivery was confirmed and payout is on its way (fire-and-forget)
+      const buyerName = req.user!.displayName || req.user!.username;
+      db.select({ sellerId: transactions.sellerId, bookId: transactions.bookId, sellerPayout: transactions.sellerPayout })
+        .from(transactions)
+        .where(eq(transactions.id, id))
+        .then(([tx]) => {
+          if (!tx) return;
+          Promise.all([
+            storage.getUser(tx.sellerId),
+            storage.getBook(tx.bookId),
+          ]).then(([seller, book]) => {
+            if (!seller || !book) return;
+            sendDeliveryConfirmed(seller.email, buyerName, book.title, tx.sellerPayout).catch(
+              (err) => console.error("[email] delivery-confirmed notification failed:", err),
+            );
+          }).catch(() => {});
+        }).catch(() => {});
+
       return res.json(result);
     } catch (err: any) {
       return res
@@ -1291,9 +1379,16 @@ export async function registerRoutes(
         passwordResetExpiry: expiry,
       }).where(eq(users.id, user.id));
 
-      // In production, send this via email. For now, log it to console.
       const resetUrl = `${req.protocol}://${req.get("host")}/#/reset-password?token=${token}`;
-      console.log(`[password-reset] Reset URL for ${email}: ${resetUrl}`);
+
+      // Send reset email (fire-and-forget)
+      sendPasswordReset(email, resetUrl).catch((err) =>
+        console.error("[email] password-reset failed:", err),
+      );
+      // In development also log the URL for easy testing without email configured
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[password-reset] Reset URL for ${email}: ${resetUrl}`);
+      }
 
       // Return the token in development; strip it in production
       const payload: Record<string, string> = { message: "If that email is registered, a reset link has been sent." };
@@ -1385,6 +1480,13 @@ export async function registerRoutes(
       const receiver = await storage.getUser(data.receiverId);
       if (!receiver) return res.status(404).json({ message: "Recipient not found" });
       const message = await storage.createMessage(req.user!.id, data);
+
+      // Notify recipient (fire-and-forget)
+      const senderName = req.user!.displayName || req.user!.username;
+      sendNewMessage(receiver.email, senderName, data.content).catch((err) =>
+        console.error("[email] new-message notification failed:", err),
+      );
+
       return res.json(message);
     } catch (err) {
       if (err instanceof ZodError) {
@@ -1423,6 +1525,16 @@ export async function registerRoutes(
       }
 
       const offer = await storage.createOffer(req.user!.id, book.userId, data);
+
+      // Notify the seller about the new offer (fire-and-forget)
+      const buyerName = req.user!.displayName || req.user!.username;
+      storage.getUser(book.userId).then((seller) => {
+        if (!seller) return;
+        sendNewOffer(seller.email, buyerName, book.title, data.amount).catch(
+          (err) => console.error("[email] new-offer notification failed:", err),
+        );
+      }).catch(() => {});
+
       return res.json(offer);
     } catch (err) {
       if (err instanceof ZodError) {
@@ -1449,6 +1561,19 @@ export async function registerRoutes(
         return res
           .status(404)
           .json({ message: "Offer not found or not yours" });
+
+      // Notify the buyer of the status change (fire-and-forget)
+      storage.getUser(offer.buyerId).then((buyer) => {
+        if (!buyer) return;
+        storage.getBook(offer.bookId).then((book) => {
+          if (!book) return;
+          const status = data.status as "accepted" | "declined" | "countered";
+          sendOfferUpdated(buyer.email, status, book.title, data.counterAmount ?? null).catch(
+            (err) => console.error("[email] offer-updated notification failed:", err),
+          );
+        }).catch(() => {});
+      }).catch(() => {});
+
       return res.json(offer);
     } catch (err) {
       if (err instanceof ZodError) {
