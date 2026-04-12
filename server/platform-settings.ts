@@ -14,6 +14,7 @@
  *   paypal_client_id        — PayPal app client ID
  *   paypal_client_secret    — PayPal app client secret
  *   paypal_mode             — "sandbox" | "live"
+ *   paypal_webhook_id       — PayPal webhook ID (from developer dashboard) for signature verification
  *   platform_fee_percent    — numeric string, e.g. "10"
  *   maintenance_mode        — "true" | "false"
  *   registrations_enabled   — "true" | "false"

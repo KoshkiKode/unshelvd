@@ -39,6 +39,8 @@ import {
   createPayPalOrder,
   authorizePayPalOrder,
   isPayPalEnabled,
+  verifyPayPalWebhookSignature,
+  voidPayPalAuthorization,
 } from "./paypal";
 import { registerAdminRoutes } from "./admin";
 import { getSetting, isEnabled } from "./platform-settings";
@@ -55,6 +57,7 @@ import {
   sendNewMessage,
   sendMatchedListing,
   sendEmailVerification,
+  sendDisputeOpened,
 } from "./email";
 import { z } from "zod";
 import passport from "passport";
@@ -189,6 +192,22 @@ export async function registerRoutes(
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // Maintenance mode — return 503 for all API routes except the health check.
+  // Admins can toggle this via the admin settings panel.
+  app.use(async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.path.startsWith("/api/") || req.path === "/api/health") return next();
+    try {
+      if (await isEnabled("maintenance_mode", false)) {
+        return res
+          .status(503)
+          .json({ message: "The site is temporarily down for maintenance. Please check back soon." });
+      }
+    } catch {
+      // If the DB is unreachable we can't read settings — don't block requests.
+    }
+    return next();
+  });
+
   // === HEALTH CHECK ===
   app.get("/api/health", async (_req, res) => {
     try {
@@ -300,6 +319,11 @@ export async function registerRoutes(
         .update(users)
         .set({ emailVerified: true, emailVerifyToken: null, emailVerifyExpiry: null })
         .where(eq(users.id, user.id));
+
+      // Send welcome email now that the address is confirmed (fire-and-forget)
+      sendWelcome(user.email, user.displayName).catch((err) =>
+        console.error("[email] welcome email failed:", err),
+      );
 
       // Redirect to the app with a success indicator
       return res.redirect("/#/?email_verified=1");
@@ -1353,6 +1377,83 @@ export async function registerRoutes(
     }
   });
 
+  // PayPal webhook — handles async authorization lifecycle events
+  app.post("/api/webhooks/paypal", async (req, res) => {
+    const webhookId =
+      (await getSetting("paypal_webhook_id")) || process.env.PAYPAL_WEBHOOK_ID || null;
+
+    const event = req.body as Record<string, any>;
+
+    if (webhookId) {
+      // Production: verify the PayPal signature
+      const transmissionId = req.headers["paypal-transmission-id"] as string;
+      const transmissionTime = req.headers["paypal-transmission-time"] as string;
+      const certUrl = req.headers["paypal-cert-url"] as string;
+      const authAlgo = req.headers["paypal-auth-algo"] as string;
+      const transmissionSig = req.headers["paypal-transmission-sig"] as string;
+
+      if (!transmissionId || !transmissionTime || !certUrl || !authAlgo || !transmissionSig) {
+        return res.status(400).json({ message: "Missing PayPal webhook signature headers" });
+      }
+
+      const valid = await verifyPayPalWebhookSignature({
+        authAlgo,
+        certUrl,
+        transmissionId,
+        transmissionSig,
+        transmissionTime,
+        webhookId,
+        webhookEvent: event,
+      });
+      if (!valid) {
+        console.error("[paypal-webhook] Signature verification failed");
+        return res.status(400).json({ message: "Webhook signature invalid" });
+      }
+    }
+
+    const eventType: string = event.event_type ?? "";
+    console.log(`[paypal-webhook] ${eventType}`);
+
+    try {
+      switch (eventType) {
+        case "PAYMENT.AUTHORIZATION.VOIDED": {
+          // PayPal voided an authorization (e.g. it expired after 29 days without capture).
+          // Mark the transaction as cancelled and re-list the book so buyers can purchase again.
+          const authId: string | undefined =
+            event.resource?.id;
+          if (authId) {
+            const [tx] = await db
+              .select()
+              .from(transactions)
+              .where(eq(transactions.paypalAuthorizationId, authId))
+              .limit(1);
+            if (tx && tx.status === "paid") {
+              await db
+                .update(transactions)
+                .set({ status: "cancelled", updatedAt: new Date() })
+                .where(eq(transactions.id, tx.id));
+              // Re-list the book so it can be purchased again
+              if (tx.bookId) {
+                await db
+                  .update(books)
+                  .set({ status: "for-sale" })
+                  .where(eq(books.id, tx.bookId));
+              }
+              console.log(`[paypal-webhook] Cancelled tx ${tx.id} due to voided authorization ${authId}`);
+            }
+          }
+          break;
+        }
+        default:
+          console.log(`[paypal-webhook] Unhandled event type: ${eventType}`);
+      }
+      return res.json({ received: true });
+    } catch (err) {
+      console.error(`[paypal-webhook] Error handling ${eventType}:`, err);
+      return res.status(500).json({ message: "Webhook handler error" });
+    }
+  });
+
   // ── PayPal checkout routes ──────────────────────────────────────────────
 
   /** Check whether PayPal is enabled for this deployment. Requires auth to avoid leaking config. */
@@ -1854,6 +1955,16 @@ export async function registerRoutes(
         .update(transactions)
         .set({ status: "disputed", updatedAt: new Date() })
         .where(eq(transactions.id, txId));
+
+      // Notify the seller so they're aware a dispute is in progress (fire-and-forget)
+      const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
+      const [bookRow] = await db.select().from(books).where(eq(books.id, tx.bookId));
+      const buyerName = req.user!.displayName || req.user!.username;
+      if (seller && bookRow) {
+        sendDisputeOpened(seller.email, buyerName, bookRow.title).catch((err) =>
+          console.error("[email] dispute-opened notification failed:", err),
+        );
+      }
 
       return res.json({ message: "Dispute opened. Our team will review this transaction." });
     } catch (err) {

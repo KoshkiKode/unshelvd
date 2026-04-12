@@ -285,6 +285,52 @@ export async function voidPayPalAuthorization(
 }
 
 /**
+ * Verify a PayPal webhook signature using PayPal's notification verification API.
+ * Returns true when the signature is valid, false otherwise (including when PayPal
+ * isn't configured — in that case the caller should skip signature checks in dev).
+ */
+export async function verifyPayPalWebhookSignature(params: {
+  authAlgo: string;
+  certUrl: string;
+  transmissionId: string;
+  transmissionSig: string;
+  transmissionTime: string;
+  webhookId: string;
+  webhookEvent: unknown;
+}): Promise<boolean> {
+  const creds = await getPayPalCredentials();
+  if (!creds) return false;
+
+  try {
+    const token = await getAccessToken(creds);
+    const base = getBaseUrl(creds.mode);
+
+    const res = await fetch(`${base}/v1/notifications/verify-webhook-signature`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        auth_algo: params.authAlgo,
+        cert_url: params.certUrl,
+        transmission_id: params.transmissionId,
+        transmission_sig: params.transmissionSig,
+        transmission_time: params.transmissionTime,
+        webhook_id: params.webhookId,
+        webhook_event: params.webhookEvent,
+      }),
+    });
+
+    if (!res.ok) return false;
+    const data = (await res.json()) as { verification_status: string };
+    return data.verification_status === "SUCCESS";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Refund a PayPal capture by its capture ID.
  */
 export async function refundPayPalCapture(

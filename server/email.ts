@@ -191,7 +191,8 @@ function highlight(text: string) {
 }
 
 /** Escape user-supplied strings before embedding them in HTML email bodies. */
-function esc(s: string): string {
+function esc(s: string | null | undefined): string {
+  if (!s) return "";
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -384,6 +385,22 @@ export async function sendMatchedListing(
       button("View Listing", `${APP_URL}/#/book/${bookId}`),
   );
   await sendEmail(to, `"${esc(bookTitle)}" is now available on Unshelv'd`, html);
+}
+
+/** Notify seller that the buyer has opened a dispute for their transaction. */
+export async function sendDisputeOpened(
+  to: string,
+  buyerName: string,
+  bookTitle: string,
+): Promise<void> {
+  const html = wrap(
+    h1("A dispute has been opened on your order") +
+      p(`<strong>${esc(buyerName)}</strong> has opened a dispute for their purchase.`) +
+      highlight(`📖 <strong>${esc(bookTitle)}</strong>`) +
+      p("Our team will review this transaction. Please be ready to provide proof of shipment if requested. We will contact you by email.") +
+      button("View Transactions", `${APP_URL}/#/dashboard`),
+  );
+  await sendEmail(to, `Dispute opened for "${esc(bookTitle)}"`, html);
 }
 
 /** Auto-complete notification — sent to both parties when a transaction is automatically completed. */
