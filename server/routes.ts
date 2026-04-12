@@ -2043,14 +2043,16 @@ export async function registerRoutes(
       const valid = await bcrypt.compare(password, user.password);
       if (!valid) return res.status(400).json({ message: "Incorrect password" });
 
-      // Block deletion if user has active (non-completed) transactions
+      // Block deletion if user has active (non-terminal) transactions.
+      // Terminal statuses: completed, refunded, failed, cancelled.
+      // Disputed transactions are actively under review — block deletion until resolved.
       const [activeTx] = await db
         .select({ id: transactions.id })
         .from(transactions)
         .where(
           and(
             or(eq(transactions.buyerId, user.id), eq(transactions.sellerId, user.id)),
-            sql`${transactions.status} NOT IN ('completed', 'refunded', 'failed')`,
+            sql`${transactions.status} NOT IN ('completed', 'refunded', 'failed', 'cancelled')`,
           ),
         )
         .limit(1);

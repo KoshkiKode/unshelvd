@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BookOpen, Plus, MessageSquare, DollarSign, FileText, ArrowRight,
   CreditCard, CheckCircle, Loader2, Truck, Package, Clock, AlertCircle,
-  ExternalLink, ShoppingBag, TrendingUp, Banknote, Pencil, Trash2,
+  ExternalLink, ShoppingBag, TrendingUp, Banknote, Pencil, Trash2, XCircle,
 } from "lucide-react";
 import type { Book } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
@@ -49,6 +49,9 @@ export default function Dashboard() {
 
   // State for dispute confirm dialog
   const [disputeTx, setDisputeTx] = useState<any | null>(null);
+
+  // State for cancel order confirm dialog
+  const [cancelTx, setCancelTx] = useState<any | null>(null);
 
   const { data: sellerStatus, isLoading: sellerLoading } = useQuery<{
     connected: boolean;
@@ -199,6 +202,26 @@ export default function Dashboard() {
     },
     onError: (err: Error) => {
       toast({ title: "Failed to open dispute", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const cancelOrderMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/payments/${id}/cancel`);
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.message || "Failed to cancel order");
+      }
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/payments/transactions"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/books/user/${user?.id}`] });
+      toast({ title: "Order cancelled", description: "Your order has been cancelled and any payment refunded." });
+      setCancelTx(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to cancel order", description: err.message, variant: "destructive" });
     },
   });
 
@@ -378,6 +401,7 @@ export default function Dashboard() {
                       confirming={deliverMutation.isPending && deliverMutation.variables === tx.id}
                       onRate={tx.status === "completed" && !tx.buyerRating ? () => { setRateTx(tx); setRatingValue(0); } : undefined}
                       onDispute={["paid", "shipped"].includes(tx.status) ? () => setDisputeTx(tx) : undefined}
+                      onCancel={["pending", "paid"].includes(tx.status) ? () => setCancelTx(tx) : undefined}
                     />
                   ))}
                 </div>
@@ -653,6 +677,45 @@ export default function Dashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Cancel order confirmation dialog */}
+      <AlertDialog open={!!cancelTx} onOpenChange={(v) => { if (!v) setCancelTx(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-destructive" />
+              Cancel this order?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="block">
+                Are you sure you want to cancel your order for{" "}
+                <em>{cancelTx?.book?.title}</em>?
+              </span>
+              {cancelTx?.status === "paid" && (
+                <span className="block mt-2 font-medium text-foreground">
+                  Your payment will be fully refunded within a few business days.
+                </span>
+              )}
+              {cancelTx?.status === "pending" && (
+                <span className="block mt-2">
+                  No payment was captured — the reservation will be released immediately.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep order</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={cancelOrderMutation.isPending}
+              onClick={() => cancelTx && cancelOrderMutation.mutate(cancelTx.id)}
+            >
+              {cancelOrderMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Yes, cancel order
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -752,6 +815,7 @@ const TX_STATUS: Record<string, { label: string; color: string; icon: ReactNode 
   completed: { label: "Completed",            color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",     icon: <CheckCircle className="h-3 w-3" /> },
   disputed:  { label: "Disputed",             color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",             icon: <AlertCircle className="h-3 w-3" /> },
   refunded:  { label: "Refunded",             color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",           icon: <Package className="h-3 w-3" /> },
+  cancelled: { label: "Cancelled",            color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",           icon: <XCircle className="h-3 w-3" /> },
 };
 
 function TransactionCard({
@@ -763,6 +827,7 @@ function TransactionCard({
   onRate,
   onRateBuyer,
   onDispute,
+  onCancel,
 }: {
   tx: any;
   role: "buyer" | "seller";
@@ -772,7 +837,8 @@ function TransactionCard({
   onRate?: () => void;
   onRateBuyer?: () => void;
   onDispute?: () => void;
-}) {
+  onCancel?: () => void;
+}){
   const status = TX_STATUS[tx.status] ?? { label: tx.status, color: "", icon: null };
 
   return (
@@ -822,6 +888,12 @@ function TransactionCard({
           <Button size="sm" variant="outline" onClick={onDispute} className="text-xs h-7 gap-1 text-destructive border-destructive/30 hover:bg-destructive/10">
             <AlertCircle className="h-3 w-3" />
             Dispute
+          </Button>
+        )}
+        {role === "buyer" && onCancel && (
+          <Button size="sm" variant="outline" onClick={onCancel} className="text-xs h-7 gap-1 text-muted-foreground hover:text-destructive hover:border-destructive/30">
+            <XCircle className="h-3 w-3" />
+            Cancel
           </Button>
         )}
         {tx.status === "completed" && role === "buyer" && (

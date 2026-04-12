@@ -29,12 +29,25 @@ export default function Footer() {
             </Link>
           </nav>
 
-          {/* Copyright */}
-          <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} KoshkiKode. MIT License.
-          </p>
+          {/* Copyright + attribution */}
+          <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground">
+            <p>© {new Date().getFullYear()} KoshkiKode. MIT License.</p>
+            <p>
+              Book covers &amp; metadata courtesy of{" "}
+              <a
+                href="https://openlibrary.org"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-foreground transition-colors"
+              >
+                Open Library
+              </a>
+              .
+            </p>
+          </div>
         </div>
       </div>
     </footer>
   );
 }
+
