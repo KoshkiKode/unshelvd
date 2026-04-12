@@ -15,7 +15,7 @@ interface CatalogResponse {
   total: number;
 }
 
-const genres = ["Fiction", "Non-Fiction", "Textbooks", "Sci-Fi", "Mystery", "Biography", "Poetry", "Philosophy", "History", "Rare"];
+const fallbackGenres = ["Fiction", "Non-Fiction", "Textbooks", "Sci-Fi", "Mystery", "Biography", "Poetry", "Philosophy", "History", "Rare"];
 
 export default function Home() {
   const { data: books, isLoading: booksLoading } = useQuery<Book[]>({
@@ -30,6 +30,12 @@ export default function Home() {
     queryKey: ["/api/requests?status=open&limit=6"],
   });
   const requests = requestsData?.requests;
+
+  const { data: dynamicGenres } = useQuery<string[]>({
+    queryKey: ["/api/genres"],
+    staleTime: 10 * 60 * 1000,
+  });
+  const genres = dynamicGenres && dynamicGenres.length > 0 ? dynamicGenres.slice(0, 10) : fallbackGenres;
 
   const [, setLocation] = useLocation();
   const search = useSearch();

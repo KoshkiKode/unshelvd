@@ -10,6 +10,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import type { Locale } from "@/i18n/translations";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import type { LucideIcon } from "lucide-react";
+
+interface NavLink {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  badge?: number;
+}
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -55,14 +63,14 @@ export default function Navbar() {
 
   const unreadCount = unreadData?.count || 0;
 
-  const navLinks = [
+  const navLinks: NavLink[] = [
     { href: "/browse", label: "Browse", icon: Search },
     { href: "/catalog", label: "Catalog", icon: Library },
     { href: "/requests", label: "Requests", icon: BookOpen },
     { href: "/about", label: "About", icon: Info },
   ];
 
-  const authLinks = user
+  const authLinks: NavLink[] = user
     ? [
         { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
         {
@@ -74,7 +82,7 @@ export default function Navbar() {
         { href: `/user/${user.id}`, label: "Profile", icon: User },
         { href: "/dashboard/settings", label: "Settings", icon: Settings },
         // Admin link (only visible to admins)
-        ...((user as any).role === "admin" ? [{ href: "/admin", label: "Admin", icon: Shield }] : []),
+        ...(user.role === "admin" ? [{ href: "/admin", label: "Admin", icon: Shield }] : []),
       ]
     : [];
 
@@ -190,9 +198,9 @@ export default function Navbar() {
                     >
                       <link.icon className="h-4 w-4 mr-2" />
                       {link.label}
-                      {"badge" in link && (link as any).badge ? (
+                      {"badge" in link && link.badge ? (
                         <span className="ml-auto bg-primary text-primary-foreground text-xs font-bold rounded-full h-5 min-w-5 flex items-center justify-center px-1">
-                          {(link as any).badge}
+                          {link.badge}
                         </span>
                       ) : null}
                     </Button>
@@ -227,7 +235,7 @@ export default function Navbar() {
         </div>
       </nav>
       {/* Email verification banner — shown to logged-in users who haven't verified yet */}
-      {user && (user as any).emailVerified === false && (
+      {user && user.emailVerified === false && (
         <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 px-4 py-2">
           <div className="container mx-auto flex items-center justify-between gap-3 max-w-6xl">
             <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300">

@@ -12,7 +12,7 @@ import {
   CreditCard, CheckCircle, Loader2, Truck, Package, Clock, AlertCircle,
   ExternalLink, ShoppingBag, TrendingUp, Banknote, Pencil, Trash2, XCircle,
 } from "lucide-react";
-import type { Book } from "@shared/schema";
+import type { Book, Transaction } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState, type ReactNode } from "react";
@@ -27,6 +27,13 @@ import { Label } from "@/components/ui/label";
 
 const RATING_LABELS = ["", "Poor", "Fair", "Good", "Very good", "Excellent"] as const;
 
+/** Transaction as returned by GET /api/payments/transactions — includes joined book/buyer/seller. */
+interface TxWithRelations extends Transaction {
+  book: { id: number; title: string; author: string; coverUrl: string | null } | null;
+  buyer: { id: number; displayName: string; username: string } | null;
+  seller: { id: number; displayName: string; username: string } | null;
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -40,18 +47,18 @@ export default function Dashboard() {
   const [tracking, setTracking] = useState("");
 
   // State for "Rate Seller" dialog
-  const [rateTx, setRateTx] = useState<any | null>(null);
+  const [rateTx, setRateTx] = useState<TxWithRelations | null>(null);
   const [ratingValue, setRatingValue] = useState(0);
 
   // State for "Rate Buyer" dialog (seller rates buyer)
-  const [rateBuyerTx, setRateBuyerTx] = useState<any | null>(null);
+  const [rateBuyerTx, setRateBuyerTx] = useState<TxWithRelations | null>(null);
   const [rateBuyerValue, setRateBuyerValue] = useState(0);
 
   // State for dispute confirm dialog
-  const [disputeTx, setDisputeTx] = useState<any | null>(null);
+  const [disputeTx, setDisputeTx] = useState<TxWithRelations | null>(null);
 
   // State for cancel order confirm dialog
-  const [cancelTx, setCancelTx] = useState<any | null>(null);
+  const [cancelTx, setCancelTx] = useState<TxWithRelations | null>(null);
 
   const { data: sellerStatus, isLoading: sellerLoading } = useQuery<{
     connected: boolean;
@@ -120,7 +127,7 @@ export default function Dashboard() {
     enabled: !!user,
   });
 
-  const { data: transactions, isLoading: txLoading } = useQuery<{ purchases: any[]; sales: any[] }>({
+  const { data: transactions, isLoading: txLoading } = useQuery<{ purchases: TxWithRelations[]; sales: TxWithRelations[] }>({
     queryKey: ["/api/payments/transactions"],
     enabled: !!user,
   });
@@ -830,7 +837,7 @@ function TransactionCard({
   onDispute,
   onCancel,
 }: {
-  tx: any;
+  tx: TxWithRelations;
   role: "buyer" | "seller";
   onMarkShipped?: () => void;
   onConfirmDelivery?: () => void;
