@@ -450,6 +450,13 @@ export function registerAdminRoutes(app: Express) {
           // Skip blank or masked placeholder — keep the existing DB value
           if (!value || value === "" || maskedPattern.test(value)) continue;
         }
+        // Validate numeric range for platform_fee_percent (must be 0–100)
+        if (key === "platform_fee_percent") {
+          const num = parseFloat(value as string);
+          if (isNaN(num) || num < 0 || num > 100) {
+            return res.status(400).json({ message: "platform_fee_percent must be a number between 0 and 100" });
+          }
+        }
         toSave[key] = typeof value === "string" && value !== "" ? value : null;
       }
 

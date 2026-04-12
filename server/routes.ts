@@ -946,9 +946,23 @@ export async function registerRoutes(
   // Start or resume Stripe Connect onboarding
   app.post("/api/seller/connect", requireAuth, async (req, res) => {
     try {
-      const returnUrl =
-        req.body.returnUrl ||
-        `${req.protocol}://${req.get("host")}/#/dashboard`;
+      const serverOrigin = `${req.protocol}://${req.get("host")}`;
+      const defaultUrl = `${serverOrigin}/#/dashboard`;
+
+      let returnUrl = defaultUrl;
+      if (req.body.returnUrl) {
+        // Only allow same-origin return URLs (prevent open redirect)
+        try {
+          const parsed = new URL(req.body.returnUrl, serverOrigin);
+          const allowed = new URL(serverOrigin);
+          if (parsed.origin === allowed.origin) {
+            returnUrl = parsed.href;
+          }
+        } catch {
+          // malformed URL — use default
+        }
+      }
+
       const result = await createSellerAccount(req.user!.id, returnUrl);
       return res.json(result);
     } catch (err: any) {

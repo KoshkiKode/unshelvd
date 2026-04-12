@@ -59,8 +59,13 @@ export async function isStripeEnabled(): Promise<boolean> {
 // Stripe key via the admin panel and we must pick it up without a restart.
 // Always call getStripe() inside async functions.
 
-function calculateFees(amount: number) {
-  const platformFee = Math.round(amount * PLATFORM_FEE_PERCENT * 100) / 100;
+async function calculateFees(amount: number) {
+  const dbFeeStr = await getSetting("platform_fee_percent");
+  const dbFee = dbFeeStr !== null ? parseFloat(dbFeeStr) : NaN;
+  const feePercent = !isNaN(dbFee) && dbFee >= 0 && dbFee <= 100
+    ? dbFee / 100
+    : PLATFORM_FEE_PERCENT;
+  const platformFee = Math.round(amount * feePercent * 100) / 100;
   const sellerPayout = Math.round((amount - platformFee) * 100) / 100;
   return { platformFee, sellerPayout };
 }
@@ -182,7 +187,7 @@ export async function createPaymentIntent(buyerId: number, bookId: number, offer
   let amount = book.price;
   if (!amount || amount <= 0) throw new Error("Book has no price set");
 
-  const { platformFee, sellerPayout } = calculateFees(amount);
+  const { platformFee, sellerPayout } = await calculateFees(amount);
 
   const [seller] = await db.select().from(users).where(eq(users.id, book.userId));
   if (!seller) throw new Error("Seller not found");

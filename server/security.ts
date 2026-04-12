@@ -209,6 +209,8 @@ export function applySecurityMiddleware(app: Express, pgPool?: Pool) {
   });
   app.use("/api/auth/login", authLimiter);
   app.use("/api/auth/register", authLimiter);
+  app.use("/api/auth/forgot-password", authLimiter);
+  app.use("/api/auth/reset-password", authLimiter);
 
   // Moderate limit on payment routes
   const paymentLimiter = rateLimit({
