@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import express from "express";
 import request from "supertest";
-import { sanitizeLikeInput, parseIntParam, stripHtml, validateIdParam, applySecurityMiddleware } from "../../server/security";
+import { sanitizeLikeInput, parseIntParam, stripHtml, validateIdParam, applySecurityMiddleware, PgRateLimitStore } from "../../server/security";
 
 // ────────────────────────────────────────────────────────────────
 // sanitizeLikeInput
@@ -287,5 +287,119 @@ describe("applySecurityMiddleware (production mode)", () => {
     const res = await request(app).get("/ping");
     // Helmet with contentSecurityPolicy: false should not emit the header
     expect(res.headers["content-security-policy"]).toBeUndefined();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────
+// PgRateLimitStore
+// ────────────────────────────────────────────────────────────────
+
+describe("PgRateLimitStore", () => {
+  function makeMockPool(overrides?: Partial<{ query: ReturnType<typeof vi.fn> }>) {
+    return {
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+      ...overrides,
+    } as any;
+  }
+
+  it("increment creates the rate_limits table on first use", async () => {
+    const resetTime = new Date();
+    const pool = makeMockPool({
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [] })          // CREATE TABLE
+        .mockResolvedValueOnce({ rows: [{ hits: "1", reset_time: resetTime }] }), // INSERT
+    });
+    const store = new PgRateLimitStore(pool, 60_000);
+    await store.increment("ip::1.2.3.4");
+
+    const calls = pool.query.mock.calls as any[][];
+    expect(calls[0][0]).toMatch(/CREATE TABLE IF NOT EXISTS rate_limits/);
+  });
+
+  it("increment returns parsed totalHits and resetTime", async () => {
+    const resetTime = new Date(Date.now() + 60_000);
+    const pool = makeMockPool({
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [] })          // CREATE TABLE
+        .mockResolvedValueOnce({ rows: [{ hits: "3", reset_time: resetTime }] }), // INSERT
+    });
+    const store = new PgRateLimitStore(pool, 60_000);
+    const result = await store.increment("ip::1.2.3.4");
+
+    expect(result.totalHits).toBe(3);
+    expect(result.resetTime).toEqual(resetTime);
+  });
+
+  it("ensureTable is only called once even when increment is called multiple times", async () => {
+    const resetTime = new Date();
+    const pool = makeMockPool({
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [] })          // CREATE TABLE — called once
+        .mockResolvedValue({ rows: [{ hits: "1", reset_time: resetTime }] }), // INSERT — called each time
+    });
+    const store = new PgRateLimitStore(pool, 60_000);
+    await store.increment("key-a");
+    await store.increment("key-b");
+
+    const tableCreationCalls = (pool.query.mock.calls as any[][]).filter((args) =>
+      typeof args[0] === "string" && args[0].includes("CREATE TABLE IF NOT EXISTS"),
+    );
+    expect(tableCreationCalls).toHaveLength(1);
+  });
+
+  it("decrement issues an UPDATE query that decrements the hit counter", async () => {
+    const pool = makeMockPool();
+    const store = new PgRateLimitStore(pool, 60_000);
+    await store.decrement("ip::1.2.3.4");
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("UPDATE rate_limits"),
+      ["ip::1.2.3.4"],
+    );
+    expect(pool.query.mock.calls[0][0]).toMatch(/GREATEST\(hits - 1, 0\)/);
+  });
+
+  it("resetKey issues a DELETE query for the given key", async () => {
+    const pool = makeMockPool();
+    const store = new PgRateLimitStore(pool, 60_000);
+    await store.resetKey("ip::1.2.3.4");
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("DELETE FROM rate_limits"),
+      ["ip::1.2.3.4"],
+    );
+  });
+
+  it("resetAll issues a TRUNCATE query", async () => {
+    const pool = makeMockPool();
+    const store = new PgRateLimitStore(pool, 60_000);
+    await store.resetAll();
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("TRUNCATE rate_limits"),
+    );
+  });
+
+  it("uses PgRateLimitStore when applySecurityMiddleware is called in production mode with a pool", async () => {
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+
+    try {
+      const resetTime = new Date(Date.now() + 60_000);
+      const pool = makeMockPool({
+        query: vi.fn().mockResolvedValue({ rows: [{ hits: "1", reset_time: resetTime }] }),
+      });
+
+      const app = express();
+      applySecurityMiddleware(app, pool);
+      app.post("/api/auth/login", (_req, res) => res.json({ ok: true }));
+
+      await request(app).post("/api/auth/login").send({});
+
+      // The pool was queried — CREATE TABLE + INSERT for rate-limit tracking
+      expect(pool.query).toHaveBeenCalled();
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+    }
   });
 });

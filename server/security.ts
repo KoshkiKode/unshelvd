@@ -23,7 +23,7 @@ const SEARCH_WINDOW_MS = 60 * 1000;     // 1 minute
  * Stores hit counters in the database so limits are correctly enforced
  * across multiple Cloud Run instances.
  */
-class PgRateLimitStore implements Store {
+export class PgRateLimitStore implements Store {
   private pool: Pool;
   private windowMs: number;
   // Promise-based singleton ensures the table is created exactly once,

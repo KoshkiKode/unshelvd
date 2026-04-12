@@ -33,6 +33,7 @@ vi.mock("../../server/storage", () => {
     getBookRequest: vi.fn(),
     createBookRequest: vi.fn(),
     updateBookRequest: vi.fn(),
+    deleteBookRequest: vi.fn(),
     getConversations: vi.fn(),
     getMessages: vi.fn(),
     createMessage: vi.fn(),
@@ -103,6 +104,12 @@ vi.mock("../../server/admin", () => ({
   registerAdminRoutes: vi.fn(),
 }));
 
+vi.mock("../../server/paypal", () => ({
+  isPayPalEnabled: vi.fn(),
+  createPayPalOrder: vi.fn(),
+  capturePayPalOrder: vi.fn(),
+}));
+
 vi.mock("../../server/work-resolver", () => ({
   resolveWork: vi.fn().mockResolvedValue({ workId: 1, isNew: false, confidence: "high" }),
   getWorkEditions: vi.fn().mockResolvedValue({ catalogEditions: {}, userListings: {}, languages: [], totalEditions: 0, totalListings: 0 }),
@@ -137,6 +144,7 @@ import {
   checkSellerStatus,
   handleChargeRefunded,
 } from "../../server/payments";
+import { isPayPalEnabled, createPayPalOrder, capturePayPalOrder } from "../../server/paypal";
 import { validatePassword } from "../../shared/password-policy";
 
 // ─── test helpers ──────────────────────────────────────────────────────────
@@ -2748,3 +2756,284 @@ describe("POST /api/transactions/:id/rate — authenticated", () => {
     expect(res.status).toBe(400);
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────
+// DELETE /api/requests/:id — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("DELETE /api/requests/:id — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(app).delete("/api/requests/1");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 for a non-numeric request id", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.delete("/api/requests/notanid");
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Invalid request ID/i);
+  });
+
+  it("returns 404 when the request is not found or not owned by the user", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    mockStorage.deleteBookRequest.mockResolvedValueOnce(false);
+
+    const res = await agent.delete("/api/requests/999");
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/not found or not yours/i);
+  });
+
+  it("deletes the request and returns a success message when authenticated", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    mockStorage.deleteBookRequest.mockResolvedValueOnce(true);
+
+    const res = await agent.delete("/api/requests/7");
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/Request deleted/i);
+  });
+
+  it("returns 500 when deleteBookRequest throws", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    mockStorage.deleteBookRequest.mockRejectedValueOnce(new Error("DB error"));
+
+    const res = await agent.delete("/api/requests/7");
+    expect(res.status).toBe(500);
+    expect(res.body.message).toMatch(/Failed to delete request/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// GET /api/payments/paypal/status
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("GET /api/payments/paypal/status", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns { enabled: false } when PayPal is disabled", async () => {
+    vi.mocked(isPayPalEnabled).mockResolvedValueOnce(false);
+
+    const res = await request(app).get("/api/payments/paypal/status");
+    expect(res.status).toBe(200);
+    expect(res.body.enabled).toBe(false);
+  });
+
+  it("returns { enabled: true } when PayPal is enabled", async () => {
+    vi.mocked(isPayPalEnabled).mockResolvedValueOnce(true);
+
+    const res = await request(app).get("/api/payments/paypal/status");
+    expect(res.status).toBe(200);
+    expect(res.body.enabled).toBe(true);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/payments/paypal/create-order — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/payments/paypal/create-order — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(app)
+      .post("/api/payments/paypal/create-order")
+      .send({ bookId: 1 });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 503 when PayPal is not enabled", async () => {
+    vi.mocked(isPayPalEnabled).mockResolvedValueOnce(false);
+
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/payments/paypal/create-order").send({ bookId: 1 });
+    expect(res.status).toBe(503);
+    expect(res.body.message).toMatch(/PayPal payments are not enabled/i);
+  });
+
+  it("returns 400 when bookId is missing", async () => {
+    vi.mocked(isPayPalEnabled).mockResolvedValueOnce(true);
+
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/payments/paypal/create-order").send({});
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/bookId is required/i);
+  });
+
+  it("returns 404 when book does not exist", async () => {
+    vi.mocked(isPayPalEnabled).mockResolvedValueOnce(true);
+
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([]); // db.select() returns no book
+
+    const res = await agent.post("/api/payments/paypal/create-order").send({ bookId: 99 });
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Book not found/i);
+  });
+
+  it("returns 400 when the book has no price", async () => {
+    vi.mocked(isPayPalEnabled).mockResolvedValueOnce(true);
+
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([{ id: 1, userId: 99, price: null }]);
+
+    const res = await agent.post("/api/payments/paypal/create-order").send({ bookId: 1 });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Book has no price/i);
+  });
+
+  it("returns 400 when the buyer is also the seller", async () => {
+    vi.mocked(isPayPalEnabled).mockResolvedValueOnce(true);
+
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([{ id: 1, userId: TEST_USER.id, price: 10.0 }]);
+
+    const res = await agent.post("/api/payments/paypal/create-order").send({ bookId: 1 });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/cannot buy your own book/i);
+  });
+
+  it("creates a PayPal order and returns orderId and approveUrl on success", async () => {
+    vi.mocked(isPayPalEnabled).mockResolvedValueOnce(true);
+
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([{ id: 1, userId: 99, price: 15.0 }]);
+
+    vi.mocked(createPayPalOrder).mockResolvedValueOnce({
+      orderId: "ORDER123",
+      approveUrl: "https://paypal.com/approve/ORDER123",
+    });
+
+    const res = await agent.post("/api/payments/paypal/create-order").send({ bookId: 1 });
+    expect(res.status).toBe(200);
+    expect(res.body.orderId).toBe("ORDER123");
+    expect(res.body.approveUrl).toBe("https://paypal.com/approve/ORDER123");
+  });
+
+  it("returns 500 when createPayPalOrder throws", async () => {
+    vi.mocked(isPayPalEnabled).mockResolvedValueOnce(true);
+
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([{ id: 1, userId: 99, price: 15.0 }]);
+
+    vi.mocked(createPayPalOrder).mockRejectedValueOnce(new Error("PayPal API error"));
+
+    const res = await agent.post("/api/payments/paypal/create-order").send({ bookId: 1 });
+    expect(res.status).toBe(500);
+    expect(res.body.message).toMatch(/PayPal API error/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/payments/paypal/capture-order — authenticated
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/payments/paypal/capture-order — authenticated", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(app)
+      .post("/api/payments/paypal/capture-order")
+      .send({ orderId: "ORDER123" });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 503 when PayPal is not enabled", async () => {
+    vi.mocked(isPayPalEnabled).mockResolvedValueOnce(false);
+
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/payments/paypal/capture-order").send({ orderId: "ORDER123" });
+    expect(res.status).toBe(503);
+    expect(res.body.message).toMatch(/PayPal payments are not enabled/i);
+  });
+
+  it("returns 400 when orderId is missing", async () => {
+    vi.mocked(isPayPalEnabled).mockResolvedValueOnce(true);
+
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/payments/paypal/capture-order").send({});
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/orderId is required/i);
+  });
+
+  it("captures the order and returns captureId and status on success", async () => {
+    vi.mocked(isPayPalEnabled).mockResolvedValueOnce(true);
+
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(capturePayPalOrder).mockResolvedValueOnce({
+      captureId: "CAP456",
+      status: "COMPLETED",
+    });
+
+    const res = await agent.post("/api/payments/paypal/capture-order").send({ orderId: "ORDER123" });
+    expect(res.status).toBe(200);
+    expect(res.body.captureId).toBe("CAP456");
+    expect(res.body.status).toBe("COMPLETED");
+  });
+
+  it("returns 500 when capturePayPalOrder throws", async () => {
+    vi.mocked(isPayPalEnabled).mockResolvedValueOnce(true);
+
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    vi.mocked(capturePayPalOrder).mockRejectedValueOnce(new Error("Capture failed"));
+
+    const res = await agent.post("/api/payments/paypal/capture-order").send({ orderId: "ORDER123" });
+    expect(res.status).toBe(500);
+    expect(res.body.message).toMatch(/Capture failed/i);
+  });
+});
+
