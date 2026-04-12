@@ -27,6 +27,7 @@ import {
   handleChargeRefunded,
   markShipped,
   confirmDelivery,
+  refundPayment,
   getUserTransactions,
   PLATFORM_FEE_PERCENT,
   createSellerAccount,
@@ -58,6 +59,7 @@ import {
   sendMatchedListing,
   sendEmailVerification,
   sendDisputeOpened,
+  sendOrderCancelled,
 } from "./email";
 import { z } from "zod";
 import passport from "passport";
@@ -1936,6 +1938,62 @@ export async function registerRoutes(
 
   // ═══ Admin Routes ═══
   registerAdminRoutes(app);
+
+  // === ORDER CANCELLATION ===
+  // Buyer cancels a pending or paid order (before it has shipped).
+  // Pending: no payment captured — just mark cancelled and re-list the book.
+  // Paid: payment was held — issue a refund (Stripe refund / PayPal authorization void).
+  app.post("/api/payments/:id/cancel", requireAuth, async (req, res) => {
+    try {
+      const txId = parseIntParam(req.params.id);
+      if (!txId) return res.status(400).json({ message: "Invalid transaction ID" });
+
+      const [tx] = await db.select().from(transactions).where(eq(transactions.id, txId));
+      if (!tx) return res.status(404).json({ message: "Transaction not found" });
+      if (tx.buyerId !== req.user!.id) {
+        return res.status(403).json({ message: "Only the buyer can cancel an order" });
+      }
+      if (!["pending", "paid"].includes(tx.status ?? "")) {
+        return res.status(400).json({
+          message: "Orders can only be cancelled before they have been shipped",
+        });
+      }
+
+      if (tx.status === "paid") {
+        // Refund clears payment, voids PayPal auth, and re-lists book.
+        await refundPayment(txId);
+      } else {
+        // Pending: no money was ever captured — just cancel and re-list.
+        await db
+          .update(transactions)
+          .set({ status: "cancelled", updatedAt: new Date() })
+          .where(and(eq(transactions.id, txId), eq(transactions.status, "pending")));
+        await db.update(books).set({ status: "for-sale" }).where(eq(books.id, tx.bookId));
+      }
+
+      // Notify both parties (fire-and-forget)
+      const [buyer] = await db.select().from(users).where(eq(users.id, tx.buyerId));
+      const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
+      const [bookRow] = await db.select().from(books).where(eq(books.id, tx.bookId));
+      if (bookRow) {
+        if (buyer) {
+          sendOrderCancelled(buyer.email, "buyer", bookRow.title).catch((err) =>
+            console.error("[email] cancel order buyer notification failed:", err),
+          );
+        }
+        if (seller) {
+          sendOrderCancelled(seller.email, "seller", bookRow.title).catch((err) =>
+            console.error("[email] cancel order seller notification failed:", err),
+          );
+        }
+      }
+
+      return res.json({ message: "Order cancelled successfully." });
+    } catch (err: any) {
+      console.error("[cancel order]", err);
+      return res.status(500).json({ message: err.message || "Failed to cancel order" });
+    }
+  });
 
   // === DISPUTE ROUTE ===
   // Buyer opens a dispute for a transaction that's in "paid" or "shipped" state

@@ -462,6 +462,63 @@ export async function refundPayment(transactionId: number) {
 }
 
 /**
+ * Admin-only: release a disputed transaction's payment to the seller.
+ *
+ * This is the "release_to_seller" path in dispute resolution — admin has
+ * decided the seller acted in good faith and deserves to be paid.
+ *
+ * Works for both PayPal (capture held authorization) and Stripe (transfer
+ * from the already-captured PaymentIntent to the seller's connected account).
+ * The transaction must be in "disputed" status.
+ */
+export async function adminReleaseToSeller(transactionId: number) {
+  const [tx] = await db.select().from(transactions).where(eq(transactions.id, transactionId));
+  if (!tx) throw new Error("Transaction not found");
+  if (tx.status !== "disputed") throw new Error(`Transaction is not disputed (current status: "${tx.status}")`);
+
+  const s = await getStripe();
+
+  if (tx.paypalAuthorizationId && !tx.paypalCaptureId) {
+    // PayPal: capture the held authorization so funds move to the platform account.
+    const { captureId } = await capturePayPalAuthorization(tx.paypalAuthorizationId);
+    await db.update(transactions)
+      .set({ paypalCaptureId: captureId })
+      .where(eq(transactions.id, transactionId));
+  } else if (s && tx.stripePaymentIntentId && !tx.stripeTransferId) {
+    // Stripe: issue the seller transfer (buyer already paid; we held the funds).
+    const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
+    if (seller?.stripeAccountId) {
+      const transfer = await s.transfers.create(
+        {
+          amount: Math.round(tx.sellerPayout * 100),
+          currency: "usd",
+          destination: seller.stripeAccountId,
+          metadata: { transactionId: String(tx.id), bookId: String(tx.bookId) },
+        },
+        { idempotencyKey: `transfer_dispute_${transactionId}` },
+      );
+      await db.update(transactions)
+        .set({ stripeTransferId: transfer.id })
+        .where(eq(transactions.id, transactionId));
+    }
+  }
+
+  await db.update(transactions)
+    .set({ status: "completed", completedAt: new Date(), updatedAt: new Date() })
+    .where(eq(transactions.id, transactionId));
+
+  // Update sales/purchase counters
+  await db.update(users)
+    .set({ totalSales: sql`${users.totalSales} + 1` })
+    .where(eq(users.id, tx.sellerId));
+  await db.update(users)
+    .set({ totalPurchases: sql`${users.totalPurchases} + 1` })
+    .where(eq(users.id, tx.buyerId));
+
+  return { status: "completed" };
+}
+
+/**
  * Called by webhook: a charge was refunded (e.g. via Stripe Dashboard).
  * Syncs the transaction status without re-issuing a duplicate API refund.
  */

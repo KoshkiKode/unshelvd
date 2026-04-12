@@ -422,3 +422,53 @@ export async function sendAutoCompleted(
   );
   await sendEmail(to, `Transaction auto-completed for "${esc(bookTitle)}"`, html);
 }
+
+/** Notify buyer and seller that an order has been cancelled. */
+export async function sendOrderCancelled(
+  to: string,
+  role: "buyer" | "seller",
+  bookTitle: string,
+): Promise<void> {
+  const msg =
+    role === "buyer"
+      ? "Your order has been cancelled. Any payment that was held will be released back to you within a few business days."
+      : "The buyer has cancelled their order. Your listing has been re-published so other buyers can purchase it.";
+
+  const html = wrap(
+    h1("Order cancelled") +
+      highlight(`📖 <strong>${esc(bookTitle)}</strong>`) +
+      p(msg) +
+      button("View Transactions", `${APP_URL}/#/dashboard`),
+  );
+  await sendEmail(to, `Order cancelled for "${esc(bookTitle)}"`, html);
+}
+
+/** Notify buyer and seller of an admin dispute resolution. */
+export async function sendDisputeResolved(
+  to: string,
+  role: "buyer" | "seller",
+  bookTitle: string,
+  resolution: "refunded" | "released_to_seller",
+): Promise<void> {
+  let msg: string;
+  if (resolution === "refunded") {
+    msg =
+      role === "buyer"
+        ? "After reviewing your dispute, we have decided to issue you a full refund. It will appear on your original payment method within a few business days."
+        : "After reviewing the dispute, we have decided to refund the buyer. We're sorry for the inconvenience — your listing has been re-published.";
+  } else {
+    msg =
+      role === "seller"
+        ? "After reviewing the dispute, we have decided to release the payment to you. Your payout is on its way."
+        : "After reviewing your dispute, we have decided to release the payment to the seller. If you believe this decision is incorrect please contact support.";
+  }
+
+  const html = wrap(
+    h1("Dispute resolved") +
+      highlight(`📖 <strong>${esc(bookTitle)}</strong>`) +
+      p(msg) +
+      button("View Transactions", `${APP_URL}/#/dashboard`),
+  );
+  await sendEmail(to, `Dispute resolved for "${esc(bookTitle)}"`, html);
+}
+

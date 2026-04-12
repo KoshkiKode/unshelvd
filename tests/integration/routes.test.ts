@@ -3494,6 +3494,8 @@ describe("POST /api/payments/paypal/capture-order — authenticated", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
+    const res = await request(app).post("/api/payments/paypal/capture-order").send({ orderId: "ORDER123" });
+    expect(res.status).toBe(401);
   });
 
   it("returns 503 when PayPal is not enabled", async () => {
