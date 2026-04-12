@@ -55,10 +55,9 @@ export async function isStripeEnabled(): Promise<boolean> {
   return s !== null;
 }
 
-// Keep backward-compatible export for direct imports that haven't been updated.
-// This is synchronously null at startup; use getStripe() for async reads.
-const stripeKey = process.env.STRIPE_SECRET_KEY;
-export const stripe = stripeKey ? new Stripe(stripeKey) : null;
+// NOTE: Do NOT use a static `stripe` singleton — the admin can update the
+// Stripe key via the admin panel and we must pick it up without a restart.
+// Always call getStripe() inside async functions.
 
 function calculateFees(amount: number) {
   const platformFee = Math.round(amount * PLATFORM_FEE_PERCENT * 100) / 100;
@@ -78,17 +77,19 @@ export async function createSellerAccount(userId: number, returnUrl: string) {
   const [user] = await db.select().from(users).where(eq(users.id, userId));
   if (!user) throw new Error("User not found");
 
+  const s = await getStripe();
+
   // Already has a Stripe account
   if (user.stripeAccountId) {
     // Check if onboarding is complete
-    if (stripe) {
-      const account = await stripe.accounts.retrieve(user.stripeAccountId);
+    if (s) {
+      const account = await s.accounts.retrieve(user.stripeAccountId);
       if (account.details_submitted) {
         await db.update(users).set({ stripeOnboarded: true }).where(eq(users.id, userId));
         return { alreadyOnboarded: true, accountId: user.stripeAccountId };
       }
       // Onboarding incomplete — generate a new link
-      const link = await stripe.accountLinks.create({
+      const link = await s.accountLinks.create({
         account: user.stripeAccountId,
         refresh_url: `${returnUrl}?stripe=refresh`,
         return_url: `${returnUrl}?stripe=complete`,
@@ -99,7 +100,7 @@ export async function createSellerAccount(userId: number, returnUrl: string) {
     return { alreadyOnboarded: true, accountId: user.stripeAccountId };
   }
 
-  if (!stripe) {
+  if (!s) {
     // Dev mode — fake it
     const fakeId = `acct_dev_${userId}`;
     await db.update(users).set({ stripeAccountId: fakeId, stripeOnboarded: true }).where(eq(users.id, userId));
@@ -107,7 +108,7 @@ export async function createSellerAccount(userId: number, returnUrl: string) {
   }
 
   // Create new Express account
-  const account = await stripe.accounts.create({
+  const account = await s.accounts.create({
     type: "express",
     email: user.email,
     metadata: { userId: String(userId), username: user.username },
@@ -121,7 +122,7 @@ export async function createSellerAccount(userId: number, returnUrl: string) {
   await db.update(users).set({ stripeAccountId: account.id }).where(eq(users.id, userId));
 
   // Generate onboarding link
-  const link = await stripe.accountLinks.create({
+  const link = await s.accountLinks.create({
     account: account.id,
     refresh_url: `${returnUrl}?stripe=refresh`,
     return_url: `${returnUrl}?stripe=complete`,
@@ -142,11 +143,12 @@ export async function checkSellerStatus(userId: number) {
     return { connected: false, onboarded: false };
   }
 
-  if (!stripe) {
+  const s = await getStripe();
+  if (!s) {
     return { connected: true, onboarded: true, devMode: true };
   }
 
-  const account = await stripe.accounts.retrieve(user.stripeAccountId);
+  const account = await s.accounts.retrieve(user.stripeAccountId);
   const onboarded = account.details_submitted || false;
 
   if (onboarded && !user.stripeOnboarded) {
@@ -199,11 +201,12 @@ export async function createPaymentIntent(buyerId: number, bookId: number, offer
 
   let clientSecret: string | null = null;
 
-  if (stripe) {
+  const s = await getStripe();
+  if (s) {
     // Create PaymentIntent on OUR account (not the seller's)
     // Money comes to us first — we transfer to seller after delivery
     // Idempotency key prevents duplicate charges if the request is retried.
-    const paymentIntent = await stripe.paymentIntents.create({
+    const paymentIntent = await s.paymentIntents.create({
       amount: Math.round(amount * 100), // cents
       currency: "usd",
       metadata: {
@@ -231,7 +234,7 @@ export async function createPaymentIntent(buyerId: number, bookId: number, offer
     amount,
     platformFee,
     sellerPayout,
-    stripeConfigured: !!stripe,
+    stripeConfigured: !!s,
     book: { id: book.id, title: book.title, author: book.author, coverUrl: book.coverUrl },
     seller: { id: seller.id, displayName: seller.displayName, username: seller.username },
   };
@@ -249,8 +252,9 @@ export async function confirmPayment(transactionId: number, userId: number) {
   if (tx.status === "paid") return { status: "paid" };
   if (tx.status !== "pending") throw new Error("Transaction already processed");
 
-  if (stripe && tx.stripePaymentIntentId) {
-    const pi = await stripe.paymentIntents.retrieve(tx.stripePaymentIntentId);
+  const s = await getStripe();
+  if (s && tx.stripePaymentIntentId) {
+    const pi = await s.paymentIntents.retrieve(tx.stripePaymentIntentId);
     if (pi.status !== "succeeded") throw new Error("Payment not confirmed by Stripe");
   }
 
@@ -289,10 +293,11 @@ export async function confirmDelivery(transactionId: number, userId: number) {
   if (tx.status !== "shipped") throw new Error("Not shipped yet");
 
   // Transfer seller's payout to their connected Stripe account
-  if (stripe) {
+  const s = await getStripe();
+  if (s) {
     const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
     if (seller?.stripeAccountId) {
-      const transfer = await stripe.transfers.create({
+      const transfer = await s.transfers.create({
         amount: Math.round(tx.sellerPayout * 100), // cents
         currency: "usd",
         destination: seller.stripeAccountId,
@@ -387,8 +392,9 @@ export async function refundPayment(transactionId: number) {
   // Issue Stripe refund when a PaymentIntent was created and the payment may have been captured.
   // "pending" transactions have a PaymentIntent but the buyer has not paid yet, so there
   // is nothing to refund through Stripe; we just cancel the record in our DB.
-  if (stripe && tx.stripePaymentIntentId && tx.status !== "pending") {
-    await stripe.refunds.create(
+  const s = await getStripe();
+  if (s && tx.stripePaymentIntentId && tx.status !== "pending") {
+    await s.refunds.create(
       { payment_intent: tx.stripePaymentIntentId },
       { idempotencyKey: `refund_${transactionId}` },
     );

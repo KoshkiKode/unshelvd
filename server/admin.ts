@@ -42,6 +42,28 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+// Exhaustive allowlist of setting keys the admin is permitted to write.
+// Any key not in this list is silently dropped to prevent arbitrary data injection.
+const ALLOWED_SETTING_KEYS = new Set([
+  "stripe_enabled",
+  "stripe_secret_key",
+  "stripe_publishable_key",
+  "stripe_webhook_secret",
+  "paypal_enabled",
+  "paypal_client_id",
+  "paypal_client_secret",
+  "paypal_mode",
+  "platform_fee_percent",
+  "maintenance_mode",
+  "registrations_enabled",
+  "email_enabled",
+  "email_smtp_host",
+  "email_smtp_port",
+  "email_smtp_user",
+  "email_smtp_pass",
+  "email_from",
+]);
+
 export function registerAdminRoutes(app: Express) {
   // ═══ Platform Overview ═══
   app.get("/api/admin/overview", requireAdmin, async (_req, res) => {
@@ -422,6 +444,8 @@ export function registerAdminRoutes(app: Express) {
 
       const toSave: Record<string, string | null> = {};
       for (const [key, value] of Object.entries(incoming)) {
+        // Only allow known setting keys
+        if (!ALLOWED_SETTING_KEYS.has(key)) continue;
         if (SECRET_KEYS.has(key)) {
           // Skip blank or masked placeholder — keep the existing DB value
           if (!value || value === "" || maskedPattern.test(value)) continue;

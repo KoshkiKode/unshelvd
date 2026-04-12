@@ -31,6 +31,8 @@ import {
   PLATFORM_FEE_PERCENT,
   createSellerAccount,
   checkSellerStatus,
+  getStripe,
+  isStripeEnabled,
 } from "./payments";
 import {
   createPayPalOrder,
@@ -38,6 +40,7 @@ import {
   isPayPalEnabled,
 } from "./paypal";
 import { registerAdminRoutes } from "./admin";
+import { getSetting, isEnabled } from "./platform-settings";
 import { validatePassword } from "@shared/password-policy";
 import { sanitizeLikeInput, parseIntParam } from "./security";
 import {
@@ -980,12 +983,29 @@ export async function registerRoutes(
 
   // === PAYMENTS ===
 
+  // Public runtime config for the frontend.
+  // Only returns non-secret public values (Stripe PK, PayPal client ID, enabled flags).
+  // DB settings take priority over build-time env vars.
+  app.get("/api/config/public", async (_req, res) => {
+    const stripePk =
+      (await getSetting("stripe_publishable_key")) ||
+      process.env.STRIPE_PUBLISHABLE_KEY ||
+      process.env.VITE_STRIPE_PUBLISHABLE_KEY ||
+      null;
+    const paypalClientId =
+      (await getSetting("paypal_client_id")) || process.env.PAYPAL_CLIENT_ID || null;
+    const paypalEnabled = await isEnabled("paypal_enabled", false);
+    const stripeEnabled = await isStripeEnabled();
+    return res.json({ stripePk, paypalClientId, paypalEnabled, stripeEnabled });
+  });
+
   // Get fee info
-  app.get("/api/payments/fee-info", (_req, res) => {
+  app.get("/api/payments/fee-info", async (_req, res) => {
+    const feePercent =
+      parseFloat((await getSetting("platform_fee_percent")) || "") || PLATFORM_FEE_PERCENT * 100;
     return res.json({
-      platformFeePercent: PLATFORM_FEE_PERCENT * 100,
-      description: `Unshelv'd charges a ${PLATFORM_FEE_PERCENT * 100}% platform fee on each sale.`,
-      stripeConfigured: !!process.env.STRIPE_SECRET_KEY,
+      platformFeePercent: feePercent,
+      description: `Unshelv'd charges a ${feePercent}% platform fee on each sale.`,
     });
   });
 
@@ -1131,7 +1151,9 @@ export async function registerRoutes(
 
   // Stripe webhook (handles payment confirmations)
   app.post("/api/webhooks/stripe", async (req, res) => {
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    // DB setting takes priority over env var so admin can rotate the secret without a redeploy
+    const webhookSecret =
+      (await getSetting("stripe_webhook_secret")) || process.env.STRIPE_WEBHOOK_SECRET || null;
     let event: Record<string, any>;
 
     if (webhookSecret) {
@@ -1142,9 +1164,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Missing stripe-signature header or raw body" });
       }
       try {
-        const { stripe } = await import("./payments");
-        if (!stripe) return res.status(500).json({ message: "Stripe not configured" });
-        event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+        const s = await getStripe();
+        if (!s) return res.status(500).json({ message: "Stripe not configured" });
+        event = s.webhooks.constructEvent(rawBody, sig, webhookSecret);
       } catch (err) {
         console.error("[webhook] Signature verification failed:", err);
         return res.status(400).json({ message: "Webhook signature invalid" });
@@ -1201,8 +1223,8 @@ export async function registerRoutes(
 
   // ── PayPal checkout routes ──────────────────────────────────────────────
 
-  /** Check whether PayPal is enabled for this deployment. */
-  app.get("/api/payments/paypal/status", async (_req, res) => {
+  /** Check whether PayPal is enabled for this deployment. Requires auth to avoid leaking config. */
+  app.get("/api/payments/paypal/status", requireAuth, async (_req, res) => {
     const enabled = await isPayPalEnabled();
     return res.json({ enabled });
   });

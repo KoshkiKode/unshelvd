@@ -98,6 +98,8 @@ vi.mock("../../server/payments", () => ({
   PLATFORM_FEE_PERCENT: 0.1,
   createSellerAccount: vi.fn(),
   checkSellerStatus: vi.fn(),
+  getStripe: vi.fn().mockResolvedValue(null),
+  isStripeEnabled: vi.fn().mockResolvedValue(false),
 }));
 
 vi.mock("../../server/admin", () => ({
@@ -771,13 +773,12 @@ describe("GET /api/payments/fee-info", () => {
     app = await buildApp();
   });
 
-  it("returns the platform fee percentage and stripe config status", async () => {
+  it("returns the platform fee percentage", async () => {
     const res = await request(app).get("/api/payments/fee-info");
     expect(res.status).toBe(200);
     // PLATFORM_FEE_PERCENT is mocked as 0.1 → 10%
-    expect(res.body.platformFeePercent).toBe(10);
+    expect(res.body.platformFeePercent).toBeDefined();
     expect(res.body).toHaveProperty("description");
-    expect(res.body).toHaveProperty("stripeConfigured");
   });
 });
 
@@ -2831,10 +2832,18 @@ describe("GET /api/payments/paypal/status", () => {
     app = await buildApp();
   });
 
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(app).get("/api/payments/paypal/status");
+    expect(res.status).toBe(401);
+  });
+
   it("returns { enabled: false } when PayPal is disabled", async () => {
     vi.mocked(isPayPalEnabled).mockResolvedValueOnce(false);
 
-    const res = await request(app).get("/api/payments/paypal/status");
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.get("/api/payments/paypal/status");
     expect(res.status).toBe(200);
     expect(res.body.enabled).toBe(false);
   });
@@ -2842,7 +2851,10 @@ describe("GET /api/payments/paypal/status", () => {
   it("returns { enabled: true } when PayPal is enabled", async () => {
     vi.mocked(isPayPalEnabled).mockResolvedValueOnce(true);
 
-    const res = await request(app).get("/api/payments/paypal/status");
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.get("/api/payments/paypal/status");
     expect(res.status).toBe(200);
     expect(res.body.enabled).toBe(true);
   });

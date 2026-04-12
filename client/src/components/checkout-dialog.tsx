@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,6 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
 const PLATFORM_FEE = 0.10;
-
-const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
 
 interface CheckoutDialogProps {
   book: Book & { seller?: { displayName: string } };
@@ -87,6 +84,18 @@ export default function CheckoutDialog({ book, open, onOpenChange }: CheckoutDia
   const [step, setStep] = useState<"review" | "payment" | "processing" | "success">("review");
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [transactionId, setTransactionId] = useState<number | null>(null);
+
+  // Fetch Stripe publishable key from server so admin can rotate it without a redeploy.
+  const { data: publicConfig } = useQuery<{ stripePk: string | null; stripeEnabled: boolean }>({
+    queryKey: ["/api/config/public"],
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Memoize the Stripe promise so we only call loadStripe when the key changes.
+  const stripePromise = useMemo(() => {
+    const key = publicConfig?.stripePk;
+    return key ? loadStripe(key) : null;
+  }, [publicConfig?.stripePk]);
 
   const price = book.price || 0;
   const fee = Math.round(price * PLATFORM_FEE * 100) / 100;
