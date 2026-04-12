@@ -191,7 +191,8 @@ function highlight(text: string) {
 }
 
 /** Escape user-supplied strings before embedding them in HTML email bodies. */
-function esc(s: string): string {
+function esc(s: string | null | undefined): string {
+  if (!s) return "";
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -203,6 +204,21 @@ function esc(s: string): string {
 // ── Typed send helpers ─────────────────────────────────────────────────────
 
 const APP_URL = "https://unshelvd.koshkikode.com";
+
+/** Email address verification — sent after account creation. */
+export async function sendEmailVerification(
+  to: string,
+  displayName: string,
+  verifyUrl: string,
+): Promise<void> {
+  const html = wrap(
+    h1(`Verify your email address`) +
+      p(`Hi ${esc(displayName)}! Please verify your email address to unlock all features of Unshelv'd.`) +
+      p("This link expires in <strong>24 hours</strong>.") +
+      button("Verify Email", verifyUrl),
+  );
+  await sendEmail(to, "Verify your Unshelv'd email address", html);
+}
 
 /** Password reset email — sent when user requests a reset link. */
 export async function sendPasswordReset(
@@ -371,6 +387,22 @@ export async function sendMatchedListing(
   await sendEmail(to, `"${esc(bookTitle)}" is now available on Unshelv'd`, html);
 }
 
+/** Notify seller that the buyer has opened a dispute for their transaction. */
+export async function sendDisputeOpened(
+  to: string,
+  buyerName: string,
+  bookTitle: string,
+): Promise<void> {
+  const html = wrap(
+    h1("A dispute has been opened on your order") +
+      p(`<strong>${esc(buyerName)}</strong> has opened a dispute for their purchase.`) +
+      highlight(`📖 <strong>${esc(bookTitle)}</strong>`) +
+      p("Our team will review this transaction. Please be ready to provide proof of shipment if requested. We will contact you by email.") +
+      button("View Transactions", `${APP_URL}/#/dashboard`),
+  );
+  await sendEmail(to, `Dispute opened for "${esc(bookTitle)}"`, html);
+}
+
 /** Auto-complete notification — sent to both parties when a transaction is automatically completed. */
 export async function sendAutoCompleted(
   to: string,
@@ -390,3 +422,53 @@ export async function sendAutoCompleted(
   );
   await sendEmail(to, `Transaction auto-completed for "${esc(bookTitle)}"`, html);
 }
+
+/** Notify buyer and seller that an order has been cancelled. */
+export async function sendOrderCancelled(
+  to: string,
+  role: "buyer" | "seller",
+  bookTitle: string,
+): Promise<void> {
+  const msg =
+    role === "buyer"
+      ? "Your order has been cancelled. Any payment that was held will be released back to you within a few business days."
+      : "The buyer has cancelled their order. Your listing has been re-published so other buyers can purchase it.";
+
+  const html = wrap(
+    h1("Order cancelled") +
+      highlight(`📖 <strong>${esc(bookTitle)}</strong>`) +
+      p(msg) +
+      button("View Transactions", `${APP_URL}/#/dashboard`),
+  );
+  await sendEmail(to, `Order cancelled for "${esc(bookTitle)}"`, html);
+}
+
+/** Notify buyer and seller of an admin dispute resolution. */
+export async function sendDisputeResolved(
+  to: string,
+  role: "buyer" | "seller",
+  bookTitle: string,
+  resolution: "refunded" | "released_to_seller",
+): Promise<void> {
+  let msg: string;
+  if (resolution === "refunded") {
+    msg =
+      role === "buyer"
+        ? "After reviewing your dispute, we have decided to issue you a full refund. It will appear on your original payment method within a few business days."
+        : "After reviewing the dispute, we have decided to refund the buyer. We're sorry for the inconvenience — your listing has been re-published.";
+  } else {
+    msg =
+      role === "seller"
+        ? "After reviewing the dispute, we have decided to release the payment to you. Your payout is on its way."
+        : "After reviewing your dispute, we have decided to release the payment to the seller. If you believe this decision is incorrect please contact support.";
+  }
+
+  const html = wrap(
+    h1("Dispute resolved") +
+      highlight(`📖 <strong>${esc(bookTitle)}</strong>`) +
+      p(msg) +
+      button("View Transactions", `${APP_URL}/#/dashboard`),
+  );
+  await sendEmail(to, `Dispute resolved for "${esc(bookTitle)}"`, html);
+}
+

@@ -22,14 +22,14 @@ import {
   messages,
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte, count } from "drizzle-orm";
-import { refundPayment } from "./payments";
+import { refundPayment, adminReleaseToSeller } from "./payments";
 import {
   getAllSettings,
   setSettings,
   SECRET_KEYS,
   maskSecret,
 } from "./platform-settings";
-import { invalidateEmailCache } from "./email";
+import { invalidateEmailCache, sendDisputeResolved } from "./email";
 import { parseIntParam } from "./security";
 
 // Admin-only middleware
@@ -37,7 +37,7 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
   if (!req.isAuthenticated?.() || !req.user) {
     return res.status(401).json({ message: "Not authenticated" });
   }
-  if ((req.user as any).role !== "admin") {
+  if (req.user.role !== "admin") {
     return res.status(403).json({ message: "Admin access required" });
   }
   next();
@@ -54,6 +54,7 @@ const ALLOWED_SETTING_KEYS = new Set([
   "paypal_client_id",
   "paypal_client_secret",
   "paypal_mode",
+  "paypal_webhook_id",
   "platform_fee_percent",
   "maintenance_mode",
   "registrations_enabled",
@@ -368,9 +369,70 @@ export function registerAdminRoutes(app: Express) {
     },
   );
 
+  // ═══ Resolve a disputed transaction ═══
+  // resolution="refund_buyer"      → refund the buyer (Stripe refund / PayPal void)
+  // resolution="release_to_seller" → pay the seller (Stripe transfer / PayPal capture)
+  app.post(
+    "/api/admin/disputes/:id/resolve",
+    requireAdmin,
+    async (req, res) => {
+      try {
+        const id = parseIntParam(req.params.id);
+        if (!id) return res.status(400).json({ message: "Invalid transaction ID" });
+
+        const { resolution } = req.body as { resolution?: string };
+        if (resolution !== "refund_buyer" && resolution !== "release_to_seller") {
+          return res.status(400).json({
+            message: "resolution must be 'refund_buyer' or 'release_to_seller'",
+          });
+        }
+
+        // Verify it's actually disputed
+        const [tx] = await db.select().from(transactions).where(eq(transactions.id, id));
+        if (!tx) return res.status(404).json({ message: "Transaction not found" });
+        if (tx.status !== "disputed") {
+          return res.status(400).json({ message: "Transaction is not disputed" });
+        }
+
+        if (resolution === "refund_buyer") {
+          await refundPayment(id);
+        } else {
+          await adminReleaseToSeller(id);
+        }
+
+        // Notify both parties (fire-and-forget)
+        const [buyer] = await db.select({ email: users.email }).from(users).where(eq(users.id, tx.buyerId));
+        const [seller] = await db.select({ email: users.email }).from(users).where(eq(users.id, tx.sellerId));
+        const [book] = await db.select({ title: books.title }).from(books).where(eq(books.id, tx.bookId));
+        const emailResolution = resolution === "refund_buyer" ? "refunded" : "released_to_seller" as const;
+        if (book) {
+          if (buyer?.email) {
+            sendDisputeResolved(buyer.email, "buyer", book.title, emailResolution).catch((err) =>
+              console.error("[email] dispute-resolved buyer notification failed:", err),
+            );
+          }
+          if (seller?.email) {
+            sendDisputeResolved(seller.email, "seller", book.title, emailResolution).catch((err) =>
+              console.error("[email] dispute-resolved seller notification failed:", err),
+            );
+          }
+        }
+
+        return res.json({
+          message: resolution === "refund_buyer"
+            ? "Dispute resolved — buyer refunded"
+            : "Dispute resolved — payment released to seller",
+        });
+      } catch (err: any) {
+        console.error("[admin] dispute resolution failed:", err);
+        return res.status(500).json({ message: err.message || "Dispute resolution failed" });
+      }
+    },
+  );
+
   // ═══ Check admin status ═══
   app.get("/api/admin/check", requireAdmin, async (req, res) => {
-    return res.json({ isAdmin: true, userId: (req.user as any).id });
+    return res.json({ isAdmin: true, userId: req.user.id });
   });
 
   // 🏃‍♂️ Catalog Seeder (run from admin panel)

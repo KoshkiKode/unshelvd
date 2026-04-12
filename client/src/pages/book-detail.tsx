@@ -17,6 +17,16 @@ import CheckoutDialog from "@/components/checkout-dialog";
 import AdBanner from "@/components/ad-banner";
 import AffiliateLinks from "@/components/affiliate-links";
 
+interface SellerPreview {
+  id: number;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  rating: number;
+  totalSales: number;
+  location: string | null;
+}
+
 const conditionLabels: Record<string, { label: string; color: string }> = {
   new: { label: "New", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
   "like-new": { label: "Like New", color: "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300" },
@@ -37,7 +47,7 @@ export default function BookDetail() {
   const [messageOpen, setMessageOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
-  const { data: book, isLoading } = useQuery<Book & { seller: any }>({
+  const { data: book, isLoading } = useQuery<Book & { seller: SellerPreview | null }>({
     queryKey: [`/api/books/${id}`],
   });
 

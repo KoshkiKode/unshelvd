@@ -546,14 +546,40 @@ export default function AddBook() {
 
             <div>
               <label className="text-sm font-medium mb-1 block">
-                Cover Image URL
+                Cover Image
               </label>
-              <Input
-                value={form.coverUrl}
-                onChange={(e) => setForm({ ...form, coverUrl: e.target.value })}
-                placeholder="https://... (auto-filled from search)"
-                data-testid="book-cover-input"
-              />
+              <div className="space-y-2">
+                <Input
+                  value={form.coverUrl}
+                  onChange={(e) => setForm({ ...form, coverUrl: e.target.value })}
+                  placeholder="https://... (auto-filled from search)"
+                  data-testid="book-cover-input"
+                />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">or</span>
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 2_097_152) {
+                          toast({ title: "File too large", description: "Cover image must be under 2 MB.", variant: "destructive" });
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          setForm({ ...form, coverUrl: ev.target?.result as string });
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                    <span className="text-xs text-primary underline cursor-pointer">Upload from device</span>
+                  </label>
+                </div>
+              </div>
             </div>
 
             <div>

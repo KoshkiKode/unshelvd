@@ -419,7 +419,7 @@ export class DatabaseStorage implements IStorage {
     // Include the current status in the WHERE clause so a stale-read can never
     // silently overwrite a status that changed between the read above and this write.
     const rows = await db.update(offers).set(updates)
-      .where(and(eq(offers.id, id), eq(offers.status, offer.status)))
+      .where(and(eq(offers.id, id), eq(offers.status, offer.status ?? "pending")))
       .returning();
     return rows[0];
   }

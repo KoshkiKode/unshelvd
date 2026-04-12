@@ -27,6 +27,7 @@ import {
   handleChargeRefunded,
   markShipped,
   confirmDelivery,
+  refundPayment,
   getUserTransactions,
   PLATFORM_FEE_PERCENT,
   createSellerAccount,
@@ -37,8 +38,10 @@ import {
 } from "./payments";
 import {
   createPayPalOrder,
-  capturePayPalOrder,
+  authorizePayPalOrder,
   isPayPalEnabled,
+  verifyPayPalWebhookSignature,
+  voidPayPalAuthorization,
 } from "./paypal";
 import { registerAdminRoutes } from "./admin";
 import { getSetting, isEnabled } from "./platform-settings";
@@ -54,6 +57,9 @@ import {
   sendDeliveryConfirmed,
   sendNewMessage,
   sendMatchedListing,
+  sendEmailVerification,
+  sendDisputeOpened,
+  sendOrderCancelled,
 } from "./email";
 import { z } from "zod";
 import passport from "passport";
@@ -62,6 +68,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import createMemoryStore from "memorystore";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 
 const PgSessionStore = connectPgSimple(session);
 const MemoryStore = createMemoryStore(session);
@@ -87,6 +94,10 @@ declare global {
       rating: number | null;
       totalSales: number | null;
       totalPurchases: number | null;
+      role: string | null;
+      emailVerified: boolean | null;
+      emailVerifyToken: string | null;
+      emailVerifyExpiry: Date | null;
       createdAt: string | null;
     }
   }
@@ -96,8 +107,12 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "Not authenticated" });
   }
-  if ((req.user as any)?.role === "suspended") {
+  const role = req.user?.role;
+  if (role === "suspended") {
     return res.status(403).json({ message: "Account suspended" });
+  }
+  if (role === "deleted") {
+    return res.status(403).json({ message: "Account deleted" });
   }
   next();
 }
@@ -183,6 +198,22 @@ export async function registerRoutes(
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // Maintenance mode — return 503 for all API routes except the health check.
+  // Admins can toggle this via the admin settings panel.
+  app.use(async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.path.startsWith("/api/") || req.path === "/api/health") return next();
+    try {
+      if (await isEnabled("maintenance_mode", false)) {
+        return res
+          .status(503)
+          .json({ message: "The site is temporarily down for maintenance. Please check back soon." });
+      }
+    } catch {
+      // If the DB is unreachable we can't read settings — don't block requests.
+    }
+    return next();
+  });
+
   // === HEALTH CHECK ===
   app.get("/api/health", async (_req, res) => {
     try {
@@ -228,24 +259,35 @@ export async function registerRoutes(
 
       // Hash with bcrypt (12 rounds)
       const hashedPassword = await bcrypt.hash(data.password, 12);
+
       const user = await storage.createUser({
         ...data,
         password: hashedPassword,
       });
 
-      // Send welcome email (fire-and-forget — never blocks registration)
-      sendWelcome(user.email, user.displayName).catch((err) =>
-        console.error("[email] welcome failed:", err),
+      // Generate email verification token and mark as unverified (update after create
+      // so we don't need to extend InsertUser schema)
+      const emailVerifyToken = crypto.randomBytes(32).toString("hex");
+      const emailVerifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 h
+      await db.update(users)
+        .set({ emailVerified: false, emailVerifyToken, emailVerifyExpiry })
+        .where(eq(users.id, user.id));
+
+      // Send verification email (fire-and-forget — never blocks registration)
+      const origin = req.headers.origin || `https://${req.headers.host}`;
+      const verifyUrl = `${origin}/api/auth/verify-email?token=${emailVerifyToken}`;
+      sendEmailVerification(user.email, user.displayName, verifyUrl).catch((err) =>
+        console.error("[email] verification email failed:", err),
       );
 
-      // Auto-login after registration
-      const { password, ...safeUser } = user;
+      // Auto-login after registration so the user can start browsing immediately
+      const { password, emailVerifyToken: _evToken, emailVerifyExpiry: _evExp, ...safeUser } = user;
       req.login(safeUser as any, (err) => {
         if (err)
           return res
             .status(500)
             .json({ message: "Login failed after registration" });
-        return res.json(safeUser);
+        return res.json({ ...safeUser, emailVerified: false });
       });
     } catch (err) {
       if (err instanceof ZodError) {
@@ -254,6 +296,73 @@ export async function registerRoutes(
           .json({ message: err.errors[0]?.message || "Validation error" });
       }
       return res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
+  // === EMAIL VERIFICATION ===
+
+  // Verify email via token link (linked from the verification email)
+  app.get("/api/auth/verify-email", async (req, res) => {
+    try {
+      const { token } = req.query as { token?: string };
+      if (!token || typeof token !== "string") {
+        return res.status(400).send("Invalid verification link.");
+      }
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.emailVerifyToken, token));
+
+      if (!user) {
+        return res.status(400).send("Verification link is invalid or already used.");
+      }
+      if (user.emailVerifyExpiry && user.emailVerifyExpiry < new Date()) {
+        return res.status(400).send("Verification link has expired. Please request a new one.");
+      }
+
+      await db
+        .update(users)
+        .set({ emailVerified: true, emailVerifyToken: null, emailVerifyExpiry: null })
+        .where(eq(users.id, user.id));
+
+      // Send welcome email now that the address is confirmed (fire-and-forget)
+      sendWelcome(user.email, user.displayName).catch((err) =>
+        console.error("[email] welcome email failed:", err),
+      );
+
+      // Redirect to the app with a success indicator
+      return res.redirect("/#/?email_verified=1");
+    } catch (err) {
+      return res.status(500).send("Verification failed. Please try again.");
+    }
+  });
+
+  // Resend verification email (for logged-in users whose email is still unverified)
+  app.post("/api/auth/resend-verification", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.user!.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      if (user.emailVerified) {
+        return res.status(400).json({ message: "Email is already verified" });
+      }
+
+      const emailVerifyToken = crypto.randomBytes(32).toString("hex");
+      const emailVerifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await db
+        .update(users)
+        .set({ emailVerifyToken, emailVerifyExpiry })
+        .where(eq(users.id, user.id));
+
+      const origin = req.headers.origin || `https://${req.headers.host}`;
+      const verifyUrl = `${origin}/api/auth/verify-email?token=${emailVerifyToken}`;
+      sendEmailVerification(user.email, user.displayName, verifyUrl).catch((err) =>
+        console.error("[email] resend-verification failed:", err),
+      );
+
+      return res.json({ message: "Verification email sent" });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to resend verification email" });
     }
   });
 
@@ -284,7 +393,9 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });
     }
-    return res.json(req.user);
+    // Strip sensitive token fields before sending to the client
+    const { emailVerifyToken, emailVerifyExpiry, ...safeUser } = req.user;
+    return res.json(safeUser);
   });
 
   // === BOOKS ROUTES ===
@@ -1272,6 +1383,83 @@ export async function registerRoutes(
     }
   });
 
+  // PayPal webhook — handles async authorization lifecycle events
+  app.post("/api/webhooks/paypal", async (req, res) => {
+    const webhookId =
+      (await getSetting("paypal_webhook_id")) || process.env.PAYPAL_WEBHOOK_ID || null;
+
+    const event = req.body as Record<string, any>;
+
+    if (webhookId) {
+      // Production: verify the PayPal signature
+      const transmissionId = req.headers["paypal-transmission-id"] as string;
+      const transmissionTime = req.headers["paypal-transmission-time"] as string;
+      const certUrl = req.headers["paypal-cert-url"] as string;
+      const authAlgo = req.headers["paypal-auth-algo"] as string;
+      const transmissionSig = req.headers["paypal-transmission-sig"] as string;
+
+      if (!transmissionId || !transmissionTime || !certUrl || !authAlgo || !transmissionSig) {
+        return res.status(400).json({ message: "Missing PayPal webhook signature headers" });
+      }
+
+      const valid = await verifyPayPalWebhookSignature({
+        authAlgo,
+        certUrl,
+        transmissionId,
+        transmissionSig,
+        transmissionTime,
+        webhookId,
+        webhookEvent: event,
+      });
+      if (!valid) {
+        console.error("[paypal-webhook] Signature verification failed");
+        return res.status(400).json({ message: "Webhook signature invalid" });
+      }
+    }
+
+    const eventType: string = event.event_type ?? "";
+    console.log(`[paypal-webhook] ${eventType}`);
+
+    try {
+      switch (eventType) {
+        case "PAYMENT.AUTHORIZATION.VOIDED": {
+          // PayPal voided an authorization (e.g. it expired after 29 days without capture).
+          // Mark the transaction as cancelled and re-list the book so buyers can purchase again.
+          const authId: string | undefined =
+            event.resource?.id;
+          if (authId) {
+            const [tx] = await db
+              .select()
+              .from(transactions)
+              .where(eq(transactions.paypalAuthorizationId, authId))
+              .limit(1);
+            if (tx && tx.status === "paid") {
+              await db
+                .update(transactions)
+                .set({ status: "cancelled", updatedAt: new Date() })
+                .where(eq(transactions.id, tx.id));
+              // Re-list the book so it can be purchased again
+              if (tx.bookId) {
+                await db
+                  .update(books)
+                  .set({ status: "for-sale" })
+                  .where(eq(books.id, tx.bookId));
+              }
+              console.log(`[paypal-webhook] Cancelled tx ${tx.id} due to voided authorization ${authId}`);
+            }
+          }
+          break;
+        }
+        default:
+          console.log(`[paypal-webhook] Unhandled event type: ${eventType}`);
+      }
+      return res.json({ received: true });
+    } catch (err) {
+      console.error(`[paypal-webhook] Error handling ${eventType}:`, err);
+      return res.status(500).json({ message: "Webhook handler error" });
+    }
+  });
+
   // ── PayPal checkout routes ──────────────────────────────────────────────
 
   /** Check whether PayPal is enabled for this deployment. Requires auth to avoid leaking config. */
@@ -1362,7 +1550,12 @@ export async function registerRoutes(
     }
   });
 
-  /** Capture an approved PayPal order. */
+  /**
+   * Authorize an approved PayPal order (escrow step 1).
+   * Called when the buyer returns from PayPal after approving payment.
+   * Funds are held on the buyer's account but not yet captured.
+   * The actual capture happens when the buyer confirms delivery.
+   */
   app.post("/api/payments/paypal/capture-order", requireAuth, async (req, res) => {
     try {
       const enabled = await isPayPalEnabled();
@@ -1381,17 +1574,18 @@ export async function registerRoutes(
         .limit(1);
       if (!tx) return res.status(404).json({ message: "Transaction not found for this order" });
       if (tx.buyerId !== req.user!.id) {
-        return res.status(403).json({ message: "Not authorised to capture this order" });
+        return res.status(403).json({ message: "Not authorised to complete this order" });
       }
       if (tx.status !== "pending") {
-        return res.status(409).json({ message: "Order has already been captured or cancelled" });
+        return res.status(409).json({ message: "Order has already been processed or cancelled" });
       }
 
-      const { captureId, status: captureStatus } = await capturePayPalOrder(orderId);
+      // Authorize the order — this holds funds without capturing them (true escrow).
+      const { authorizationId, status: authStatus } = await authorizePayPalOrder(orderId);
 
-      if (captureStatus === "COMPLETED") {
+      if (authStatus === "CREATED" || authStatus === "CAPTURED") {
         await db.update(transactions)
-          .set({ status: "paid", paypalCaptureId: captureId, updatedAt: new Date() })
+          .set({ status: "paid", paypalAuthorizationId: authorizationId, updatedAt: new Date() })
           .where(eq(transactions.id, tx.id));
 
         // Notify the seller
@@ -1405,10 +1599,10 @@ export async function registerRoutes(
         }
       }
 
-      return res.json({ captureId, status: captureStatus, transactionId: tx.id });
+      return res.json({ authorizationId, status: authStatus, transactionId: tx.id });
     } catch (err: any) {
-      console.error("[PayPal capture-order]", err);
-      return res.status(500).json({ message: err.message || "Failed to capture PayPal order" });
+      console.error("[PayPal authorize-order]", err);
+      return res.status(500).json({ message: err.message || "Failed to authorize PayPal order" });
     }
   });
 
@@ -1419,12 +1613,13 @@ export async function registerRoutes(
         displayName: z.string().min(1).max(100).optional(),
         bio: z.string().max(500).optional(),
         location: z.string().max(100).optional(),
-        avatarUrl: z.string().url().optional().or(z.literal("")),
+        // Accept HTTPS URLs or data: URIs (for direct image upload)
+        avatarUrl: z.string().optional().or(z.literal("")),
       });
       const data = allowedFields.parse(req.body);
       const updated = await storage.updateUser(req.user!.id, data);
       if (!updated) return res.status(404).json({ message: "User not found" });
-      const { password, ...safeUser } = updated;
+      const { password, emailVerifyToken, emailVerifyExpiry, ...safeUser } = updated;
       return res.json(safeUser);
     } catch (err) {
       if (err instanceof ZodError)
@@ -1533,7 +1728,6 @@ export async function registerRoutes(
       if (!user) return res.json({ message: "If that email is registered, a reset link has been sent." });
 
       // Generate a cryptographically secure token
-      const crypto = await import("crypto");
       const token = crypto.randomBytes(32).toString("hex");
       const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
@@ -1748,6 +1942,230 @@ export async function registerRoutes(
 
   // ═══ Admin Routes ═══
   registerAdminRoutes(app);
+
+  // === ORDER CANCELLATION ===
+  // Buyer cancels a pending or paid order (before it has shipped).
+  // Pending: no payment captured — just mark cancelled and re-list the book.
+  // Paid: payment was held — issue a refund (Stripe refund / PayPal authorization void).
+  app.post("/api/payments/:id/cancel", requireAuth, async (req, res) => {
+    try {
+      const txId = parseIntParam(req.params.id);
+      if (!txId) return res.status(400).json({ message: "Invalid transaction ID" });
+
+      const [tx] = await db.select().from(transactions).where(eq(transactions.id, txId));
+      if (!tx) return res.status(404).json({ message: "Transaction not found" });
+      if (tx.buyerId !== req.user!.id) {
+        return res.status(403).json({ message: "Only the buyer can cancel an order" });
+      }
+      if (!["pending", "paid"].includes(tx.status ?? "")) {
+        return res.status(400).json({
+          message: "Orders can only be cancelled before they have been shipped",
+        });
+      }
+
+      if (tx.status === "paid") {
+        // Refund clears payment, voids PayPal auth, and re-lists book.
+        await refundPayment(txId);
+      } else {
+        // Pending: no money was ever captured — just cancel and re-list.
+        await db
+          .update(transactions)
+          .set({ status: "cancelled", updatedAt: new Date() })
+          .where(and(eq(transactions.id, txId), eq(transactions.status, "pending")));
+        await db.update(books).set({ status: "for-sale" }).where(eq(books.id, tx.bookId));
+      }
+
+      // Notify both parties (fire-and-forget)
+      const [buyer] = await db.select().from(users).where(eq(users.id, tx.buyerId));
+      const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
+      const [bookRow] = await db.select().from(books).where(eq(books.id, tx.bookId));
+      if (bookRow) {
+        if (buyer) {
+          sendOrderCancelled(buyer.email, "buyer", bookRow.title).catch((err) =>
+            console.error("[email] cancel order buyer notification failed:", err),
+          );
+        }
+        if (seller) {
+          sendOrderCancelled(seller.email, "seller", bookRow.title).catch((err) =>
+            console.error("[email] cancel order seller notification failed:", err),
+          );
+        }
+      }
+
+      return res.json({ message: "Order cancelled successfully." });
+    } catch (err: any) {
+      console.error("[cancel order]", err);
+      return res.status(500).json({ message: err.message || "Failed to cancel order" });
+    }
+  });
+
+  // === DISPUTE ROUTE ===
+  // Buyer opens a dispute for a transaction that's in "paid" or "shipped" state
+  app.post("/api/payments/:id/dispute", requireAuth, async (req, res) => {
+    try {
+      const txId = parseIntParam(req.params.id);
+      if (!txId) return res.status(400).json({ message: "Invalid transaction ID" });
+
+      const [tx] = await db.select().from(transactions).where(eq(transactions.id, txId));
+      if (!tx) return res.status(404).json({ message: "Transaction not found" });
+      if (tx.buyerId !== req.user!.id) return res.status(403).json({ message: "Only the buyer can open a dispute" });
+      if (!["paid", "shipped"].includes(tx.status ?? "")) {
+        return res.status(400).json({ message: "Disputes can only be opened for paid or shipped orders" });
+      }
+
+      await db
+        .update(transactions)
+        .set({ status: "disputed", updatedAt: new Date() })
+        .where(eq(transactions.id, txId));
+
+      // Notify the seller so they're aware a dispute is in progress (fire-and-forget)
+      const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
+      const [bookRow] = await db.select().from(books).where(eq(books.id, tx.bookId));
+      const buyerName = req.user!.displayName || req.user!.username;
+      if (seller && bookRow) {
+        sendDisputeOpened(seller.email, buyerName, bookRow.title).catch((err) =>
+          console.error("[email] dispute-opened notification failed:", err),
+        );
+      }
+
+      return res.json({ message: "Dispute opened. Our team will review this transaction." });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to open dispute" });
+    }
+  });
+
+  // === ACCOUNT DELETION ===
+  // Soft-delete: anonymize personal data while preserving transaction history
+  app.delete("/api/users/me", requireAuth, async (req, res) => {
+    try {
+      const { password } = z.object({ password: z.string().min(1) }).parse(req.body);
+
+      const user = await storage.getUser(req.user!.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      // Verify password before deleting
+      const valid = await bcrypt.compare(password, user.password);
+      if (!valid) return res.status(400).json({ message: "Incorrect password" });
+
+      // Block deletion if user has active (non-terminal) transactions.
+      // Terminal statuses: completed, refunded, failed, cancelled.
+      // Disputed transactions are actively under review — block deletion until resolved.
+      const [activeTx] = await db
+        .select({ id: transactions.id })
+        .from(transactions)
+        .where(
+          and(
+            or(eq(transactions.buyerId, user.id), eq(transactions.sellerId, user.id)),
+            sql`${transactions.status} NOT IN ('completed', 'refunded', 'failed', 'cancelled')`,
+          ),
+        )
+        .limit(1);
+      if (activeTx) {
+        return res.status(400).json({
+          message: "Cannot delete account while you have active transactions. Please complete or cancel all orders first.",
+        });
+      }
+
+      // Anonymise: remove all personal data, mark as deleted
+      const deletedEmail = `deleted_${user.id}@deleted.invalid`;
+      const deletedUsername = `deleted_${user.id}`;
+      await db.update(users).set({
+        username: deletedUsername,
+        displayName: "Deleted User",
+        email: deletedEmail,
+        password: await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10),
+        bio: null,
+        avatarUrl: null,
+        location: null,
+        role: "deleted",
+        stripeAccountId: null,
+        passwordResetToken: null,
+        passwordResetExpiry: null,
+        emailVerifyToken: null,
+        emailVerifyExpiry: null,
+      }).where(eq(users.id, user.id));
+
+      // Log out
+      req.logout((err) => {
+        if (err) console.error("[account-delete] logout error:", err);
+      });
+
+      return res.json({ message: "Account deleted. We're sorry to see you go." });
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ message: err.errors[0]?.message });
+      return res.status(500).json({ message: "Failed to delete account" });
+    }
+  });
+
+  // === SELLER RATES BUYER ===
+  app.post("/api/transactions/:id/rate-buyer", requireAuth, async (req, res) => {
+    try {
+      const txId = parseIntParam(req.params.id);
+      if (!txId) return res.status(400).json({ message: "Invalid transaction ID" });
+
+      const { rating } = z.object({ rating: z.number().int().min(1).max(5) }).parse(req.body);
+
+      const [tx] = await db.select().from(transactions).where(eq(transactions.id, txId));
+      if (!tx) return res.status(404).json({ message: "Transaction not found" });
+      if (tx.sellerId !== req.user!.id) return res.status(403).json({ message: "Only the seller can rate the buyer" });
+      if (tx.status !== "completed") return res.status(400).json({ message: "Can only rate completed transactions" });
+
+      // Atomic guard: only succeeds when no seller rating exists yet
+      const [updated] = await db
+        .update(transactions)
+        .set({ sellerRating: rating })
+        .where(and(eq(transactions.id, txId), isNull(transactions.sellerRating)))
+        .returning();
+      if (!updated) {
+        return res.status(400).json({ message: "You have already rated this buyer" });
+      }
+
+      // Update buyer's aggregate rating
+      await db
+        .update(users)
+        .set({
+          buyerRatingCount: sql`COALESCE(${users.buyerRatingCount}, 0) + 1`,
+          buyerRating: sql`ROUND(((COALESCE(${users.buyerRating}, 0) * COALESCE(${users.buyerRatingCount}, 0) + ${rating}) / (COALESCE(${users.buyerRatingCount}, 0) + 1))::numeric, 1)`,
+        })
+        .where(eq(users.id, tx.buyerId));
+
+      return res.json({ message: "Rating submitted", rating });
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ message: err.errors[0]?.message });
+      return res.status(500).json({ message: "Failed to submit rating" });
+    }
+  });
+
+  // === IMAGE UPLOAD ===
+  // Accepts a base64-encoded data URL from the client (FileReader.readAsDataURL).
+  // Returns the same data URL so callers can use it consistently.
+  // Max size: 1 MB encoded (≈ 750 KB raw image).
+  app.post("/api/upload/image", requireAuth, async (req, res) => {
+    try {
+      const { data: dataUrl, type } = z.object({
+        data: z.string().min(1),
+        type: z.enum(["avatar", "cover"]),
+      }).parse(req.body);
+
+      // Validate it's actually a data URI with an image MIME type
+      if (!/^data:image\/(jpeg|jpg|png|webp|gif);base64,/.test(dataUrl)) {
+        return res.status(400).json({ message: "Only JPEG, PNG, WebP, or GIF images are supported" });
+      }
+
+      const maxBytes = type === "avatar" ? 1_048_576 : 2_097_152; // 1 MB avatar, 2 MB cover
+      const base64Part = dataUrl.split(",")[1] ?? "";
+      const byteSize = Math.ceil((base64Part.length * 3) / 4);
+      if (byteSize > maxBytes) {
+        const limitMB = maxBytes / 1_048_576;
+        return res.status(400).json({ message: `Image too large. Maximum size is ${limitMB} MB.` });
+      }
+
+      return res.json({ url: dataUrl });
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ message: err.errors[0]?.message });
+      return res.status(500).json({ message: "Upload failed" });
+    }
+  });
 
   return httpServer;
 }

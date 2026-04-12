@@ -1,20 +1,32 @@
-import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation } from "wouter";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useLocation, useSearch } from "wouter";
 import BookCard from "@/components/book-card";
 import CatalogCard from "@/components/catalog-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowRight, BookOpen, Search, Users } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Book, BookRequest, CatalogEntry } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
 
 interface CatalogResponse {
   books: CatalogEntry[];
   total: number;
 }
 
-const genres = ["Fiction", "Non-Fiction", "Textbooks", "Sci-Fi", "Mystery", "Biography", "Poetry", "Philosophy", "History", "Rare"];
+interface RequestUser {
+  id: number;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+interface RequestWithUser extends BookRequest {
+  user: RequestUser | null;
+}
+
+const fallbackGenres = ["Fiction", "Non-Fiction", "Textbooks", "Sci-Fi", "Mystery", "Biography", "Poetry", "Philosophy", "History", "Rare"];
 
 export default function Home() {
   const { data: books, isLoading: booksLoading } = useQuery<Book[]>({
@@ -25,13 +37,33 @@ export default function Home() {
     queryKey: ["/api/catalog?limit=10"],
   });
 
-  const { data: requestsData, isLoading: requestsLoading } = useQuery<{ requests: (BookRequest & { user: any })[]; total: number }>({
+  const { data: requestsData, isLoading: requestsLoading } = useQuery<{ requests: RequestWithUser[]; total: number }>({
     queryKey: ["/api/requests?status=open&limit=6"],
   });
   const requests = requestsData?.requests;
 
+  const { data: dynamicGenres } = useQuery<string[]>({
+    queryKey: ["/api/genres"],
+    staleTime: 10 * 60 * 1000,
+  });
+  const genres = dynamicGenres && dynamicGenres.length > 0 ? dynamicGenres.slice(0, 10) : fallbackGenres;
+
   const [, setLocation] = useLocation();
+  const search = useSearch();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [heroSearch, setHeroSearch] = useState("");
+
+  // Show a success toast when the user has just verified their email
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    if (params.get("email_verified") === "1") {
+      toast({ title: "Email verified!", description: "Your email address has been confirmed. Welcome to Unshelv'd!" });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      // Clean up the query param (replace hash without the param)
+      window.history.replaceState(null, "", window.location.pathname + "#/");
+    }
+  }, []);
 
   const hasUserBooks = books && books.length > 0;
   const catalogBooks = catalogData?.books || [];

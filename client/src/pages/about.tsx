@@ -1,10 +1,25 @@
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ArrowLeft, Heart, TrendingDown, Globe, BookOpen, Shield, MessageSquare } from "lucide-react";
 
+interface CatalogStats {
+  total: number;
+  verified: number;
+}
+
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M+`;
+  if (n >= 1_000) return `${Math.floor(n / 1_000)}K+`;
+  return String(n);
+}
+
 export default function About() {
+  const { data: stats } = useQuery<CatalogStats>({
+    queryKey: ["/api/catalog/stats"],
+  });
   return (
     <div className="container mx-auto max-w-3xl px-4 py-8" data-testid="about-page">
       <Link href="/">
@@ -234,7 +249,9 @@ export default function About() {
           </div>
           <div className="p-4 rounded-lg bg-muted/50">
             <BookOpen className="h-5 w-5 mx-auto mb-2 text-primary" />
-            <p className="font-serif text-lg font-bold">40M+</p>
+            <p className="font-serif text-lg font-bold">
+              {stats ? formatCount(stats.total) : "—"}
+            </p>
             <p className="text-xs text-muted-foreground">Books cataloged</p>
           </div>
           <div className="p-4 rounded-lg bg-muted/50">

@@ -10,9 +10,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BookOpen, Plus, MessageSquare, DollarSign, FileText, ArrowRight,
   CreditCard, CheckCircle, Loader2, Truck, Package, Clock, AlertCircle,
-  ExternalLink, ShoppingBag, TrendingUp, Banknote, Pencil, Trash2,
+  ExternalLink, ShoppingBag, TrendingUp, Banknote, Pencil, Trash2, XCircle,
 } from "lucide-react";
-import type { Book } from "@shared/schema";
+import type { Book, Transaction, Offer, BookRequest } from "@shared/schema";
+import { TERMINAL_TX_STATUSES } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState, type ReactNode } from "react";
@@ -27,6 +28,13 @@ import { Label } from "@/components/ui/label";
 
 const RATING_LABELS = ["", "Poor", "Fair", "Good", "Very good", "Excellent"] as const;
 
+/** Transaction as returned by GET /api/payments/transactions — includes joined book/buyer/seller. */
+interface TxWithRelations extends Transaction {
+  book: { id: number; title: string; author: string; coverUrl: string | null } | null;
+  buyer: { id: number; displayName: string; username: string } | null;
+  seller: { id: number; displayName: string; username: string } | null;
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -40,8 +48,18 @@ export default function Dashboard() {
   const [tracking, setTracking] = useState("");
 
   // State for "Rate Seller" dialog
-  const [rateTx, setRateTx] = useState<any | null>(null);
+  const [rateTx, setRateTx] = useState<TxWithRelations | null>(null);
   const [ratingValue, setRatingValue] = useState(0);
+
+  // State for "Rate Buyer" dialog (seller rates buyer)
+  const [rateBuyerTx, setRateBuyerTx] = useState<TxWithRelations | null>(null);
+  const [rateBuyerValue, setRateBuyerValue] = useState(0);
+
+  // State for dispute confirm dialog
+  const [disputeTx, setDisputeTx] = useState<TxWithRelations | null>(null);
+
+  // State for cancel order confirm dialog
+  const [cancelTx, setCancelTx] = useState<TxWithRelations | null>(null);
 
   const { data: sellerStatus, isLoading: sellerLoading } = useQuery<{
     connected: boolean;
@@ -95,7 +113,7 @@ export default function Dashboard() {
     enabled: !!user,
   });
 
-  const { data: offers } = useQuery<{ sent: any[]; received: any[] }>({
+  const { data: offers } = useQuery<{ sent: Offer[]; received: Offer[] }>({
     queryKey: ["/api/offers"],
     enabled: !!user,
   });
@@ -105,12 +123,12 @@ export default function Dashboard() {
     enabled: !!user,
   });
 
-  const { data: requestsData } = useQuery<{ requests: any[]; total: number }>({
+  const { data: requestsData } = useQuery<{ requests: BookRequest[]; total: number }>({
     queryKey: [`/api/requests?status=open&limit=100`],
     enabled: !!user,
   });
 
-  const { data: transactions, isLoading: txLoading } = useQuery<{ purchases: any[]; sales: any[] }>({
+  const { data: transactions, isLoading: txLoading } = useQuery<{ purchases: TxWithRelations[]; sales: TxWithRelations[] }>({
     queryKey: ["/api/payments/transactions"],
     enabled: !!user,
   });
@@ -164,6 +182,57 @@ export default function Dashboard() {
     },
   });
 
+  const rateBuyerMutation = useMutation({
+    mutationFn: async ({ id, rating }: { id: number; rating: number }) => {
+      const res = await apiRequest("POST", `/api/transactions/${id}/rate-buyer`, { rating });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/payments/transactions"] });
+      toast({ title: "Rating submitted!", description: "Thanks for rating the buyer." });
+      setRateBuyerTx(null);
+      setRateBuyerValue(0);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to submit rating", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const disputeMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/payments/${id}/dispute`);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/payments/transactions"] });
+      toast({ title: "Dispute opened", description: "Our team will review this transaction and contact you." });
+      setDisputeTx(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to open dispute", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const cancelOrderMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/payments/${id}/cancel`);
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.message || "Failed to cancel order");
+      }
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/payments/transactions"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/books/user/${user?.id}`] });
+      toast({ title: "Order cancelled", description: "Your order has been cancelled and any payment refunded." });
+      setCancelTx(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to cancel order", description: err.message, variant: "destructive" });
+    },
+  });
+
   const deleteBookMutation = useMutation({
     mutationFn: async (id: number) => {
       const res = await apiRequest("DELETE", `/api/books/${id}`);
@@ -185,8 +254,8 @@ export default function Dashboard() {
   const pendingOffers = offers?.received.filter((o) => o.status === "pending").length || 0;
   const unreadMessages = unread?.count || 0;
   const myRequests = requestsData?.requests?.filter((r) => r.userId === user.id && r.status === "open").length || 0;
-  const activeTxCount = (transactions?.purchases.filter(t => t.status !== "completed" && t.status !== "refunded").length || 0)
-    + (transactions?.sales.filter(t => t.status !== "completed" && t.status !== "refunded").length || 0);
+  const activeTxCount = (transactions?.purchases.filter(t => !TERMINAL_TX_STATUSES.includes(t.status ?? "")).length || 0)
+    + (transactions?.sales.filter(t => !TERMINAL_TX_STATUSES.includes(t.status ?? "")).length || 0);
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8" data-testid="dashboard-page">
@@ -307,18 +376,18 @@ export default function Dashboard() {
               <TabsTrigger value="purchases" className="gap-1.5">
                 <ShoppingBag className="h-3.5 w-3.5" />
                 Purchases
-                {(transactions?.purchases?.filter(t => t.status !== "completed").length ?? 0) > 0 && (
+                {(transactions?.purchases?.filter(t => !TERMINAL_TX_STATUSES.includes(t.status ?? "")).length ?? 0) > 0 && (
                   <Badge variant="secondary" className="text-[10px] h-4 px-1 ml-0.5">
-                    {transactions!.purchases.filter(t => t.status !== "completed").length}
+                    {transactions!.purchases.filter(t => !TERMINAL_TX_STATUSES.includes(t.status ?? "")).length}
                   </Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger value="sales" className="gap-1.5">
                 <TrendingUp className="h-3.5 w-3.5" />
                 Sales
-                {(transactions?.sales?.filter(t => t.status !== "completed").length ?? 0) > 0 && (
+                {(transactions?.sales?.filter(t => !TERMINAL_TX_STATUSES.includes(t.status ?? "")).length ?? 0) > 0 && (
                   <Badge variant="secondary" className="text-[10px] h-4 px-1 ml-0.5">
-                    {transactions!.sales.filter(t => t.status !== "completed").length}
+                    {transactions!.sales.filter(t => !TERMINAL_TX_STATUSES.includes(t.status ?? "")).length}
                   </Badge>
                 )}
               </TabsTrigger>
@@ -339,6 +408,8 @@ export default function Dashboard() {
                       onConfirmDelivery={() => deliverMutation.mutate(tx.id)}
                       confirming={deliverMutation.isPending && deliverMutation.variables === tx.id}
                       onRate={tx.status === "completed" && !tx.buyerRating ? () => { setRateTx(tx); setRatingValue(0); } : undefined}
+                      onDispute={["paid", "shipped"].includes(tx.status) ? () => setDisputeTx(tx) : undefined}
+                      onCancel={["pending", "paid"].includes(tx.status) ? () => setCancelTx(tx) : undefined}
                     />
                   ))}
                 </div>
@@ -361,6 +432,7 @@ export default function Dashboard() {
                         setShipTxId(tx.id);
                         setShipDialogOpen(true);
                       }}
+                      onRateBuyer={tx.status === "completed" && !tx.sellerRating ? () => { setRateBuyerTx(tx); setRateBuyerValue(0); } : undefined}
                     />
                   ))}
                 </div>
@@ -546,6 +618,112 @@ export default function Dashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Rate Buyer dialog (seller rates buyer) */}
+      <Dialog open={!!rateBuyerTx} onOpenChange={(v) => { if (!v) { setRateBuyerTx(null); setRateBuyerValue(0); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rate your buyer</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <p className="text-sm text-muted-foreground mb-4">
+              How was <strong>{rateBuyerTx?.buyer?.displayName}</strong> as a buyer for{" "}
+              <em>{rateBuyerTx?.book?.title}</em>?
+            </p>
+            <div className="flex gap-2 justify-center mb-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setRateBuyerValue(star)}
+                  className={`text-3xl transition-colors ${star <= rateBuyerValue ? "text-yellow-400" : "text-muted-foreground/30"}`}
+                  aria-label={`${star} star${star !== 1 ? "s" : ""}`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+            {rateBuyerValue > 0 && (
+              <p className="text-center text-sm text-muted-foreground">
+                {RATING_LABELS[rateBuyerValue]}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRateBuyerTx(null); setRateBuyerValue(0); }}>Skip</Button>
+            <Button
+              disabled={rateBuyerValue === 0 || rateBuyerMutation.isPending}
+              onClick={() => rateBuyerTx && rateBuyerMutation.mutate({ id: rateBuyerTx.id, rating: rateBuyerValue })}
+            >
+              {rateBuyerMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Submit Rating
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dispute confirmation dialog */}
+      <AlertDialog open={!!disputeTx} onOpenChange={(v) => { if (!v) setDisputeTx(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Open a dispute?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will flag <em>{disputeTx?.book?.title}</em> for review by our team.
+              Please only open a dispute if the item hasn't arrived, arrived damaged, or significantly
+              differs from the listing. We'll contact you within 2 business days.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => disputeTx && disputeMutation.mutate(disputeTx.id)}
+            >
+              {disputeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Open Dispute
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancel order confirmation dialog */}
+      <AlertDialog open={!!cancelTx} onOpenChange={(v) => { if (!v) setCancelTx(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-destructive" />
+              Cancel this order?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="block">
+                Are you sure you want to cancel your order for{" "}
+                <em>{cancelTx?.book?.title}</em>?
+              </span>
+              {cancelTx?.status === "paid" && (
+                <span className="block mt-2 font-medium text-foreground">
+                  Your payment will be fully refunded within a few business days.
+                </span>
+              )}
+              {cancelTx?.status === "pending" && (
+                <span className="block mt-2">
+                  No payment was captured — the reservation will be released immediately.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep order</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={cancelOrderMutation.isPending}
+              onClick={() => cancelTx && cancelOrderMutation.mutate(cancelTx.id)}
+            >
+              {cancelOrderMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Yes, cancel order
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -645,6 +823,7 @@ const TX_STATUS: Record<string, { label: string; color: string; icon: ReactNode 
   completed: { label: "Completed",            color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",     icon: <CheckCircle className="h-3 w-3" /> },
   disputed:  { label: "Disputed",             color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",             icon: <AlertCircle className="h-3 w-3" /> },
   refunded:  { label: "Refunded",             color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",           icon: <Package className="h-3 w-3" /> },
+  cancelled: { label: "Cancelled",            color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",           icon: <XCircle className="h-3 w-3" /> },
 };
 
 function TransactionCard({
@@ -654,14 +833,20 @@ function TransactionCard({
   onConfirmDelivery,
   confirming,
   onRate,
+  onRateBuyer,
+  onDispute,
+  onCancel,
 }: {
-  tx: any;
+  tx: TxWithRelations;
   role: "buyer" | "seller";
   onMarkShipped?: () => void;
   onConfirmDelivery?: () => void;
   confirming?: boolean;
   onRate?: () => void;
-}) {
+  onRateBuyer?: () => void;
+  onDispute?: () => void;
+  onCancel?: () => void;
+}){
   const status = TX_STATUS[tx.status] ?? { label: tx.status, color: "", icon: null };
 
   return (
@@ -707,6 +892,18 @@ function TransactionCard({
             Got it!
           </Button>
         )}
+        {role === "buyer" && onDispute && (
+          <Button size="sm" variant="outline" onClick={onDispute} className="text-xs h-7 gap-1 text-destructive border-destructive/30 hover:bg-destructive/10">
+            <AlertCircle className="h-3 w-3" />
+            Dispute
+          </Button>
+        )}
+        {role === "buyer" && onCancel && (
+          <Button size="sm" variant="outline" onClick={onCancel} className="text-xs h-7 gap-1 text-muted-foreground hover:text-destructive hover:border-destructive/30">
+            <XCircle className="h-3 w-3" />
+            Cancel
+          </Button>
+        )}
         {tx.status === "completed" && role === "buyer" && (
           <>
             <span className="text-[10px] text-green-600 font-medium">✓ Payout sent</span>
@@ -717,6 +914,18 @@ function TransactionCard({
             )}
             {tx.buyerRating && (
               <span className="text-[10px] text-yellow-600">{"★".repeat(tx.buyerRating)}</span>
+            )}
+          </>
+        )}
+        {tx.status === "completed" && role === "seller" && (
+          <>
+            {onRateBuyer && (
+              <Button size="sm" variant="outline" onClick={onRateBuyer} className="text-xs h-7 gap-1 text-yellow-600 border-yellow-300 hover:bg-yellow-50">
+                ★ Rate buyer
+              </Button>
+            )}
+            {tx.sellerRating && (
+              <span className="text-[10px] text-yellow-600">{"★".repeat(tx.sellerRating)}</span>
             )}
           </>
         )}

@@ -132,7 +132,7 @@ export async function createPayPalOrder(params: {
   const base = getBaseUrl(creds.mode);
 
   const body = {
-    intent: "CAPTURE",
+    intent: "AUTHORIZE",
     purchase_units: [
       {
         reference_id: `book_${params.bookId}_buyer_${params.buyerId}`,
@@ -181,12 +181,13 @@ export async function createPayPalOrder(params: {
 }
 
 /**
- * Capture an approved PayPal order.
- * Returns the capture ID which should be stored for potential refunds.
+ * Authorize an approved PayPal order (escrow step 1).
+ * Funds are held on the buyer's account but NOT yet transferred to us.
+ * Returns the authorization ID — store it on the transaction for capture later.
  */
-export async function capturePayPalOrder(
+export async function authorizePayPalOrder(
   orderId: string,
-): Promise<{ captureId: string; status: string }> {
+): Promise<{ authorizationId: string; status: string }> {
   validatePayPalId(orderId, "order ID");
   const creds = await getPayPalCredentials();
   if (!creds) throw new Error("PayPal is not configured");
@@ -194,7 +195,7 @@ export async function capturePayPalOrder(
   const token = await getAccessToken(creds);
   const base = getBaseUrl(creds.mode);
 
-  const res = await fetch(`${base}/v2/checkout/orders/${orderId}/capture`, {
+  const res = await fetch(`${base}/v2/checkout/orders/${orderId}/authorize`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -205,18 +206,128 @@ export async function capturePayPalOrder(
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`PayPal capture error ${res.status}: ${text}`);
+    throw new Error(`PayPal authorize error ${res.status}: ${text}`);
   }
 
   const data = (await res.json()) as {
     status: string;
-    purchase_units: { payments: { captures: { id: string; status: string }[] } }[];
+    purchase_units: {
+      payments: { authorizations: { id: string; status: string }[] };
+    }[];
   };
 
-  const capture = data.purchase_units?.[0]?.payments?.captures?.[0];
-  if (!capture) throw new Error("PayPal capture response missing capture data");
+  const auth = data.purchase_units?.[0]?.payments?.authorizations?.[0];
+  if (!auth) throw new Error("PayPal authorize response missing authorization data");
 
-  return { captureId: capture.id, status: capture.status };
+  return { authorizationId: auth.id, status: auth.status };
+}
+
+/**
+ * Capture a previously-authorized PayPal payment (escrow step 2).
+ * Call this when the buyer confirms delivery so funds move to our account.
+ * Returns the capture ID — store it on the transaction for potential refunds.
+ */
+export async function capturePayPalAuthorization(
+  authorizationId: string,
+): Promise<{ captureId: string; status: string }> {
+  validatePayPalId(authorizationId, "authorization ID");
+  const creds = await getPayPalCredentials();
+  if (!creds) throw new Error("PayPal is not configured");
+
+  const token = await getAccessToken(creds);
+  const base = getBaseUrl(creds.mode);
+
+  const res = await fetch(`${base}/v2/payments/authorizations/${authorizationId}/capture`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: "{}",
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`PayPal capture-authorization error ${res.status}: ${text}`);
+  }
+
+  const data = (await res.json()) as { id: string; status: string };
+  return { captureId: data.id, status: data.status };
+}
+
+/**
+ * Void (cancel) a PayPal authorization — used when a transaction is cancelled
+ * before delivery so the hold on the buyer's account is released.
+ */
+export async function voidPayPalAuthorization(
+  authorizationId: string,
+): Promise<void> {
+  validatePayPalId(authorizationId, "authorization ID");
+  const creds = await getPayPalCredentials();
+  if (!creds) return; // nothing to void if PayPal isn't configured
+
+  const token = await getAccessToken(creds);
+  const base = getBaseUrl(creds.mode);
+
+  const res = await fetch(`${base}/v2/payments/authorizations/${authorizationId}/void`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok && res.status !== 422) {
+    // 422 means already voided/captured — treat as success
+    const text = await res.text();
+    throw new Error(`PayPal void-authorization error ${res.status}: ${text}`);
+  }
+}
+
+/**
+ * Verify a PayPal webhook signature using PayPal's notification verification API.
+ * Returns true when the signature is valid, false otherwise (including when PayPal
+ * isn't configured — in that case the caller should skip signature checks in dev).
+ */
+export async function verifyPayPalWebhookSignature(params: {
+  authAlgo: string;
+  certUrl: string;
+  transmissionId: string;
+  transmissionSig: string;
+  transmissionTime: string;
+  webhookId: string;
+  webhookEvent: unknown;
+}): Promise<boolean> {
+  const creds = await getPayPalCredentials();
+  if (!creds) return false;
+
+  try {
+    const token = await getAccessToken(creds);
+    const base = getBaseUrl(creds.mode);
+
+    const res = await fetch(`${base}/v1/notifications/verify-webhook-signature`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        auth_algo: params.authAlgo,
+        cert_url: params.certUrl,
+        transmission_id: params.transmissionId,
+        transmission_sig: params.transmissionSig,
+        transmission_time: params.transmissionTime,
+        webhook_id: params.webhookId,
+        webhook_event: params.webhookEvent,
+      }),
+    });
+
+    if (!res.ok) return false;
+    const data = (await res.json()) as { verification_status: string };
+    return data.verification_status === "SUCCESS";
+  } catch {
+    return false;
+  }
 }
 
 /**

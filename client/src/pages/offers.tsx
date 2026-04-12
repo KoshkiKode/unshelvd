@@ -11,6 +11,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { DollarSign, Check, X, ArrowLeftRight, BookOpen } from "lucide-react";
 import { useState } from "react";
+import type { Offer } from "@shared/schema";
+
+interface OfferWithRelations extends Offer {
+  book: { id: number; title: string; author: string; coverUrl: string | null } | null;
+  buyer: { id: number; username: string; displayName: string } | null;
+  seller: { id: number; username: string; displayName: string } | null;
+}
 
 const statusColors: Record<string, string> = {
   pending: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
@@ -26,7 +33,7 @@ export default function Offers() {
   const [counterAmount, setCounterAmount] = useState("");
   const [counteringId, setCounteringId] = useState<number | null>(null);
 
-  const { data, isLoading } = useQuery<{ sent: any[]; received: any[] }>({
+  const { data, isLoading } = useQuery<{ sent: OfferWithRelations[]; received: OfferWithRelations[] }>({
     queryKey: ["/api/offers"],
     enabled: !!user,
   });
@@ -51,7 +58,7 @@ export default function Offers() {
 
   if (!user) return <Redirect to="/login" />;
 
-  const OfferCard = ({ offer, type }: { offer: any; type: "sent" | "received" }) => (
+  const OfferCard = ({ offer, type }: { offer: OfferWithRelations; type: "sent" | "received" }) => (
     <div className="border rounded-lg p-4 bg-card" data-testid={`offer-${offer.id}`}>
       <div className="flex items-start gap-3">
         <div className="h-12 w-9 rounded bg-muted flex items-center justify-center flex-shrink-0">

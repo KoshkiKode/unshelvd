@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
 import { I18nProvider } from "@/i18n/use-i18n";
 import Navbar from "@/components/layout/navbar";
+import Footer from "@/components/layout/footer";
 import Home from "@/pages/home";
 import Browse from "@/pages/browse";
 import Catalog from "@/pages/catalog";
@@ -26,6 +27,8 @@ import ConnectivityGuard from "@/components/connectivity-guard";
 import Settings from "@/pages/settings";
 import PayPalReturn from "@/pages/paypal-return";
 import PayPalCancel from "@/pages/paypal-cancel";
+import PrivacyPolicy from "@/pages/privacy";
+import TermsOfService from "@/pages/terms";
 
 function AppRouter() {
   return (
@@ -39,6 +42,8 @@ function AppRouter() {
           <Route path="/book/:id" component={BookDetail} />
           <Route path="/work/:id" component={WorkPage} />
           <Route path="/about" component={About} />
+          <Route path="/privacy" component={PrivacyPolicy} />
+          <Route path="/terms" component={TermsOfService} />
           <Route path="/user/:id" component={UserProfile} />
           <Route path="/requests" component={Requests} />
           <Route path="/dashboard" component={Dashboard} />
@@ -56,6 +61,7 @@ function AppRouter() {
           <Route component={NotFound} />
         </Switch>
       </main>
+      <Footer />
     </>
   );
 }

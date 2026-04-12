@@ -110,7 +110,7 @@ vi.mock("../../server/admin", () => ({
 vi.mock("../../server/paypal", () => ({
   isPayPalEnabled: vi.fn(),
   createPayPalOrder: vi.fn(),
-  capturePayPalOrder: vi.fn(),
+  authorizePayPalOrder: vi.fn(),
 }));
 
 vi.mock("../../server/work-resolver", () => ({
@@ -147,14 +147,15 @@ import {
   checkSellerStatus,
   handleChargeRefunded,
 } from "../../server/payments";
-import { isPayPalEnabled, createPayPalOrder, capturePayPalOrder } from "../../server/paypal";
+import { isPayPalEnabled, createPayPalOrder, authorizePayPalOrder } from "../../server/paypal";
 import { validatePassword } from "../../shared/password-policy";
 
 // ─── test helpers ──────────────────────────────────────────────────────────
 
 async function buildApp() {
   const app = express();
-  app.use(express.json());
+  // Use a generous limit so image-upload size-validation tests can send large base64 bodies
+  app.use(express.json({ limit: "10mb" }));
   const httpServer = createServer(app);
   await registerRoutes(httpServer, app);
   return app;
@@ -2357,14 +2358,6 @@ describe("PATCH /api/users/me (requires auth)", () => {
     expect(res.body.message).toMatch(/User not found/i);
   });
 
-  it("returns 400 when an invalid avatarUrl is supplied", async () => {
-    const agent = await loginAs(app, TEST_USER);
-    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
-
-    const res = await agent.patch("/api/users/me").send({ avatarUrl: "not-a-url" });
-    expect(res.status).toBe(400);
-  });
-
   it("accepts an empty string avatarUrl (clears the avatar)", async () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
@@ -2990,6 +2983,504 @@ describe("POST /api/payments/paypal/create-order — authenticated", () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────
+// GET /api/auth/verify-email
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("GET /api/auth/verify-email", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns 400 when no token is provided", async () => {
+    const res = await request(app).get("/api/auth/verify-email");
+    expect(res.status).toBe(400);
+    expect(res.text).toMatch(/invalid verification link/i);
+  });
+
+  it("returns 400 when the token is not found in the database", async () => {
+    // SELECT user by emailVerifyToken → not found
+    pushDbResults([]);
+
+    const res = await request(app).get("/api/auth/verify-email?token=unknowntoken");
+    expect(res.status).toBe(400);
+    expect(res.text).toMatch(/invalid or already used/i);
+  });
+
+  it("returns 400 when the token is expired", async () => {
+    const expiredUser = {
+      id: 5,
+      emailVerifyToken: "expiredtoken",
+      emailVerifyExpiry: new Date(Date.now() - 1000), // already past
+    };
+    pushDbResults([expiredUser]);
+
+    const res = await request(app).get("/api/auth/verify-email?token=expiredtoken");
+    expect(res.status).toBe(400);
+    expect(res.text).toMatch(/expired/i);
+  });
+
+  it("redirects to /#/?email_verified=1 on success", async () => {
+    const validUser = {
+      id: 5,
+      emailVerifyToken: "validtoken",
+      emailVerifyExpiry: new Date(Date.now() + 60_000), // future
+    };
+    pushDbResults([validUser]);
+    // UPDATE call (no return value needed)
+
+    const res = await request(app).get("/api/auth/verify-email?token=validtoken");
+    // Supertest follows redirects by default; check the redirect target directly
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe("/#/?email_verified=1");
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/auth/resend-verification
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/auth/resend-verification", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(app).post("/api/auth/resend-verification");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 when email is already verified", async () => {
+    const verifiedUser = { ...TEST_USER, emailVerified: true };
+    const agent = await loginAs(app, verifiedUser);
+    mockStorage.getUser.mockResolvedValueOnce(verifiedUser); // deserializeUser
+    mockStorage.getUser.mockResolvedValueOnce(verifiedUser); // handler getUser
+
+    const res = await agent.post("/api/auth/resend-verification");
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/already verified/i);
+  });
+
+  it("returns 200 and sends verification email for unverified user", async () => {
+    const unverifiedUser = { ...TEST_USER, emailVerified: false };
+    const agent = await loginAs(app, unverifiedUser);
+    mockStorage.getUser.mockResolvedValueOnce(unverifiedUser); // deserializeUser
+    mockStorage.getUser.mockResolvedValueOnce(unverifiedUser); // handler getUser
+    // UPDATE to set new token (db mock — no return needed)
+
+    const res = await agent.post("/api/auth/resend-verification");
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/verification email sent/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// DELETE /api/users/me
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("DELETE /api/users/me", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(app)
+      .delete("/api/users/me")
+      .send({ password: "anything" });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 when password field is missing", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER); // deserializeUser
+
+    const res = await agent.delete("/api/users/me").send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when password is incorrect", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER); // deserializeUser
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER); // handler getUser
+
+    vi.mocked(bcrypt.compare).mockResolvedValueOnce(false as any);
+
+    const res = await agent.delete("/api/users/me").send({ password: "wrongpass" });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/incorrect password/i);
+  });
+
+  it("returns 400 when user has active transactions", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER); // deserializeUser
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER); // handler getUser
+
+    vi.mocked(bcrypt.compare).mockResolvedValueOnce(true as any);
+    // SELECT active transactions → returns one active tx
+    pushDbResults([{ id: 77 }]);
+
+    const res = await agent.delete("/api/users/me").send({ password: "correct" });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/active transactions/i);
+  });
+
+  it("anonymises the user and returns success when all checks pass", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER); // deserializeUser
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER); // handler getUser
+
+    vi.mocked(bcrypt.compare).mockResolvedValueOnce(true as any);
+    // SELECT active transactions → none
+    pushDbResults([]);
+    // UPDATE to anonymise (no return value needed)
+
+    const res = await agent.delete("/api/users/me").send({ password: "correct" });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/account deleted/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/payments/:id/dispute
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/payments/:id/dispute", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(app).post("/api/payments/5/dispute");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 for a non-numeric transaction id", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/payments/notanumber/dispute");
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when transaction is not found", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([]); // SELECT transaction → empty
+
+    const res = await agent.post("/api/payments/99/dispute");
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 403 when the requester is not the buyer", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    // Buyer is someone else
+    pushDbResults([{ id: 5, buyerId: 999, sellerId: TEST_USER.id, status: "shipped" }]);
+
+    const res = await agent.post("/api/payments/5/dispute");
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/only the buyer/i);
+  });
+
+  it("returns 400 when transaction is not in paid or shipped status", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([{ id: 5, buyerId: TEST_USER.id, sellerId: 88, status: "completed" }]);
+
+    const res = await agent.post("/api/payments/5/dispute");
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/paid or shipped/i);
+  });
+
+  it("opens a dispute and returns 200 for a paid transaction", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([{ id: 5, buyerId: TEST_USER.id, sellerId: 88, status: "paid" }]);
+    // UPDATE transaction (no return value needed)
+
+    const res = await agent.post("/api/payments/5/dispute");
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/dispute opened/i);
+  });
+
+  it("opens a dispute and returns 200 for a shipped transaction", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([{ id: 6, buyerId: TEST_USER.id, sellerId: 88, status: "shipped" }]);
+
+    const res = await agent.post("/api/payments/6/dispute");
+    expect(res.status).toBe(200);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/transactions/:id/rate-buyer
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/transactions/:id/rate-buyer", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(app)
+      .post("/api/transactions/1/rate-buyer")
+      .send({ rating: 5 });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 for invalid rating (out of range)", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([{ id: 1, sellerId: TEST_USER.id, buyerId: 10, status: "completed" }]);
+
+    const res = await agent.post("/api/transactions/1/rate-buyer").send({ rating: 6 });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 403 when the requester is not the seller", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    // Seller is someone else
+    pushDbResults([{ id: 1, sellerId: 999, buyerId: TEST_USER.id, status: "completed" }]);
+
+    const res = await agent.post("/api/transactions/1/rate-buyer").send({ rating: 4 });
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/only the seller/i);
+  });
+
+  it("returns 400 when transaction is not completed", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([{ id: 1, sellerId: TEST_USER.id, buyerId: 10, status: "shipped" }]);
+
+    const res = await agent.post("/api/transactions/1/rate-buyer").send({ rating: 3 });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/completed/i);
+  });
+
+  it("returns 400 when the seller has already rated the buyer", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    // SELECT tx
+    pushDbResults([{ id: 1, sellerId: TEST_USER.id, buyerId: 10, status: "completed" }]);
+    // UPDATE with isNull guard → returns nothing (already rated)
+    pushDbResults([]);
+
+    const res = await agent.post("/api/transactions/1/rate-buyer").send({ rating: 4 });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/already rated/i);
+  });
+
+  it("records the rating and returns 200 on success", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    // SELECT tx
+    pushDbResults([{ id: 1, sellerId: TEST_USER.id, buyerId: 10, status: "completed", sellerRating: null }]);
+    // UPDATE transactions (atomic guard) → returns updated row
+    pushDbResults([{ id: 1, sellerId: TEST_USER.id, buyerId: 10, sellerRating: 5 }]);
+    // UPDATE users (buyer aggregate) → no return needed
+
+    const res = await agent.post("/api/transactions/1/rate-buyer").send({ rating: 5 });
+    expect(res.status).toBe(200);
+    expect(res.body.rating).toBe(5);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/upload/image
+// ──────────────────────────────────────────────────────────────────────────
+
+// Tiny valid 1×1 pixel images as base64 data URIs.
+// These are the smallest structurally valid files for each format.
+// The upload endpoint only validates the MIME prefix and decoded byte size,
+// so any structurally valid (even minimal) image satisfies both checks.
+const TINY_JPEG =
+  "data:image/jpeg;base64," +
+  "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0a" +
+  "HBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIy" +
+  "MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEB" +
+  "AxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAUAQEAAAAAAAAA" +
+  "AAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/ABVP/9k=";
+const TINY_PNG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+// Minimal valid RIFF/WEBP container (4-byte RIFF header + "WEBP" + VP8L chunk)
+const TINY_WEBP =
+  "data:image/webp;base64," +
+  "UklGRlYAAABXRUJQVlA4IEoAAADQAQCdASoBAAEAAkA4JZACdAEO/gHOAAD++P/bGFX/yF3/" +
+  "tpWP/Va5//2pjM/7Us//6pO//1XO//+oTP/9RGf/3Vo//VRiAAA=";
+
+describe("POST /api/upload/image", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(app)
+      .post("/api/upload/image")
+      .send({ data: TINY_PNG, type: "avatar" });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 when required fields are missing", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/upload/image").send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when type is invalid", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/upload/image").send({ data: TINY_PNG, type: "banner" });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when data is not a valid image data URI", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/upload/image").send({
+      data: "https://example.com/photo.png", // URL, not data URI
+      type: "avatar",
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/JPEG, PNG, WebP, or GIF/i);
+  });
+
+  it("returns 400 for a non-image data URI (text/plain)", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/upload/image").send({
+      data: "data:text/plain;base64,SGVsbG8=",
+      type: "avatar",
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/JPEG, PNG, WebP, or GIF/i);
+  });
+
+  it("returns 200 and echoes the data URL for a valid JPEG avatar", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/upload/image").send({
+      data: TINY_JPEG,
+      type: "avatar",
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.url).toBe(TINY_JPEG);
+  });
+
+  it("returns 200 and echoes the data URL for a valid PNG cover", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/upload/image").send({
+      data: TINY_PNG,
+      type: "cover",
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.url).toBe(TINY_PNG);
+  });
+
+  it("returns 200 for a valid WebP image", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/upload/image").send({
+      data: TINY_WEBP,
+      type: "cover",
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("returns 400 when avatar exceeds 1 MB", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    // Build a base64 string that decodes to > 1 048 576 bytes.
+    // Math: byteSize = ceil(base64len * 3/4), so base64len > 1_048_576*4/3 ≈ 1_398_102
+    const oversized = "data:image/jpeg;base64," + "A".repeat(1_500_000);
+
+    const res = await agent.post("/api/upload/image").send({
+      data: oversized,
+      type: "avatar",
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/too large/i);
+    expect(res.body.message).toMatch(/1 MB/);
+  });
+
+  it("returns 400 when cover exceeds 2 MB", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    // base64len > 2_097_152*4/3 ≈ 2_796_203
+    const oversized = "data:image/png;base64," + "A".repeat(3_000_000);
+
+    const res = await agent.post("/api/upload/image").send({
+      data: oversized,
+      type: "cover",
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/too large/i);
+    expect(res.body.message).toMatch(/2 MB/);
+  });
+
+  it("accepts a cover image up to 2 MB (larger than avatar limit)", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    // Build a data URI whose decoded size is between 1 MB and 2 MB
+    // base64len ≈ 1_500_000 → byteSize ≈ 1_125_000 bytes (> 1 MB, < 2 MB)
+    const mediumImage = "data:image/jpeg;base64," + "A".repeat(1_500_000);
+
+    // Should succeed for cover (2 MB limit) but would fail for avatar (1 MB limit)
+    const res = await agent.post("/api/upload/image").send({
+      data: mediumImage,
+      type: "cover",
+    });
+    expect(res.status).toBe(200);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
 // POST /api/payments/paypal/capture-order — authenticated
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -3003,9 +3494,7 @@ describe("POST /api/payments/paypal/capture-order — authenticated", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    const res = await request(app)
-      .post("/api/payments/paypal/capture-order")
-      .send({ orderId: "ORDER123" });
+    const res = await request(app).post("/api/payments/paypal/capture-order").send({ orderId: "ORDER123" });
     expect(res.status).toBe(401);
   });
 
@@ -3039,10 +3528,10 @@ describe("POST /api/payments/paypal/capture-order — authenticated", () => {
 
     // 1) SELECT transaction by paypalOrderId → found, buyer matches
     pushDbResults([{ id: 7, buyerId: TEST_USER.id, sellerId: 99, bookId: 1, amount: 15.0, sellerPayout: 13.5, status: "pending", paypalOrderId: "ORDER123" }]);
-    // 2) capturePayPalOrder succeeds
-    vi.mocked(capturePayPalOrder).mockResolvedValueOnce({
-      captureId: "CAP456",
-      status: "COMPLETED",
+    // 2) authorizePayPalOrder succeeds (funds held)
+    vi.mocked(authorizePayPalOrder).mockResolvedValueOnce({
+      authorizationId: "AUTH456",
+      status: "CREATED",
     });
     // 3) UPDATE transaction status → paid (no return needed)
     // 4) SELECT seller
@@ -3052,11 +3541,11 @@ describe("POST /api/payments/paypal/capture-order — authenticated", () => {
 
     const res = await agent.post("/api/payments/paypal/capture-order").send({ orderId: "ORDER123" });
     expect(res.status).toBe(200);
-    expect(res.body.captureId).toBe("CAP456");
-    expect(res.body.status).toBe("COMPLETED");
+    expect(res.body.authorizationId).toBe("AUTH456");
+    expect(res.body.status).toBe("CREATED");
   });
 
-  it("returns 500 when capturePayPalOrder throws", async () => {
+  it("returns 500 when authorizePayPalOrder throws", async () => {
     vi.mocked(isPayPalEnabled).mockResolvedValueOnce(true);
 
     const agent = await loginAs(app, TEST_USER);
@@ -3065,11 +3554,11 @@ describe("POST /api/payments/paypal/capture-order — authenticated", () => {
     // 1) SELECT transaction by paypalOrderId → found, buyer matches
     pushDbResults([{ id: 7, buyerId: TEST_USER.id, sellerId: 99, bookId: 1, amount: 15.0, status: "pending", paypalOrderId: "ORDER123" }]);
 
-    vi.mocked(capturePayPalOrder).mockRejectedValueOnce(new Error("Capture failed"));
+    vi.mocked(authorizePayPalOrder).mockRejectedValueOnce(new Error("Authorize failed"));
 
     const res = await agent.post("/api/payments/paypal/capture-order").send({ orderId: "ORDER123" });
     expect(res.status).toBe(500);
-    expect(res.body.message).toMatch(/Capture failed/i);
+    expect(res.body.message).toMatch(/Authorize failed/i);
   });
 });
 

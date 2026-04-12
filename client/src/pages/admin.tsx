@@ -92,6 +92,30 @@ interface AdminOverview {
   };
 }
 
+interface AdminTransaction {
+  id: number;
+  amount: number;
+  platformFee: number;
+  sellerPayout: number;
+  status: string;
+  createdAt: string | null;
+  buyer: { id: number; username: string; displayName: string; email: string } | null;
+  seller: { id: number; username: string; displayName: string; email: string } | null;
+  book: { id: number; title: string; author: string } | null;
+}
+
+interface AdminUser {
+  id: number;
+  username: string;
+  displayName: string;
+  email: string;
+  role: string | null;
+  rating: number | null;
+  totalSales: number | null;
+  totalPurchases: number | null;
+  createdAt: string | null;
+}
+
 const TX_STATUS_COLORS: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
   paid: "bg-blue-100 text-blue-800",
@@ -117,7 +141,7 @@ export default function AdminDashboard() {
   const [txStatus, setTxStatus] = useState("all");
   const [txPage, setTxPage] = useState(0);
   const TX_LIMIT = 25;
-  const { data: txData, isLoading: txLoading } = useQuery<{ transactions: any[]; total: number }>({
+  const { data: txData, isLoading: txLoading } = useQuery<{ transactions: AdminTransaction[]; total: number }>({
     queryKey: [`/api/admin/transactions?limit=${TX_LIMIT}&offset=${txPage * TX_LIMIT}${txStatus !== "all" ? `&status=${txStatus}` : ""}`],
     enabled: user?.role === "admin",
   });
@@ -151,7 +175,7 @@ export default function AdminDashboard() {
   // ── Users ──
   const [userPage, setUserPage] = useState(0);
   const USER_LIMIT = 25;
-  const { data: usersData, isLoading: usersLoading } = useQuery<{ users: any[]; total: number }>({
+  const { data: usersData, isLoading: usersLoading } = useQuery<{ users: AdminUser[]; total: number }>({
     queryKey: [`/api/admin/users?limit=${USER_LIMIT}&offset=${userPage * USER_LIMIT}`],
     enabled: user?.role === "admin",
   });

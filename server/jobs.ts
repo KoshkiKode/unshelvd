@@ -25,6 +25,7 @@ import { eq, and, lt, sql } from "drizzle-orm";
 import { confirmDelivery } from "./payments";
 import {
   sendAutoCompleted,
+  sendOrderCancelled,
 } from "./email";
 
 // ── Configuration ──────────────────────────────────────────────────────────
@@ -33,12 +34,15 @@ import {
 const AUTO_COMPLETE_DAYS = 14;
 /** Days after creation before a pending offer is expired. */
 const OFFER_EXPIRY_DAYS = 7;
+/** Hours before an abandoned pending checkout is cancelled and the book re-listed. */
+const PENDING_EXPIRY_HOURS = 72;
 /** How often to run maintenance jobs (in milliseconds). */
 const JOB_INTERVAL_MS = 6 * 60 * 60 * 1000; // every 6 hours
 
 // Stable integer advisory lock IDs (must be unique across all jobs).
 const LOCK_AUTO_COMPLETE = 8301; // arbitrary unique int
 const LOCK_EXPIRE_OFFERS = 8302;
+const LOCK_EXPIRE_PENDING = 8303;
 
 // ── Advisory lock helper ───────────────────────────────────────────────────
 
@@ -168,6 +172,81 @@ async function expireOffers(): Promise<void> {
   });
 }
 
+// ── Job: Cancel abandoned pending transactions ─────────────────────────────
+
+/**
+ * Finds checkout sessions (status="pending") that the buyer started but never
+ * completed, and that are older than PENDING_EXPIRY_HOURS.  Re-lists the book
+ * and emails the buyer so they know the reservation expired.
+ *
+ * These accumulate when buyers:
+ *   • Abandon the Stripe checkout before paying
+ *   • Navigate away from the PayPal approval page
+ */
+async function expireAbandonedTransactions(): Promise<void> {
+  await withAdvisoryLock(LOCK_EXPIRE_PENDING, async () => {
+    const cutoff = new Date(
+      Date.now() - PENDING_EXPIRY_HOURS * 60 * 60 * 1000,
+    );
+
+    const stale = await db
+      .select({
+        id: transactions.id,
+        buyerId: transactions.buyerId,
+        bookId: transactions.bookId,
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.status, "pending"),
+          lt(transactions.createdAt, cutoff),
+        ),
+      );
+
+    if (stale.length === 0) return;
+
+    console.log(
+      `[jobs] Expiring ${stale.length} abandoned pending transaction(s)...`,
+    );
+
+    for (const tx of stale) {
+      try {
+        // Mark as cancelled
+        await db
+          .update(transactions)
+          .set({ status: "cancelled", updatedAt: new Date() })
+          .where(and(eq(transactions.id, tx.id), eq(transactions.status, "pending")));
+
+        // Re-list the book
+        await db
+          .update(books)
+          .set({ status: "for-sale" })
+          .where(eq(books.id, tx.bookId));
+
+        // Notify the buyer (fire-and-forget)
+        const [buyer] = await db
+          .select({ email: users.email })
+          .from(users)
+          .where(eq(users.id, tx.buyerId));
+        const [book] = await db
+          .select({ title: books.title })
+          .from(books)
+          .where(eq(books.id, tx.bookId));
+
+        if (buyer?.email && book?.title) {
+          sendOrderCancelled(buyer.email, "buyer", book.title).catch((err) =>
+            console.error("[jobs] email error (abandoned tx expiry):", err),
+          );
+        }
+
+        console.log(`[jobs] Expired abandoned transaction ${tx.id}`);
+      } catch (err) {
+        console.error(`[jobs] Failed to expire transaction ${tx.id}:`, err);
+      }
+    }
+  });
+}
+
 // ── Scheduler ─────────────────────────────────────────────────────────────
 
 /**
@@ -190,6 +269,9 @@ export async function startJobs(): Promise<void> {
     );
     expireOffers().catch((err) =>
       console.error("[jobs] expireOffers error:", err),
+    );
+    expireAbandonedTransactions().catch((err) =>
+      console.error("[jobs] expireAbandonedTransactions error:", err),
     );
   };
 
