@@ -11,6 +11,19 @@ vite.config.ts.*
 .env
 .env.local
 
+# Cloud SQL proxy binary (download separately — never commit binaries)
+cloud-sql-proxy
+cloud-sql-proxy.exe
+
+# Debug / scratch files
+git_diff.txt
+*.diff.txt
+
+# One-off helper scripts (use npm run scripts instead)
+grant.js
+grant.cjs
+test.cjs
+
 # Capacitor build artifacts (but keep the project files)
 android/app/build/
 android/.gradle/

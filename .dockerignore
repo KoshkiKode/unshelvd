@@ -6,3 +6,31 @@ dist
 .env.*
 !.env.example
 data.db
+
+# Never include local dev binaries or debug files in the image
+cloud-sql-proxy
+cloud-sql-proxy.exe
+git_diff.txt
+*.diff.txt
+
+# One-off helper scripts
+grant.js
+grant.cjs
+test.cjs
+
+# Test files — not needed at runtime
+tests/
+coverage/
+vitest.config.ts
+
+# Android / iOS project files
+android/
+ios/
+capacitor.config.ts
+
+# Stray build artifacts
+*.apk
+*.aab
+*.ipa
+*.keystore
+*.jks
