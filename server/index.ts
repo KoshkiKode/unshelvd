@@ -7,6 +7,7 @@ import { applySecurityMiddleware } from "./security";
 import { pool } from "./storage";
 import { runMigrations } from "./migrate";
 import { runAutoSeed } from "./auto-seed";
+import { startJobs } from "./jobs";
 
 const app = express();
 
@@ -170,6 +171,12 @@ app.use((req, res, next) => {
     // Runs AFTER listen() so Cloud Run sees the port open immediately.
     runAutoSeed().catch((err) => {
       console.error("Auto-seed failed (non-fatal):", err);
+    });
+
+    // Start background job runner (auto-complete transactions, expire offers).
+    // Runs AFTER listen() — non-fatal if it fails.
+    startJobs().catch((err) => {
+      console.error("Job runner failed to start (non-fatal):", err);
     });
   } catch (err) {
     console.error("Fatal startup error:", err);
