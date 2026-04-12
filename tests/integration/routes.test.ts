@@ -3320,10 +3320,24 @@ describe("POST /api/transactions/:id/rate-buyer", () => {
 // POST /api/upload/image
 // ──────────────────────────────────────────────────────────────────────────
 
-// Tiny valid 1×1 pixel images as base64 data URIs
-const TINY_JPEG = "data:image/jpeg;base64," + "AAAAAA=="; // fake but passes MIME check
-const TINY_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-const TINY_WEBP = "data:image/webp;base64," + "AAAAAA==";
+// Tiny valid 1×1 pixel images as base64 data URIs.
+// These are the smallest structurally valid files for each format.
+// The upload endpoint only validates the MIME prefix and decoded byte size,
+// so any structurally valid (even minimal) image satisfies both checks.
+const TINY_JPEG =
+  "data:image/jpeg;base64," +
+  "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0a" +
+  "HBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIy" +
+  "MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEB" +
+  "AxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAUAQEAAAAAAAAA" +
+  "AAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/ABVP/9k=";
+const TINY_PNG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+// Minimal valid RIFF/WEBP container (4-byte RIFF header + "WEBP" + VP8L chunk)
+const TINY_WEBP =
+  "data:image/webp;base64," +
+  "UklGRlYAAABXRUJQVlA4IEoAAADQAQCdASoBAAEAAkA4JZACdAEO/gHOAAD++P/bGFX/yF3/" +
+  "tpWP/Va5//2pjM/7Us//6pO//1XO//+oTP/9RGf/3Vo//VRiAAA=";
 
 describe("POST /api/upload/image", () => {
   let app: express.Express;
