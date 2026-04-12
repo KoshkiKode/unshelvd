@@ -41,8 +41,7 @@ export default function PayPalReturn() {
         setErrorMessage(err.message || "Something went wrong capturing your payment.");
         setStatus("error");
       });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderId]);
+  }, [orderId, queryClient]);
 
   if (status === "loading") {
     return (
