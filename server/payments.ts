@@ -16,7 +16,7 @@
 import Stripe from "stripe";
 import { db } from "./storage";
 import { transactions, books, users } from "@shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql, and, or } from "drizzle-orm";
 import { getSetting, isEnabled } from "./platform-settings";
 
 // Platform fee: configurable, default 10%
@@ -55,13 +55,17 @@ export async function isStripeEnabled(): Promise<boolean> {
   return s !== null;
 }
 
-// Keep backward-compatible export for direct imports that haven't been updated.
-// This is synchronously null at startup; use getStripe() for async reads.
-const stripeKey = process.env.STRIPE_SECRET_KEY;
-export const stripe = stripeKey ? new Stripe(stripeKey) : null;
+// NOTE: Do NOT use a static `stripe` singleton — the admin can update the
+// Stripe key via the admin panel and we must pick it up without a restart.
+// Always call getStripe() inside async functions.
 
-function calculateFees(amount: number) {
-  const platformFee = Math.round(amount * PLATFORM_FEE_PERCENT * 100) / 100;
+export async function calculateFees(amount: number) {
+  const dbFeeStr = await getSetting("platform_fee_percent");
+  const dbFee = dbFeeStr !== null ? parseFloat(dbFeeStr) : NaN;
+  const feePercent = !isNaN(dbFee) && dbFee >= 0 && dbFee <= 100
+    ? dbFee / 100
+    : PLATFORM_FEE_PERCENT;
+  const platformFee = Math.round(amount * feePercent * 100) / 100;
   const sellerPayout = Math.round((amount - platformFee) * 100) / 100;
   return { platformFee, sellerPayout };
 }
@@ -78,17 +82,19 @@ export async function createSellerAccount(userId: number, returnUrl: string) {
   const [user] = await db.select().from(users).where(eq(users.id, userId));
   if (!user) throw new Error("User not found");
 
+  const s = await getStripe();
+
   // Already has a Stripe account
   if (user.stripeAccountId) {
     // Check if onboarding is complete
-    if (stripe) {
-      const account = await stripe.accounts.retrieve(user.stripeAccountId);
+    if (s) {
+      const account = await s.accounts.retrieve(user.stripeAccountId);
       if (account.details_submitted) {
         await db.update(users).set({ stripeOnboarded: true }).where(eq(users.id, userId));
         return { alreadyOnboarded: true, accountId: user.stripeAccountId };
       }
       // Onboarding incomplete — generate a new link
-      const link = await stripe.accountLinks.create({
+      const link = await s.accountLinks.create({
         account: user.stripeAccountId,
         refresh_url: `${returnUrl}?stripe=refresh`,
         return_url: `${returnUrl}?stripe=complete`,
@@ -99,7 +105,7 @@ export async function createSellerAccount(userId: number, returnUrl: string) {
     return { alreadyOnboarded: true, accountId: user.stripeAccountId };
   }
 
-  if (!stripe) {
+  if (!s) {
     // Dev mode — fake it
     const fakeId = `acct_dev_${userId}`;
     await db.update(users).set({ stripeAccountId: fakeId, stripeOnboarded: true }).where(eq(users.id, userId));
@@ -107,7 +113,7 @@ export async function createSellerAccount(userId: number, returnUrl: string) {
   }
 
   // Create new Express account
-  const account = await stripe.accounts.create({
+  const account = await s.accounts.create({
     type: "express",
     email: user.email,
     metadata: { userId: String(userId), username: user.username },
@@ -121,7 +127,7 @@ export async function createSellerAccount(userId: number, returnUrl: string) {
   await db.update(users).set({ stripeAccountId: account.id }).where(eq(users.id, userId));
 
   // Generate onboarding link
-  const link = await stripe.accountLinks.create({
+  const link = await s.accountLinks.create({
     account: account.id,
     refresh_url: `${returnUrl}?stripe=refresh`,
     return_url: `${returnUrl}?stripe=complete`,
@@ -142,11 +148,12 @@ export async function checkSellerStatus(userId: number) {
     return { connected: false, onboarded: false };
   }
 
-  if (!stripe) {
+  const s = await getStripe();
+  if (!s) {
     return { connected: true, onboarded: true, devMode: true };
   }
 
-  const account = await stripe.accounts.retrieve(user.stripeAccountId);
+  const account = await s.accounts.retrieve(user.stripeAccountId);
   const onboarded = account.details_submitted || false;
 
   if (onboarded && !user.stripeOnboarded) {
@@ -170,17 +177,30 @@ export async function checkSellerStatus(userId: number) {
  * We transfer to the seller later after delivery confirmation.
  */
 export async function createPaymentIntent(buyerId: number, bookId: number, offerId?: number) {
-  const [book] = await db.select().from(books).where(eq(books.id, bookId));
-  if (!book) throw new Error("Book not found");
-  if (book.userId === buyerId) throw new Error("Cannot buy your own book");
-  if (book.status !== "for-sale" && book.status !== "open-to-offers") {
+  // First validate: book exists and buyer is not the seller.
+  const [bookCheck] = await db.select().from(books).where(eq(books.id, bookId));
+  if (!bookCheck) throw new Error("Book not found");
+  if (bookCheck.userId === buyerId) throw new Error("Cannot buy your own book");
+  if (bookCheck.status !== "for-sale" && bookCheck.status !== "open-to-offers") {
     throw new Error("Book is not for sale");
   }
+
+  // Atomically lock the book: flip status to 'not-for-sale' only if it's still available.
+  // This prevents two buyers from concurrently starting checkout for the same book.
+  const [book] = await db
+    .update(books)
+    .set({ status: "not-for-sale" })
+    .where(and(
+      eq(books.id, bookId),
+      or(eq(books.status, "for-sale"), eq(books.status, "open-to-offers")),
+    ))
+    .returning();
+  if (!book) throw new Error("Book is no longer available for purchase");
 
   let amount = book.price;
   if (!amount || amount <= 0) throw new Error("Book has no price set");
 
-  const { platformFee, sellerPayout } = calculateFees(amount);
+  const { platformFee, sellerPayout } = await calculateFees(amount);
 
   const [seller] = await db.select().from(users).where(eq(users.id, book.userId));
   if (!seller) throw new Error("Seller not found");
@@ -199,11 +219,12 @@ export async function createPaymentIntent(buyerId: number, bookId: number, offer
 
   let clientSecret: string | null = null;
 
-  if (stripe) {
+  const s = await getStripe();
+  if (s) {
     // Create PaymentIntent on OUR account (not the seller's)
     // Money comes to us first — we transfer to seller after delivery
     // Idempotency key prevents duplicate charges if the request is retried.
-    const paymentIntent = await stripe.paymentIntents.create({
+    const paymentIntent = await s.paymentIntents.create({
       amount: Math.round(amount * 100), // cents
       currency: "usd",
       metadata: {
@@ -231,7 +252,7 @@ export async function createPaymentIntent(buyerId: number, bookId: number, offer
     amount,
     platformFee,
     sellerPayout,
-    stripeConfigured: !!stripe,
+    stripeConfigured: !!s,
     book: { id: book.id, title: book.title, author: book.author, coverUrl: book.coverUrl },
     seller: { id: seller.id, displayName: seller.displayName, username: seller.username },
   };
@@ -249,8 +270,9 @@ export async function confirmPayment(transactionId: number, userId: number) {
   if (tx.status === "paid") return { status: "paid" };
   if (tx.status !== "pending") throw new Error("Transaction already processed");
 
-  if (stripe && tx.stripePaymentIntentId) {
-    const pi = await stripe.paymentIntents.retrieve(tx.stripePaymentIntentId);
+  const s = await getStripe();
+  if (s && tx.stripePaymentIntentId) {
+    const pi = await s.paymentIntents.retrieve(tx.stripePaymentIntentId);
     if (pi.status !== "succeeded") throw new Error("Payment not confirmed by Stripe");
   }
 
@@ -286,13 +308,16 @@ export async function confirmDelivery(transactionId: number, userId: number) {
   const [tx] = await db.select().from(transactions).where(eq(transactions.id, transactionId));
   if (!tx) throw new Error("Transaction not found");
   if (tx.buyerId !== userId) throw new Error("Not your purchase");
+  // Idempotent: treat already-completed as success (webhook + browser may both call this)
+  if (tx.status === "completed") return { status: "completed" };
   if (tx.status !== "shipped") throw new Error("Not shipped yet");
 
   // Transfer seller's payout to their connected Stripe account
-  if (stripe) {
+  const s = await getStripe();
+  if (s) {
     const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
     if (seller?.stripeAccountId) {
-      const transfer = await stripe.transfers.create({
+      const transfer = await s.transfers.create({
         amount: Math.round(tx.sellerPayout * 100), // cents
         currency: "usd",
         destination: seller.stripeAccountId,
@@ -300,7 +325,8 @@ export async function confirmDelivery(transactionId: number, userId: number) {
           transactionId: String(tx.id),
           bookId: String(tx.bookId),
         },
-      });
+        // Idempotency key: one transfer per transaction regardless of retries
+      }, { idempotencyKey: `transfer_${transactionId}` });
 
       await db.update(transactions)
         .set({ stripeTransferId: transfer.id })
@@ -308,18 +334,32 @@ export async function confirmDelivery(transactionId: number, userId: number) {
     }
   }
 
-  await db.update(transactions).set({
+  // Atomically flip status only from "shipped" → "completed".
+  // If two concurrent callers both reach this point, only one will match the WHERE
+  // clause and get a row back; the other will get an empty array and exit early,
+  // preventing the sales/purchase counters from being double-incremented.
+  const [updated] = await db.update(transactions).set({
     status: "completed",
     deliveredAt: new Date(),
     completedAt: new Date(),
     updatedAt: new Date(),
-  }).where(eq(transactions.id, transactionId));
+  }).where(and(
+    eq(transactions.id, transactionId),
+    eq(transactions.status, "shipped"),
+  )).returning();
 
-  // Update stats
-  const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
-  if (seller) await db.update(users).set({ totalSales: (seller.totalSales || 0) + 1 }).where(eq(users.id, tx.sellerId));
-  const [buyer] = await db.select().from(users).where(eq(users.id, tx.buyerId));
-  if (buyer) await db.update(users).set({ totalPurchases: (buyer.totalPurchases || 0) + 1 }).where(eq(users.id, tx.buyerId));
+  if (!updated) {
+    // Another concurrent call already completed the transition — idempotent success.
+    return { status: "completed" };
+  }
+
+  // Atomic increments — no read-then-write race condition
+  await db.update(users)
+    .set({ totalSales: sql`${users.totalSales} + 1` })
+    .where(eq(users.id, tx.sellerId));
+  await db.update(users)
+    .set({ totalPurchases: sql`${users.totalPurchases} + 1` })
+    .where(eq(users.id, tx.buyerId));
 
   return { status: "completed" };
 }
@@ -387,8 +427,9 @@ export async function refundPayment(transactionId: number) {
   // Issue Stripe refund when a PaymentIntent was created and the payment may have been captured.
   // "pending" transactions have a PaymentIntent but the buyer has not paid yet, so there
   // is nothing to refund through Stripe; we just cancel the record in our DB.
-  if (stripe && tx.stripePaymentIntentId && tx.status !== "pending") {
-    await stripe.refunds.create(
+  const s = await getStripe();
+  if (s && tx.stripePaymentIntentId && tx.status !== "pending") {
+    await s.refunds.create(
       { payment_intent: tx.stripePaymentIntentId },
       { idempotencyKey: `refund_${transactionId}` },
     );
@@ -417,7 +458,12 @@ export async function handleChargeRefunded(paymentIntentId: string) {
     .set({ status: "refunded", updatedAt: new Date() })
     .where(eq(transactions.id, tx.id));
 
-  await db.update(books).set({ status: "for-sale" }).where(eq(books.id, tx.bookId));
+  // Only re-list the book if it hasn't already been delivered — a post-delivery
+  // chargeback (status "completed") means the book is physically with the buyer
+  // and re-listing it would be misleading.
+  if (tx.status !== "completed") {
+    await db.update(books).set({ status: "for-sale" }).where(eq(books.id, tx.bookId));
+  }
 }
 
 export async function getUserTransactions(userId: number) {

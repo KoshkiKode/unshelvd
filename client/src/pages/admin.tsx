@@ -24,6 +24,7 @@ import {
   EyeOff,
   ToggleLeft,
   ToggleRight,
+  Mail,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -197,6 +198,13 @@ export default function AdminDashboard() {
   const [paypalClientSecret, setPaypalClientSecret] = useState("");
   const [paypalMode, setPaypalMode] = useState("sandbox");
 
+  const [emailEnabled, setEmailEnabled] = useState(true);
+  const [emailSmtpHost, setEmailSmtpHost] = useState("");
+  const [emailSmtpPort, setEmailSmtpPort] = useState("587");
+  const [emailSmtpUser, setEmailSmtpUser] = useState("");
+  const [emailSmtpPass, setEmailSmtpPass] = useState("");
+  const [emailFrom, setEmailFrom] = useState("");
+
   const [platformFee, setPlatformFee] = useState("10");
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [registrationsEnabled, setRegistrationsEnabled] = useState(true);
@@ -212,6 +220,12 @@ export default function AdminDashboard() {
     setPaypalClientId(settingsData.paypal_client_id ?? "");
     setPaypalClientSecret(settingsData.paypal_client_secret ?? "");
     setPaypalMode(settingsData.paypal_mode ?? "sandbox");
+    setEmailEnabled(settingsData.email_enabled !== "false");
+    setEmailSmtpHost(settingsData.email_smtp_host ?? "");
+    setEmailSmtpPort(settingsData.email_smtp_port ?? "587");
+    setEmailSmtpUser(settingsData.email_smtp_user ?? "");
+    setEmailSmtpPass(settingsData.email_smtp_pass ?? "");
+    setEmailFrom(settingsData.email_from ?? "");
     setPlatformFee(settingsData.platform_fee_percent ?? "10");
     setMaintenanceMode(settingsData.maintenance_mode === "true");
     setRegistrationsEnabled(settingsData.registrations_enabled !== "false");
@@ -221,6 +235,7 @@ export default function AdminDashboard() {
   const [showStripeSecret, setShowStripeSecret] = useState(false);
   const [showStripeWebhook, setShowStripeWebhook] = useState(false);
   const [showPaypalSecret, setShowPaypalSecret] = useState(false);
+  const [showEmailPass, setShowEmailPass] = useState(false);
 
   const saveSettingsMutation = useMutation({
     mutationFn: async (payload: Record<string, string>) => {
@@ -249,6 +264,17 @@ export default function AdminDashboard() {
       paypal_client_id: paypalClientId,
       paypal_client_secret: paypalClientSecret,
       paypal_mode: paypalMode,
+    });
+  };
+
+  const handleSaveEmail = () => {
+    saveSettingsMutation.mutate({
+      email_enabled: String(emailEnabled),
+      email_smtp_host: emailSmtpHost,
+      email_smtp_port: emailSmtpPort,
+      email_smtp_user: emailSmtpUser,
+      email_smtp_pass: emailSmtpPass,
+      email_from: emailFrom,
     });
   };
 
@@ -702,6 +728,108 @@ export default function AdminDashboard() {
                   >
                     {saveSettingsMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                     Save PayPal Settings
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* ── Email (SMTP) ── */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-5 w-5 text-orange-500" />
+                      <CardTitle>Email</CardTitle>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="email-toggle" className="text-sm text-muted-foreground">
+                        {emailEnabled ? "Enabled" : "Disabled"}
+                      </Label>
+                      <Switch
+                        id="email-toggle"
+                        checked={emailEnabled}
+                        onCheckedChange={setEmailEnabled}
+                      />
+                    </div>
+                  </div>
+                  <CardDescription>
+                    Transactional emails (password resets, offers, shipping updates).
+                    Supports any SMTP provider — Amazon SES is recommended since the domain is on Route 53.
+                    When disabled or unconfigured, emails are printed to server logs only.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2 sm:col-span-1">
+                      <Label htmlFor="smtp-host" className="text-xs font-medium">SMTP Host</Label>
+                      <Input
+                        id="smtp-host"
+                        placeholder="email-smtp.us-east-1.amazonaws.com"
+                        value={emailSmtpHost}
+                        onChange={(e) => setEmailSmtpHost(e.target.value)}
+                        className="mt-1 font-mono text-xs"
+                      />
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <Label htmlFor="smtp-port" className="text-xs font-medium">SMTP Port</Label>
+                      <Input
+                        id="smtp-port"
+                        placeholder="587"
+                        value={emailSmtpPort}
+                        onChange={(e) => setEmailSmtpPort(e.target.value)}
+                        className="mt-1 font-mono text-xs w-28"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">587 (STARTTLS) or 465 (SSL)</p>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="smtp-user" className="text-xs font-medium">SMTP Username</Label>
+                    <Input
+                      id="smtp-user"
+                      placeholder="AKIAIOSFODNN7EXAMPLE"
+                      value={emailSmtpUser}
+                      onChange={(e) => setEmailSmtpUser(e.target.value)}
+                      className="mt-1 font-mono text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="smtp-pass" className="text-xs font-medium">SMTP Password</Label>
+                    <div className="relative mt-1">
+                      <Input
+                        id="smtp-pass"
+                        type={showEmailPass ? "text" : "password"}
+                        placeholder="SES SMTP password"
+                        value={emailSmtpPass}
+                        onChange={(e) => setEmailSmtpPass(e.target.value)}
+                        className="font-mono text-xs pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowEmailPass((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showEmailPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Leave blank to keep the existing password.</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="email-from" className="text-xs font-medium">From Address</Label>
+                    <Input
+                      id="email-from"
+                      placeholder="Unshelv'd <noreply@koshkikode.com>"
+                      value={emailFrom}
+                      onChange={(e) => setEmailFrom(e.target.value)}
+                      className="mt-1 font-mono text-xs"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Must be a verified sender in your SMTP provider.</p>
+                  </div>
+                  <Button
+                    onClick={handleSaveEmail}
+                    disabled={saveSettingsMutation.isPending}
+                    className="mt-2"
+                  >
+                    {saveSettingsMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                    Save Email Settings
                   </Button>
                 </CardContent>
               </Card>

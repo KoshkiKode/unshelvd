@@ -174,19 +174,22 @@ describe("createPaymentIntent — validation", () => {
 
   it("throws 'Book has no price set' when price is null", async () => {
     const book = { id: 10, userId: 5, status: "for-sale", price: null };
-    dbResults.push([book]);
+    dbResults.push([book]); // select check
+    dbResults.push([book]); // atomic lock update
     await expect(createPaymentIntent(1, 10)).rejects.toThrow("Book has no price set");
   });
 
   it("throws 'Book has no price set' when price is 0", async () => {
     const book = { id: 10, userId: 5, status: "for-sale", price: 0 };
-    dbResults.push([book]);
+    dbResults.push([book]); // select check
+    dbResults.push([book]); // atomic lock update
     await expect(createPaymentIntent(1, 10)).rejects.toThrow("Book has no price set");
   });
 
   it("throws 'Seller not found' when seller user does not exist", async () => {
     const book = { id: 10, userId: 5, status: "for-sale", price: 20.0 };
-    dbResults.push([book]);  // books select
+    dbResults.push([book]);  // select check
+    dbResults.push([book]);  // atomic lock update
     dbResults.push([]);       // users select → no seller
     await expect(createPaymentIntent(1, 10)).rejects.toThrow("Seller not found");
   });
@@ -213,7 +216,8 @@ describe("createPaymentIntent — validation", () => {
       status: "pending",
     };
 
-    dbResults.push([book]);        // books select
+    dbResults.push([book]);        // select check
+    dbResults.push([book]);        // atomic lock update
     dbResults.push([seller]);      // users select (seller)
     dbResults.push([transaction]); // insert transactions returning
 
@@ -240,7 +244,8 @@ describe("createPaymentIntent — validation", () => {
     const seller = { id: 5, displayName: "Seller", username: "seller" };
     const transaction = { id: 88, buyerId: 2, sellerId: 5, bookId: 11, amount: 10.0, platformFee: 1.0, sellerPayout: 9.0 };
 
-    dbResults.push([book]);
+    dbResults.push([book]);   // select check
+    dbResults.push([book]);   // atomic lock update
     dbResults.push([seller]);
     dbResults.push([transaction]);
 
@@ -325,33 +330,29 @@ describe("confirmDelivery", () => {
 
   it("returns { status: 'completed' } and updates buyer/seller stats on success", async () => {
     const tx = { id: 1, buyerId: 5, sellerId: 7, bookId: 100, sellerPayout: 18.0, status: "shipped", stripeTransferId: null };
-    const seller = { id: 7, displayName: "Seller", username: "seller", totalSales: 2 };
-    const buyer = { id: 5, displayName: "Buyer", username: "buyer", totalPurchases: 1 };
 
     dbResults.push([tx]);       // select transaction
-    dbResults.push(undefined);  // update transaction → completed
-    dbResults.push([seller]);   // select seller for stats
-    dbResults.push(undefined);  // update seller totalSales
-    dbResults.push([buyer]);    // select buyer for stats
-    dbResults.push(undefined);  // update buyer totalPurchases
+    dbResults.push([tx]);       // update transaction → completed (.returning() gives back the row)
+    dbResults.push(undefined);  // atomic update seller totalSales
+    dbResults.push(undefined);  // atomic update buyer totalPurchases
 
     const result = await confirmDelivery(1, 5);
     expect(result).toEqual({ status: "completed" });
     expect((db as any).update).toHaveBeenCalledTimes(3); // tx + seller + buyer
   });
 
-  it("handles missing seller or buyer gracefully (no stat update)", async () => {
+  it("always issues atomic stat increments (no conditional select needed)", async () => {
     const tx = { id: 2, buyerId: 5, sellerId: 7, bookId: 101, sellerPayout: 9.0, status: "shipped", stripeTransferId: null };
 
     dbResults.push([tx]);       // select transaction
-    dbResults.push(undefined);  // update transaction → completed
-    dbResults.push([]);         // select seller → not found
-    dbResults.push([]);         // select buyer → not found
+    dbResults.push([tx]);       // update transaction → completed (.returning() gives back the row)
+    dbResults.push(undefined);  // atomic update seller totalSales (safe even if user missing)
+    dbResults.push(undefined);  // atomic update buyer totalPurchases (safe even if user missing)
 
     const result = await confirmDelivery(2, 5);
     expect(result).toEqual({ status: "completed" });
-    // Only the transaction update was issued (seller/buyer not found → no stat update)
-    expect((db as any).update).toHaveBeenCalledTimes(1);
+    // All three updates must always be issued — no read-before-write guarding
+    expect((db as any).update).toHaveBeenCalledTimes(3);
   });
 });
 

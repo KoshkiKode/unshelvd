@@ -24,6 +24,8 @@ import AdminDashboard from "@/pages/admin";
 import NotFound from "@/pages/not-found";
 import ConnectivityGuard from "@/components/connectivity-guard";
 import Settings from "@/pages/settings";
+import PayPalReturn from "@/pages/paypal-return";
+import PayPalCancel from "@/pages/paypal-cancel";
 
 function AppRouter() {
   return (
@@ -49,6 +51,8 @@ function AppRouter() {
           <Route path="/register" component={RegisterPage} />
           <Route path="/forgot-password" component={ForgotPasswordPage} />
           <Route path="/reset-password" component={ResetPasswordPage} />
+          <Route path="/paypal/return" component={PayPalReturn} />
+          <Route path="/paypal/cancel" component={PayPalCancel} />
           <Route component={NotFound} />
         </Switch>
       </main>

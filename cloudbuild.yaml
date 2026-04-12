@@ -106,7 +106,7 @@ steps:
       # Secret Manager, remove them from --set-secrets below and the seed script
       # will auto-generate credentials (printed to the job log — save immediately).
       # Create them first with: see DEPLOY.md § "Admin Credentials"
-      - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest"
+      - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest,ADMIN_EMAIL=ADMIN_EMAIL:latest,ADMIN_USERNAME=ADMIN_USERNAME:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest"
       - "--set-env-vars=NODE_ENV=production"
       - "--max-retries=1"
       - "--task-timeout=300s"

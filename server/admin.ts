@@ -29,6 +29,8 @@ import {
   SECRET_KEYS,
   maskSecret,
 } from "./platform-settings";
+import { invalidateEmailCache } from "./email";
+import { parseIntParam } from "./security";
 
 // Admin-only middleware
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
@@ -40,6 +42,28 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
   }
   next();
 }
+
+// Exhaustive allowlist of setting keys the admin is permitted to write.
+// Any key not in this list is silently dropped to prevent arbitrary data injection.
+const ALLOWED_SETTING_KEYS = new Set([
+  "stripe_enabled",
+  "stripe_secret_key",
+  "stripe_publishable_key",
+  "stripe_webhook_secret",
+  "paypal_enabled",
+  "paypal_client_id",
+  "paypal_client_secret",
+  "paypal_mode",
+  "platform_fee_percent",
+  "maintenance_mode",
+  "registrations_enabled",
+  "email_enabled",
+  "email_smtp_host",
+  "email_smtp_port",
+  "email_smtp_user",
+  "email_smtp_pass",
+  "email_from",
+]);
 
 export function registerAdminRoutes(app: Express) {
   // ═══ Platform Overview ═══
@@ -162,9 +186,12 @@ export function registerAdminRoutes(app: Express) {
         }),
       );
 
-      const [{ count: total }] = await db
+      const countQuery = db
         .select({ count: sql<number>`count(*)::int` })
         .from(transactions);
+      const [{ count: total }] = status
+        ? await (countQuery.where(eq(transactions.status, status)) as any)
+        : await countQuery;
 
       return res.json({ transactions: enriched, total, limit, offset });
     } catch (err) {
@@ -246,7 +273,8 @@ export function registerAdminRoutes(app: Express) {
   // ═══ User Detail (admin view) ═══
   app.get("/api/admin/users/:id", requireAdmin, async (req, res) => {
     try {
-      const id = parseInt(req.params.id as string);
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid user ID" });
       const [user] = await db
         .select({
           id: users.id,
@@ -286,7 +314,8 @@ export function registerAdminRoutes(app: Express) {
   // ═══ Suspend/Unsuspend User ═══
   app.post("/api/admin/users/:id/suspend", requireAdmin, async (req, res) => {
     try {
-      const id = parseInt(req.params.id as string);
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid user ID" });
       const [user] = await db.select().from(users).where(eq(users.id, id));
       if (!user) return res.status(404).json({ message: "User not found" });
       if (user.role === "admin")
@@ -310,7 +339,8 @@ export function registerAdminRoutes(app: Express) {
     requireAdmin,
     async (req, res) => {
       try {
-        const id = parseInt(req.params.id as string);
+        const id = parseIntParam(req.params.id);
+        if (!id) return res.status(400).json({ message: "Invalid transaction ID" });
         await db
           .update(transactions)
           .set({ status: "disputed", updatedAt: new Date() })
@@ -328,7 +358,8 @@ export function registerAdminRoutes(app: Express) {
     requireAdmin,
     async (req, res) => {
       try {
-        const id = parseInt(req.params.id as string);
+        const id = parseIntParam(req.params.id);
+        if (!id) return res.status(400).json({ message: "Invalid transaction ID" });
         await refundPayment(id);
         return res.json({ message: "Transaction refunded" });
       } catch (err: any) {
@@ -421,15 +452,30 @@ export function registerAdminRoutes(app: Express) {
 
       const toSave: Record<string, string | null> = {};
       for (const [key, value] of Object.entries(incoming)) {
+        // Only allow known setting keys
+        if (!ALLOWED_SETTING_KEYS.has(key)) continue;
         if (SECRET_KEYS.has(key)) {
           // Skip blank or masked placeholder — keep the existing DB value
           if (!value || value === "" || maskedPattern.test(value)) continue;
+        }
+        // Validate numeric range for platform_fee_percent (must be 0–100)
+        if (key === "platform_fee_percent") {
+          const num = parseFloat(value as string);
+          if (isNaN(num) || num < 0 || num > 100) {
+            return res.status(400).json({ message: "platform_fee_percent must be a number between 0 and 100" });
+          }
         }
         toSave[key] = typeof value === "string" && value !== "" ? value : null;
       }
 
       if (Object.keys(toSave).length > 0) {
         await setSettings(toSave);
+
+        // Invalidate the email transporter cache if any email setting changed
+        const emailKeys = ["email_enabled", "email_smtp_host", "email_smtp_port", "email_smtp_user", "email_smtp_pass", "email_from"];
+        if (emailKeys.some((k) => k in toSave)) {
+          invalidateEmailCache();
+        }
       }
 
       return res.json({ message: "Settings saved" });

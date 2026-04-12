@@ -190,6 +190,16 @@ function highlight(text: string) {
   return `<div style="background:#f9f7f4;border-left:3px solid #1a1a1a;padding:12px 16px;margin:16px 0;color:#1a1a1a;font-size:15px;">${text}</div>`;
 }
 
+/** Escape user-supplied strings before embedding them in HTML email bodies. */
+function esc(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // ── Typed send helpers ─────────────────────────────────────────────────────
 
 const APP_URL = "https://unshelvd.koshkikode.com";
@@ -214,7 +224,7 @@ export async function sendWelcome(
   displayName: string,
 ): Promise<void> {
   const html = wrap(
-    h1(`Welcome, ${displayName}! 👋`) +
+    h1(`Welcome, ${esc(displayName)}! 👋`) +
       p("Your Unshelv'd account is ready. You can now list books for sale, browse the catalog, and connect with other readers.") +
       button("Browse Books", `${APP_URL}/#/browse`),
   );
@@ -230,12 +240,12 @@ export async function sendNewOffer(
 ): Promise<void> {
   const html = wrap(
     h1("You have a new offer!") +
-      p(`<strong>${buyerName}</strong> has made an offer on your listing.`) +
-      highlight(`📖 <strong>${bookTitle}</strong><br>Offer amount: <strong>$${amount.toFixed(2)}</strong>`) +
+      p(`<strong>${esc(buyerName)}</strong> has made an offer on your listing.`) +
+      highlight(`📖 <strong>${esc(bookTitle)}</strong><br>Offer amount: <strong>$${amount.toFixed(2)}</strong>`) +
       p("Log in to accept, decline, or counter the offer.") +
-      button("View Offer", `${APP_URL}/#/offers`),
+      button("View Offer", `${APP_URL}/#/dashboard/offers`),
   );
-  await sendEmail(to, `New offer on "${bookTitle}"`, html);
+  await sendEmail(to, `New offer on "${esc(bookTitle)}"`, html);
 }
 
 /** Notify buyer of an offer status change (accepted / declined / countered). */
@@ -253,21 +263,21 @@ export async function sendOfferUpdated(
   const label = labels[status] ?? status;
 
   let body =
-    h1(`Your offer was ${label}`) +
-    highlight(`📖 <strong>${bookTitle}</strong>`);
+    h1(`Your offer was ${esc(label)}`) +
+    highlight(`📖 <strong>${esc(bookTitle)}</strong>`);
 
   if (status === "accepted") {
     body += p("Great news! The seller accepted your offer. Head to your offers page to proceed with payment.");
-    body += button("Complete Purchase", `${APP_URL}/#/offers`);
+    body += button("Complete Purchase", `${APP_URL}/#/dashboard/offers`);
   } else if (status === "countered" && counterAmount) {
     body += p(`The seller has made a counter-offer of <strong>$${counterAmount.toFixed(2)}</strong>.`);
-    body += button("View Counter-Offer", `${APP_URL}/#/offers`);
+    body += button("View Counter-Offer", `${APP_URL}/#/dashboard/offers`);
   } else {
     body += p("The seller has declined your offer. You can browse other listings or make a new offer.");
     body += button("Browse Books", `${APP_URL}/#/browse`);
   }
 
-  await sendEmail(to, `Your offer on "${bookTitle}" was ${status}`, wrap(body));
+  await sendEmail(to, `Your offer on "${esc(bookTitle)}" was ${status}`, wrap(body));
 }
 
 /** Notify seller that payment has been received for their book. */
@@ -279,12 +289,12 @@ export async function sendPaymentReceived(
 ): Promise<void> {
   const html = wrap(
     h1("Payment received! 💰") +
-      p(`<strong>${buyerName}</strong> has paid for your book.`) +
-      highlight(`📖 <strong>${bookTitle}</strong><br>Amount: <strong>$${amount.toFixed(2)}</strong>`) +
+      p(`<strong>${esc(buyerName)}</strong> has paid for your book.`) +
+      highlight(`📖 <strong>${esc(bookTitle)}</strong><br>Amount: <strong>$${amount.toFixed(2)}</strong>`) +
       p("Please ship the book as soon as possible and enter the tracking number in your transactions page.") +
-      button("Mark as Shipped", `${APP_URL}/#/transactions`),
+      button("Mark as Shipped", `${APP_URL}/#/dashboard`),
   );
-  await sendEmail(to, `Payment received for "${bookTitle}"`, html);
+  await sendEmail(to, `Payment received for "${esc(bookTitle)}"`, html);
 }
 
 /** Notify buyer that their book has been shipped. */
@@ -298,19 +308,19 @@ export async function sendBookShipped(
   let trackingInfo = "";
   if (carrier || trackingNumber) {
     trackingInfo = highlight(
-      `🚚 ${carrier ? `Carrier: <strong>${carrier}</strong><br>` : ""}${trackingNumber ? `Tracking: <strong>${trackingNumber}</strong>` : ""}`,
+      `🚚 ${carrier ? `Carrier: <strong>${esc(carrier)}</strong><br>` : ""}${trackingNumber ? `Tracking: <strong>${esc(trackingNumber)}</strong>` : ""}`,
     );
   }
 
   const html = wrap(
     h1("Your book is on its way! 📦") +
-      p(`<strong>${sellerName}</strong> has shipped your order.`) +
-      highlight(`📖 <strong>${bookTitle}</strong>`) +
+      p(`<strong>${esc(sellerName)}</strong> has shipped your order.`) +
+      highlight(`📖 <strong>${esc(bookTitle)}</strong>`) +
       trackingInfo +
       p("Once your book arrives, please confirm delivery so the seller receives their payment.") +
-      button("Confirm Delivery", `${APP_URL}/#/transactions`),
+      button("Confirm Delivery", `${APP_URL}/#/dashboard`),
   );
-  await sendEmail(to, `Your copy of "${bookTitle}" has been shipped!`, html);
+  await sendEmail(to, `Your copy of "${esc(bookTitle)}" has been shipped!`, html);
 }
 
 /** Notify seller that the buyer confirmed delivery and payout is on its way. */
@@ -322,12 +332,12 @@ export async function sendDeliveryConfirmed(
 ): Promise<void> {
   const html = wrap(
     h1("Delivery confirmed — payout on its way! 🎉") +
-      p(`<strong>${buyerName}</strong> confirmed receipt of your book.`) +
-      highlight(`📖 <strong>${bookTitle}</strong><br>Your payout: <strong>$${payout.toFixed(2)}</strong>`) +
+      p(`<strong>${esc(buyerName)}</strong> confirmed receipt of your book.`) +
+      highlight(`📖 <strong>${esc(bookTitle)}</strong><br>Your payout: <strong>$${payout.toFixed(2)}</strong>`) +
       p("Your earnings will be transferred to your connected Stripe account within 2–7 business days.") +
-      button("View Transaction", `${APP_URL}/#/transactions`),
+      button("View Transaction", `${APP_URL}/#/dashboard`),
   );
-  await sendEmail(to, `Sale complete for "${bookTitle}"`, html);
+  await sendEmail(to, `Sale complete for "${esc(bookTitle)}"`, html);
 }
 
 /** Notify user of a new direct message (fire-and-forget). */
@@ -338,11 +348,11 @@ export async function sendNewMessage(
 ): Promise<void> {
   const safePreview = preview.length > 120 ? `${preview.slice(0, 120)}…` : preview;
   const html = wrap(
-    h1(`New message from ${senderName}`) +
-      highlight(`"${safePreview}"`) +
-      button("Reply", `${APP_URL}/#/messages`),
+    h1(`New message from ${esc(senderName)}`) +
+      highlight(`"${esc(safePreview)}"`) +
+      button("Reply", `${APP_URL}/#/dashboard/messages`),
   );
-  await sendEmail(to, `New message from ${senderName}`, html);
+  await sendEmail(to, `New message from ${esc(senderName)}`, html);
 }
 
 /** Notify a book-request owner that a matching listing has appeared. */
@@ -354,11 +364,11 @@ export async function sendMatchedListing(
 ): Promise<void> {
   const html = wrap(
     h1("A book you requested is available! 🔔") +
-      p(`Hi ${requesterName}! Good news — a seller just listed a copy of a book that matches one of your requests.`) +
-      highlight(`📖 <strong>${bookTitle}</strong>`) +
-      button("View Listing", `${APP_URL}/#/books/${bookId}`),
+      p(`Hi ${esc(requesterName)}! Good news — a seller just listed a copy of a book that matches one of your requests.`) +
+      highlight(`📖 <strong>${esc(bookTitle)}</strong>`) +
+      button("View Listing", `${APP_URL}/#/book/${bookId}`),
   );
-  await sendEmail(to, `"${bookTitle}" is now available on Unshelv'd`, html);
+  await sendEmail(to, `"${esc(bookTitle)}" is now available on Unshelv'd`, html);
 }
 
 /** Auto-complete notification — sent to both parties when a transaction is automatically completed. */
@@ -374,9 +384,9 @@ export async function sendAutoCompleted(
 
   const html = wrap(
     h1("Transaction auto-completed") +
-      highlight(`📖 <strong>${bookTitle}</strong>`) +
+      highlight(`📖 <strong>${esc(bookTitle)}</strong>`) +
       p(msg) +
-      button("View Transactions", `${APP_URL}/#/transactions`),
+      button("View Transactions", `${APP_URL}/#/dashboard`),
   );
-  await sendEmail(to, `Transaction auto-completed for "${bookTitle}"`, html);
+  await sendEmail(to, `Transaction auto-completed for "${esc(bookTitle)}"`, html);
 }

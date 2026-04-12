@@ -16,7 +16,7 @@ import {
   transactions,
 } from "@shared/schema";
 import { db } from "./storage";
-import { eq, and, or, ilike, desc, asc, sql } from "drizzle-orm";
+import { eq, and, or, ilike, desc, asc, sql, isNull } from "drizzle-orm";
 import { resolveWork, getWorkEditions, updateWorkStats } from "./work-resolver";
 import {
   createPaymentIntent,
@@ -31,6 +31,9 @@ import {
   PLATFORM_FEE_PERCENT,
   createSellerAccount,
   checkSellerStatus,
+  getStripe,
+  isStripeEnabled,
+  calculateFees,
 } from "./payments";
 import {
   createPayPalOrder,
@@ -38,6 +41,7 @@ import {
   isPayPalEnabled,
 } from "./paypal";
 import { registerAdminRoutes } from "./admin";
+import { getSetting, isEnabled } from "./platform-settings";
 import { validatePassword } from "@shared/password-policy";
 import { sanitizeLikeInput, parseIntParam } from "./security";
 import {
@@ -91,6 +95,9 @@ declare global {
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "Not authenticated" });
+  }
+  if ((req.user as any)?.role === "suspended") {
+    return res.status(403).json({ message: "Account suspended" });
   }
   next();
 }
@@ -194,6 +201,10 @@ export async function registerRoutes(
   // === AUTH ROUTES ===
   app.post("/api/auth/register", async (req, res) => {
     try {
+      if (!(await isEnabled("registrations_enabled", true))) {
+        return res.status(403).json({ message: "Registrations are currently disabled" });
+      }
+
       const data = insertUserSchema.parse(req.body);
 
       // Full password policy validation with name context
@@ -287,7 +298,12 @@ export async function registerRoutes(
         search: req.query.search as string | undefined,
         genre: req.query.genre as string | undefined,
         condition: req.query.condition as string | undefined,
-        status: req.query.status as string | undefined,
+        // Only allow publicly-browsable statuses on this unauthenticated endpoint.
+        // Private shelves (wishlist, reading, not-for-sale, etc.) must not be
+        // returned to anonymous callers.
+        status: ["for-sale", "open-to-offers"].includes(req.query.status as string)
+          ? (req.query.status as string)
+          : undefined,
         minPrice:
           Number.isFinite(rawMinPrice) && rawMinPrice >= 0
             ? rawMinPrice
@@ -429,6 +445,30 @@ export async function registerRoutes(
       if (!id) return res.status(400).json({ message: "Invalid book ID" });
       // Validate update data with partial book schema
       const data = insertBookSchema.partial().parse(req.body);
+
+      // Prevent the seller from re-listing a book that has an active (in-flight) payment.
+      if (data.status && ["for-sale", "open-to-offers"].includes(data.status)) {
+        const [activeTx] = await db
+          .select({ id: transactions.id })
+          .from(transactions)
+          .where(
+            and(
+              eq(transactions.bookId, id),
+              or(
+                eq(transactions.status, "pending"),
+                eq(transactions.status, "paid"),
+                eq(transactions.status, "shipped"),
+              ),
+            ),
+          )
+          .limit(1);
+        if (activeTx) {
+          return res.status(409).json({
+            message: "Cannot re-list a book that has an active transaction",
+          });
+        }
+      }
+
       const book = await storage.updateBook(id, req.user!.id, data);
       if (!book)
         return res.status(404).json({ message: "Book not found or not yours" });
@@ -943,9 +983,23 @@ export async function registerRoutes(
   // Start or resume Stripe Connect onboarding
   app.post("/api/seller/connect", requireAuth, async (req, res) => {
     try {
-      const returnUrl =
-        req.body.returnUrl ||
-        `${req.protocol}://${req.get("host")}/#/dashboard`;
+      const serverOrigin = `${req.protocol}://${req.get("host")}`;
+      const defaultUrl = `${serverOrigin}/#/dashboard`;
+
+      let returnUrl = defaultUrl;
+      if (req.body.returnUrl) {
+        // Only allow same-origin return URLs (prevent open redirect)
+        try {
+          const parsed = new URL(req.body.returnUrl, serverOrigin);
+          const allowed = new URL(serverOrigin);
+          if (parsed.origin === allowed.origin) {
+            returnUrl = parsed.href;
+          }
+        } catch {
+          // malformed URL — use default
+        }
+      }
+
       const result = await createSellerAccount(req.user!.id, returnUrl);
       return res.json(result);
     } catch (err: any) {
@@ -980,12 +1034,29 @@ export async function registerRoutes(
 
   // === PAYMENTS ===
 
+  // Public runtime config for the frontend.
+  // Only returns non-secret public values (Stripe PK, PayPal client ID, enabled flags).
+  // DB settings take priority over build-time env vars.
+  app.get("/api/config/public", async (_req, res) => {
+    const stripePk =
+      (await getSetting("stripe_publishable_key")) ||
+      process.env.STRIPE_PUBLISHABLE_KEY ||
+      process.env.VITE_STRIPE_PUBLISHABLE_KEY ||
+      null;
+    const paypalClientId =
+      (await getSetting("paypal_client_id")) || process.env.PAYPAL_CLIENT_ID || null;
+    const paypalEnabled = await isEnabled("paypal_enabled", false);
+    const stripeEnabled = await isStripeEnabled();
+    return res.json({ stripePk, paypalClientId, paypalEnabled, stripeEnabled });
+  });
+
   // Get fee info
-  app.get("/api/payments/fee-info", (_req, res) => {
+  app.get("/api/payments/fee-info", async (_req, res) => {
+    const feePercent =
+      parseFloat((await getSetting("platform_fee_percent")) || "") || PLATFORM_FEE_PERCENT * 100;
     return res.json({
-      platformFeePercent: PLATFORM_FEE_PERCENT * 100,
-      description: `Unshelv'd charges a ${PLATFORM_FEE_PERCENT * 100}% platform fee on each sale.`,
-      stripeConfigured: !!process.env.STRIPE_SECRET_KEY,
+      platformFeePercent: feePercent,
+      description: `Unshelv'd charges a ${feePercent}% platform fee on each sale.`,
     });
   });
 
@@ -1131,7 +1202,9 @@ export async function registerRoutes(
 
   // Stripe webhook (handles payment confirmations)
   app.post("/api/webhooks/stripe", async (req, res) => {
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    // DB setting takes priority over env var so admin can rotate the secret without a redeploy
+    const webhookSecret =
+      (await getSetting("stripe_webhook_secret")) || process.env.STRIPE_WEBHOOK_SECRET || null;
     let event: Record<string, any>;
 
     if (webhookSecret) {
@@ -1142,9 +1215,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Missing stripe-signature header or raw body" });
       }
       try {
-        const { stripe } = await import("./payments");
-        if (!stripe) return res.status(500).json({ message: "Stripe not configured" });
-        event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+        const s = await getStripe();
+        if (!s) return res.status(500).json({ message: "Stripe not configured" });
+        event = s.webhooks.constructEvent(rawBody, sig, webhookSecret);
       } catch (err) {
         console.error("[webhook] Signature verification failed:", err);
         return res.status(400).json({ message: "Webhook signature invalid" });
@@ -1201,8 +1274,8 @@ export async function registerRoutes(
 
   // ── PayPal checkout routes ──────────────────────────────────────────────
 
-  /** Check whether PayPal is enabled for this deployment. */
-  app.get("/api/payments/paypal/status", async (_req, res) => {
+  /** Check whether PayPal is enabled for this deployment. Requires auth to avoid leaking config. */
+  app.get("/api/payments/paypal/status", requireAuth, async (_req, res) => {
     const enabled = await isPayPalEnabled();
     return res.json({ enabled });
   });
@@ -1218,24 +1291,71 @@ export async function registerRoutes(
       const { bookId, offerId } = req.body as { bookId?: number; offerId?: number };
       if (!bookId) return res.status(400).json({ message: "bookId is required" });
 
-      const [book] = await db.select().from(books).where(eq(books.id, bookId));
-      if (!book) return res.status(404).json({ message: "Book not found" });
-      if (!book.price) return res.status(400).json({ message: "Book has no price" });
-      if (book.userId === req.user!.id) {
+      // Validate buyer is not the seller before touching any state.
+      const [bookCheck] = await db.select().from(books).where(eq(books.id, bookId));
+      if (!bookCheck) return res.status(404).json({ message: "Book not found" });
+      if (!bookCheck.price) return res.status(400).json({ message: "Book has no price" });
+      if (bookCheck.userId === req.user!.id) {
         return res.status(400).json({ message: "You cannot buy your own book" });
       }
+      if (bookCheck.status !== "for-sale" && bookCheck.status !== "open-to-offers") {
+        return res.status(400).json({ message: "Book is not available for purchase" });
+      }
 
-      const origin = req.headers.origin || `https://${req.headers.host}`;
-      const { orderId, approveUrl } = await createPayPalOrder({
-        bookId,
+      // Atomically lock the book so a concurrent buyer can't purchase the same copy.
+      const [book] = await db
+        .update(books)
+        .set({ status: "not-for-sale" })
+        .where(and(
+          eq(books.id, bookId),
+          or(eq(books.status, "for-sale"), eq(books.status, "open-to-offers")),
+        ))
+        .returning();
+      if (!book) {
+        return res.status(409).json({ message: "Book is no longer available for purchase" });
+      }
+
+      const { platformFee, sellerPayout } = await calculateFees(book.price!);
+
+      // Create the pending transaction record before creating the PayPal order so
+      // we always have an audit trail, even if the buyer abandons the PayPal flow.
+      const [transaction] = await db.insert(transactions).values({
         buyerId: req.user!.id,
         sellerId: book.userId,
-        amount: book.price,
-        returnUrl: `${origin}/#/paypal/return?bookId=${bookId}${offerId ? `&offerId=${offerId}` : ""}`,
-        cancelUrl: `${origin}/#/paypal/cancel`,
-      });
+        bookId,
+        offerId: offerId || null,
+        amount: book.price!,
+        platformFee,
+        sellerPayout,
+        status: "pending",
+      }).returning();
 
-      return res.json({ orderId, approveUrl });
+      const origin = req.headers.origin || `https://${req.headers.host}`;
+      let orderId: string;
+      let approveUrl: string;
+      try {
+        ({ orderId, approveUrl } = await createPayPalOrder({
+          bookId,
+          buyerId: req.user!.id,
+          sellerId: book.userId,
+          amount: book.price!,
+          returnUrl: `${origin}/#/paypal/return?bookId=${bookId}${offerId ? `&offerId=${offerId}` : ""}`,
+          cancelUrl: `${origin}/#/paypal/cancel`,
+        }));
+      } catch (paypalErr) {
+        // PayPal API failed — roll back the book lock and transaction so the
+        // book doesn't get stuck as "not-for-sale" permanently.
+        await db.update(books).set({ status: bookCheck.status }).where(eq(books.id, bookId));
+        await db.delete(transactions).where(eq(transactions.id, transaction.id));
+        throw paypalErr;
+      }
+
+      // Store the PayPal order ID on the transaction for ownership checks at capture time.
+      await db.update(transactions)
+        .set({ paypalOrderId: orderId })
+        .where(eq(transactions.id, transaction.id));
+
+      return res.json({ orderId, approveUrl, transactionId: transaction.id });
     } catch (err: any) {
       console.error("[PayPal create-order]", err);
       return res.status(500).json({ message: err.message || "Failed to create PayPal order" });
@@ -1253,8 +1373,39 @@ export async function registerRoutes(
       const { orderId } = req.body as { orderId?: string };
       if (!orderId) return res.status(400).json({ message: "orderId is required" });
 
-      const result = await capturePayPalOrder(orderId);
-      return res.json(result);
+      // Verify the authenticated user is the buyer for this order.
+      const [tx] = await db
+        .select()
+        .from(transactions)
+        .where(eq(transactions.paypalOrderId, orderId))
+        .limit(1);
+      if (!tx) return res.status(404).json({ message: "Transaction not found for this order" });
+      if (tx.buyerId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorised to capture this order" });
+      }
+      if (tx.status !== "pending") {
+        return res.status(409).json({ message: "Order has already been captured or cancelled" });
+      }
+
+      const { captureId, status: captureStatus } = await capturePayPalOrder(orderId);
+
+      if (captureStatus === "COMPLETED") {
+        await db.update(transactions)
+          .set({ status: "paid", paypalCaptureId: captureId, updatedAt: new Date() })
+          .where(eq(transactions.id, tx.id));
+
+        // Notify the seller
+        const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
+        const [bookRow] = await db.select().from(books).where(eq(books.id, tx.bookId));
+        const buyerName = req.user!.displayName || req.user!.username;
+        if (seller && bookRow) {
+          sendPaymentReceived(seller.email, buyerName, bookRow.title, tx.amount).catch(
+            (err) => console.error("[email] payment-received notification failed:", err),
+          );
+        }
+      }
+
+      return res.json({ captureId, status: captureStatus, transactionId: tx.id });
     } catch (err: any) {
       console.error("[PayPal capture-order]", err);
       return res.status(500).json({ message: err.message || "Failed to capture PayPal order" });
@@ -1315,7 +1466,15 @@ export async function registerRoutes(
       if (!id) return res.status(400).json({ message: "Invalid user ID" });
       const user = await storage.getUser(id);
       if (!user) return res.status(404).json({ message: "User not found" });
-      const { password, ...safeUser } = user;
+      // Strip all internal/sensitive fields before returning to any caller.
+      const {
+        password,
+        passwordResetToken,
+        passwordResetExpiry,
+        stripeAccountId,
+        stripeOnboarded,
+        ...safeUser
+      } = user;
       return res.json(safeUser);
     } catch (err) {
       return res.status(500).json({ message: "Failed to fetch user" });
@@ -1330,26 +1489,30 @@ export async function registerRoutes(
 
       const { rating } = z.object({ rating: z.number().int().min(1).max(5) }).parse(req.body);
 
+      // Fetch and validate the transaction
       const [tx] = await db.select().from(transactions).where(eq(transactions.id, txId));
       if (!tx) return res.status(404).json({ message: "Transaction not found" });
       if (tx.buyerId !== req.user!.id) return res.status(403).json({ message: "Only the buyer can rate this transaction" });
       if (tx.status !== "completed") return res.status(400).json({ message: "Can only rate completed transactions" });
-      if (tx.buyerRating !== null && tx.buyerRating !== undefined) {
+
+      // Atomic guard: only succeeds when no rating exists yet — eliminates the double-submit TOCTOU race
+      const [updated] = await db
+        .update(transactions)
+        .set({ buyerRating: rating })
+        .where(and(eq(transactions.id, txId), isNull(transactions.buyerRating)))
+        .returning();
+      if (!updated) {
         return res.status(400).json({ message: "You have already rated this transaction" });
       }
 
-      // Save rating on transaction
-      await db.update(transactions).set({ buyerRating: rating }).where(eq(transactions.id, txId));
-
-      // Recalculate seller's average rating
-      const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));
-      if (seller) {
-        const oldCount = seller.ratingCount ?? 0;
-        const oldRating = seller.rating ?? 0;
-        const newCount = oldCount + 1;
-        const newRating = Math.round(((oldRating * oldCount + rating) / newCount) * 10) / 10;
-        await db.update(users).set({ rating: newRating, ratingCount: newCount }).where(eq(users.id, tx.sellerId));
-      }
+      // Atomically recalculate the seller's rating using SQL arithmetic — no read-then-write race
+      await db
+        .update(users)
+        .set({
+          ratingCount: sql`COALESCE(${users.ratingCount}, 0) + 1`,
+          rating: sql`ROUND(((COALESCE(${users.rating}, 0) * COALESCE(${users.ratingCount}, 0) + ${rating}) / (COALESCE(${users.ratingCount}, 0) + 1))::numeric, 1)`,
+        })
+        .where(eq(users.id, tx.sellerId));
 
       return res.json({ message: "Rating submitted", rating });
     } catch (err) {
@@ -1385,10 +1548,6 @@ export async function registerRoutes(
       sendPasswordReset(email, resetUrl).catch((err) =>
         console.error("[email] password-reset failed:", err),
       );
-      // In development also log the URL for easy testing without email configured
-      if (process.env.NODE_ENV !== "production") {
-        console.log(`[password-reset] Reset URL for ${email}: ${resetUrl}`);
-      }
 
       // Return the token in development; strip it in production
       const payload: Record<string, string> = { message: "If that email is registered, a reset link has been sent." };
@@ -1562,13 +1721,15 @@ export async function registerRoutes(
           .status(404)
           .json({ message: "Offer not found or not yours" });
 
-      // Notify the buyer of the status change (fire-and-forget)
-      storage.getUser(offer.buyerId).then((buyer) => {
-        if (!buyer) return;
+      // Notify the other party about the status change (fire-and-forget).
+      // If the seller responded → notify the buyer; if the buyer responded → notify the seller.
+      const notifyUserId = offer.sellerId === req.user!.id ? offer.buyerId : offer.sellerId;
+      storage.getUser(notifyUserId).then((recipient) => {
+        if (!recipient) return;
         storage.getBook(offer.bookId).then((book) => {
           if (!book) return;
           const status = data.status as "accepted" | "declined" | "countered";
-          sendOfferUpdated(buyer.email, status, book.title, data.counterAmount ?? null).catch(
+          sendOfferUpdated(recipient.email, status, book.title, data.counterAmount ?? null).catch(
             (err) => console.error("[email] offer-updated notification failed:", err),
           );
         }).catch(() => {});
