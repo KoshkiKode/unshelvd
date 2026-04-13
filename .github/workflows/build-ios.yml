@@ -53,7 +53,7 @@ jobs:
             -workspace App.xcworkspace \
             -scheme App \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -destination 'platform=iOS Simulator,name=Any iOS Simulator Device' \
             -derivedDataPath build \
             build \
             CODE_SIGN_IDENTITY="" \
