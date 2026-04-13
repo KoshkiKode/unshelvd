@@ -70,7 +70,7 @@ npm install
 docker-compose up -d db
 cp .env.example .env   # edit DATABASE_URL, SESSION_SECRET, Stripe keys
 npm run db:push
-npm run db:seed         # rotates/admin credentials and prints the current login
+npm run db:seed         # rotates admin credentials and prints the current login
 npm run dev             # http://localhost:5000
 ```
 

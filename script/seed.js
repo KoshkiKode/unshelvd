@@ -13,8 +13,11 @@ const generateAdminUsername = () => `admin_${crypto.randomBytes(4).toString('hex
 const generateAdminPassword = () => `${crypto.randomBytes(12).toString('base64url').slice(0, 16)}!A1`;
 
 function printAdminCredentials(username, email, password, action) {
+  const actionLine = `  ACTION: ${action.toUpperCase()}`;
   console.log('╔══════════════════════════════════════════════════════╗');
-  console.log(`║  ADMIN CREDENTIALS (${action.toUpperCase()}) — SAVE THESE NOW!   ║`);
+  console.log('║  ADMIN CREDENTIALS                               ║');
+  console.log(`║${actionLine.padEnd(52)}║`);
+  console.log('║  SAVE THESE NOW!                                  ║');
   console.log('╠══════════════════════════════════════════════════════╣');
   console.log(`║  Username: ${username.padEnd(40)}║`);
   console.log(`║  Email:    ${email.padEnd(40)}║`);
@@ -395,14 +398,14 @@ async function seed() {
     const existingAdminId = adminRes.rows[0]?.id ?? null;
     const adminAction = existingAdminId ? 'rotated' : 'created';
 
-    let resolvedUsername = process.env.ADMIN_USERNAME || '';
-    let resolvedEmail = process.env.ADMIN_EMAIL || '';
-    let resolvedPassword = process.env.ADMIN_PASSWORD || '';
+    const configuredUsername = process.env.ADMIN_USERNAME || '';
+    const configuredEmail = process.env.ADMIN_EMAIL || '';
+    const configuredPassword = process.env.ADMIN_PASSWORD || '';
 
     for (let attempt = 0; attempt < 10; attempt++) {
-      const username = resolvedUsername || generateAdminUsername();
-      const email = resolvedEmail || `${username}@${ADMIN_EMAIL_DOMAIN}`;
-      const password = resolvedPassword || generateAdminPassword();
+      const username = configuredUsername || generateAdminUsername();
+      const email = configuredEmail || `${username}@${ADMIN_EMAIL_DOMAIN}`;
+      const password = configuredPassword || generateAdminPassword();
       const adminHash = await bcrypt.hash(password, 12);
 
       try {
@@ -413,26 +416,22 @@ async function seed() {
                  display_name = $2,
                  email = $3,
                  password = $4,
-                 role = 'admin',
-                 email_verified = true
+                 role = 'admin'
              WHERE id = $5`,
             [username, ADMIN_DISPLAY_NAME, email, adminHash, existingAdminId]
           );
         } else {
           await client.query(
-            `INSERT INTO users (username, display_name, email, password, role, location, email_verified)
-             VALUES ($1, $2, $3, $4, 'admin', $5, true)`,
+            `INSERT INTO users (username, display_name, email, password, role, location)
+             VALUES ($1, $2, $3, $4, 'admin', $5)`,
             [username, ADMIN_DISPLAY_NAME, email, adminHash, 'Battle Creek, MI']
           );
         }
 
         printAdminCredentials(username, email, password, adminAction);
-        resolvedUsername = username;
-        resolvedEmail = email;
-        resolvedPassword = password;
         break;
       } catch (err) {
-        const isUniqueViolation = err?.code === '23505' || String(err?.message || '').toLowerCase().includes('duplicate');
+        const isUniqueViolation = err?.code === '23505';
         const usingExplicitEnv = Boolean(process.env.ADMIN_USERNAME) || Boolean(process.env.ADMIN_EMAIL) || Boolean(process.env.ADMIN_PASSWORD);
         if (!isUniqueViolation || usingExplicitEnv || attempt === 9) throw err;
       }

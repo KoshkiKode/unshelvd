@@ -26,8 +26,11 @@ function printAdminCredentials(
   password: string,
   action: "created" | "rotated",
 ) {
+  const actionLine = `  ACTION: ${action.toUpperCase()}`;
   console.log("╔══════════════════════════════════════════════════════╗");
-  console.log(`║  ADMIN CREDENTIALS (${action.toUpperCase()}) — SAVE THESE NOW!   ║`);
+  console.log("║  ADMIN CREDENTIALS                               ║");
+  console.log(`║${actionLine.padEnd(52)}║`);
+  console.log("║  SAVE THESE NOW!                                  ║");
   console.log("╠══════════════════════════════════════════════════════╣");
   console.log(`║  Username: ${username.padEnd(40)}║`);
   console.log(`║  Email:    ${email.padEnd(40)}║`);
@@ -398,14 +401,14 @@ async function seed() {
   const existingAdminId = adminRows[0]?.id;
   const adminAction: "created" | "rotated" = existingAdminId ? "rotated" : "created";
 
-  let resolvedUsername = process.env.ADMIN_USERNAME || "";
-  let resolvedEmail = process.env.ADMIN_EMAIL || "";
-  let resolvedPassword = process.env.ADMIN_PASSWORD || "";
+  const configuredUsername = process.env.ADMIN_USERNAME || "";
+  const configuredEmail = process.env.ADMIN_EMAIL || "";
+  const configuredPassword = process.env.ADMIN_PASSWORD || "";
 
   for (let attempt = 0; attempt < 10; attempt++) {
-    const username = resolvedUsername || generateAdminUsername();
-    const email = resolvedEmail || `${username}@${ADMIN_EMAIL_DOMAIN}`;
-    const password = resolvedPassword || generateAdminPassword();
+    const username = configuredUsername || generateAdminUsername();
+    const email = configuredEmail || `${username}@${ADMIN_EMAIL_DOMAIN}`;
+    const password = configuredPassword || generateAdminPassword();
     const adminHash = await bcrypt.hash(password, 12);
 
     try {
@@ -418,7 +421,6 @@ async function seed() {
             email,
             password: adminHash,
             role: "admin",
-            emailVerified: true,
           })
           .where(eq(users.id, existingAdminId));
       } else {
@@ -430,19 +432,13 @@ async function seed() {
           bio: "Platform administrator.",
           location: "Battle Creek, MI",
           role: "admin",
-          emailVerified: true,
         });
       }
 
       printAdminCredentials(username, email, password, adminAction);
-      resolvedUsername = username;
-      resolvedEmail = email;
-      resolvedPassword = password;
       break;
     } catch (err: any) {
-      const isUniqueViolation =
-        err?.code === "23505" ||
-        String(err?.message || "").toLowerCase().includes("duplicate");
+      const isUniqueViolation = err?.code === "23505";
       const usingExplicitEnv =
         Boolean(process.env.ADMIN_USERNAME) ||
         Boolean(process.env.ADMIN_EMAIL) ||
