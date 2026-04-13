@@ -293,7 +293,7 @@ export async function registerRoutes(
       if (err instanceof ZodError) {
         return res
           .status(400)
-          .json({ message: err.errors[0]?.message || "Validation error" });
+          .json({ message: err.issues[0]?.message || "Validation error" });
       }
       return res.status(500).json({ message: "Registration failed" });
     }
@@ -544,7 +544,7 @@ export async function registerRoutes(
       if (err instanceof ZodError) {
         return res
           .status(400)
-          .json({ message: err.errors[0]?.message || "Validation error" });
+          .json({ message: err.issues[0]?.message || "Validation error" });
       }
       return res.status(500).json({ message: "Failed to create book" });
     }
@@ -586,7 +586,7 @@ export async function registerRoutes(
       return res.json(book);
     } catch (err) {
       if (err instanceof ZodError)
-        return res.status(400).json({ message: err.errors[0]?.message });
+        return res.status(400).json({ message: err.issues[0]?.message });
       return res.status(500).json({ message: "Failed to update book" });
     }
   });
@@ -709,7 +709,7 @@ export async function registerRoutes(
       if (err instanceof ZodError) {
         return res
           .status(400)
-          .json({ message: err.errors[0]?.message || "Validation error" });
+          .json({ message: err.issues[0]?.message || "Validation error" });
       }
       return res.status(500).json({ message: "Failed to create request" });
     }
@@ -728,7 +728,7 @@ export async function registerRoutes(
       return res.json(updated);
     } catch (err) {
       if (err instanceof ZodError)
-        return res.status(400).json({ message: err.errors[0]?.message });
+        return res.status(400).json({ message: err.issues[0]?.message });
       return res.status(500).json({ message: "Failed to update request" });
     }
   });
@@ -1626,7 +1626,7 @@ export async function registerRoutes(
       return res.json(safeUser);
     } catch (err) {
       if (err instanceof ZodError)
-        return res.status(400).json({ message: err.errors[0]?.message });
+        return res.status(400).json({ message: err.issues[0]?.message });
       return res.status(500).json({ message: "Failed to update profile" });
     }
   });
@@ -1653,7 +1653,7 @@ export async function registerRoutes(
       return res.json({ message: "Password updated" });
     } catch (err) {
       if (err instanceof ZodError)
-        return res.status(400).json({ message: err.errors[0]?.message });
+        return res.status(400).json({ message: err.issues[0]?.message });
       return res.status(500).json({ message: "Failed to change password" });
     }
   });
@@ -1714,7 +1714,7 @@ export async function registerRoutes(
 
       return res.json({ message: "Rating submitted", rating });
     } catch (err) {
-      if (err instanceof ZodError) return res.status(400).json({ message: err.errors[0]?.message });
+      if (err instanceof ZodError) return res.status(400).json({ message: err.issues[0]?.message });
       return res.status(500).json({ message: "Failed to submit rating" });
     }
   });
@@ -1754,7 +1754,7 @@ export async function registerRoutes(
       }
       return res.json(payload);
     } catch (err) {
-      if (err instanceof ZodError) return res.status(400).json({ message: err.errors[0]?.message });
+      if (err instanceof ZodError) return res.status(400).json({ message: err.issues[0]?.message });
       return res.status(500).json({ message: "Failed to process request" });
     }
   });
@@ -1790,7 +1790,7 @@ export async function registerRoutes(
 
       return res.json({ message: "Password has been reset. You can now log in." });
     } catch (err) {
-      if (err instanceof ZodError) return res.status(400).json({ message: err.errors[0]?.message });
+      if (err instanceof ZodError) return res.status(400).json({ message: err.issues[0]?.message });
       return res.status(500).json({ message: "Failed to reset password" });
     }
   });
@@ -1848,7 +1848,7 @@ export async function registerRoutes(
       if (err instanceof ZodError) {
         return res
           .status(400)
-          .json({ message: err.errors[0]?.message || "Validation error" });
+          .json({ message: err.issues[0]?.message || "Validation error" });
       }
       return res.status(500).json({ message: "Failed to send message" });
     }
@@ -1896,7 +1896,7 @@ export async function registerRoutes(
       if (err instanceof ZodError) {
         return res
           .status(400)
-          .json({ message: err.errors[0]?.message || "Validation error" });
+          .json({ message: err.issues[0]?.message || "Validation error" });
       }
       return res.status(500).json({ message: "Failed to create offer" });
     }
@@ -1937,7 +1937,7 @@ export async function registerRoutes(
       if (err instanceof ZodError) {
         return res
           .status(400)
-          .json({ message: err.errors[0]?.message || "Validation error" });
+          .json({ message: err.issues[0]?.message || "Validation error" });
       }
       return res.status(500).json({ message: "Failed to update offer" });
     }
@@ -2095,7 +2095,7 @@ export async function registerRoutes(
 
       return res.json({ message: "Account deleted. We're sorry to see you go." });
     } catch (err) {
-      if (err instanceof ZodError) return res.status(400).json({ message: err.errors[0]?.message });
+      if (err instanceof ZodError) return res.status(400).json({ message: err.issues[0]?.message });
       return res.status(500).json({ message: "Failed to delete account" });
     }
   });
@@ -2134,7 +2134,7 @@ export async function registerRoutes(
 
       return res.json({ message: "Rating submitted", rating });
     } catch (err) {
-      if (err instanceof ZodError) return res.status(400).json({ message: err.errors[0]?.message });
+      if (err instanceof ZodError) return res.status(400).json({ message: err.issues[0]?.message });
       return res.status(500).json({ message: "Failed to submit rating" });
     }
   });
@@ -2165,7 +2165,7 @@ export async function registerRoutes(
 
       return res.json({ url: dataUrl });
     } catch (err) {
-      if (err instanceof ZodError) return res.status(400).json({ message: err.errors[0]?.message });
+      if (err instanceof ZodError) return res.status(400).json({ message: err.issues[0]?.message });
       return res.status(500).json({ message: "Upload failed" });
     }
   });
