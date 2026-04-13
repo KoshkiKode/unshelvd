@@ -40,7 +40,7 @@ Jump to the [Cost Comparison](#cost-comparison) section at the end.
 ### ⚠️ Pre-launch checklist
 
 - [ ] **Stripe live keys** — switch `sk_test_` → `sk_live_`, update webhook endpoint to production URL
-- [ ] **Admin password** — set `ADMIN_EMAIL`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` in secrets before first seed (otherwise auto-generated; retrieve from logs)
+- [ ] **Admin password** — retrieve the current auto-rotated admin credentials from the latest seed job logs
 - [ ] **CORS origins** — confirm `allowedOrigins` in `server/index.ts` includes your production domain
 - [ ] **Session secret** — `openssl rand -hex 32` — never reuse a dev value
 - [ ] **Email** — verify SES domain + request production access (lifts sandbox limits)
@@ -70,7 +70,7 @@ npm install
 docker-compose up -d db
 cp .env.example .env   # edit DATABASE_URL, SESSION_SECRET, Stripe keys
 npm run db:push
-npm run db:seed         # saves admin credentials — copy them immediately!
+npm run db:seed         # rotates/admin credentials and prints the current login
 npm run dev             # http://localhost:5000
 ```
 
@@ -85,9 +85,9 @@ npm run dev             # http://localhost:5000
 | `VITE_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key (baked at build) | dashboard.stripe.com → API Keys |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Email delivery | AWS SES SMTP or any SMTP |
 | `EMAIL_FROM` | Sender address | e.g. `Unshelv'd <noreply@koshkikode.com>` |
-| `ADMIN_EMAIL` | Admin account email (optional) | Your choice |
-| `ADMIN_USERNAME` | Admin username (optional) | Your choice |
-| `ADMIN_PASSWORD` | Admin password (optional) | Strong, e.g. `openssl rand -base64 18` |
+| `ADMIN_EMAIL` | Admin account email override (optional) | Your choice |
+| `ADMIN_USERNAME` | Admin username override (optional) | Your choice |
+| `ADMIN_PASSWORD` | Admin password override (optional) | Strong, e.g. `openssl rand -base64 18` |
 
 Optional:
 

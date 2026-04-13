@@ -6,6 +6,22 @@ const { Client } = pg;
 // Open Library cover URLs by ISBN
 const cover = (isbn) => `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
 const coverById = (id) => `https://covers.openlibrary.org/b/id/${id}-L.jpg`;
+const ADMIN_DISPLAY_NAME = "Unshelv'd Admin";
+const ADMIN_EMAIL_DOMAIN = "koshkikode.com";
+
+const generateAdminUsername = () => `admin_${crypto.randomBytes(4).toString('hex')}`;
+const generateAdminPassword = () => `${crypto.randomBytes(12).toString('base64url').slice(0, 16)}!A1`;
+
+function printAdminCredentials(username, email, password, action) {
+  console.log('╔══════════════════════════════════════════════════════╗');
+  console.log(`║  ADMIN CREDENTIALS (${action.toUpperCase()}) — SAVE THESE NOW!   ║`);
+  console.log('╠══════════════════════════════════════════════════════╣');
+  console.log(`║  Username: ${username.padEnd(40)}║`);
+  console.log(`║  Email:    ${email.padEnd(40)}║`);
+  console.log(`║  Password: ${password.padEnd(40)}║`);
+  console.log(`║  SHA-256:  ${crypto.createHash('sha256').update(password).digest('hex').slice(0, 38)}..║`);
+  console.log('╚══════════════════════════════════════════════════════╝');
+}
 
 async function seed() {
   if (!process.env.DATABASE_URL) {
@@ -38,8 +54,7 @@ async function seed() {
     const hasWorks = parseInt(worksRes.rows[0].count) > 0;
 
     if (hasUsers && hasCatalog && hasWorks) {
-      console.log('Database already fully seeded, skipping.');
-      return;
+      console.log('Catalog/work data already seeded. Rotating admin credentials only.');
     }
 
     // ── STEP 1: Seed works and catalog ───────────────────
@@ -369,27 +384,66 @@ async function seed() {
       console.log(`✅ Seeded ${worksData.length} works and ${catalogEntries.length} catalog entries.`);
     }
 
-    // ── STEP 2: Seed users and books if needed ────────────
+    // ── STEP 2: Ensure/rotate admin credentials on every seed run ──
+    const adminRes = await client.query(
+      `SELECT id
+       FROM users
+       WHERE role = 'admin'
+       ORDER BY id ASC
+       LIMIT 1`
+    );
+    const existingAdminId = adminRes.rows[0]?.id ?? null;
+    const adminAction = existingAdminId ? 'rotated' : 'created';
+
+    let resolvedUsername = process.env.ADMIN_USERNAME || '';
+    let resolvedEmail = process.env.ADMIN_EMAIL || '';
+    let resolvedPassword = process.env.ADMIN_PASSWORD || '';
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const username = resolvedUsername || generateAdminUsername();
+      const email = resolvedEmail || `${username}@${ADMIN_EMAIL_DOMAIN}`;
+      const password = resolvedPassword || generateAdminPassword();
+      const adminHash = await bcrypt.hash(password, 12);
+
+      try {
+        if (existingAdminId) {
+          await client.query(
+            `UPDATE users
+             SET username = $1,
+                 display_name = $2,
+                 email = $3,
+                 password = $4,
+                 role = 'admin',
+                 email_verified = true
+             WHERE id = $5`,
+            [username, ADMIN_DISPLAY_NAME, email, adminHash, existingAdminId]
+          );
+        } else {
+          await client.query(
+            `INSERT INTO users (username, display_name, email, password, role, location, email_verified)
+             VALUES ($1, $2, $3, $4, 'admin', $5, true)`,
+            [username, ADMIN_DISPLAY_NAME, email, adminHash, 'Battle Creek, MI']
+          );
+        }
+
+        printAdminCredentials(username, email, password, adminAction);
+        resolvedUsername = username;
+        resolvedEmail = email;
+        resolvedPassword = password;
+        break;
+      } catch (err) {
+        const isUniqueViolation = err?.code === '23505' || String(err?.message || '').toLowerCase().includes('duplicate');
+        const usingExplicitEnv = Boolean(process.env.ADMIN_USERNAME) || Boolean(process.env.ADMIN_EMAIL) || Boolean(process.env.ADMIN_PASSWORD);
+        if (!isUniqueViolation || usingExplicitEnv || attempt === 9) throw err;
+      }
+    }
+
+    // ── STEP 3: Seed users and books only for a fresh install ─────
     if (!hasUsers) {
       console.log('Seeding users and books...');
 
       const demoPassword = process.env.DEMO_PASSWORD || crypto.randomBytes(10).toString('base64url').slice(0, 14) + '!D1';
       const demoHash = await bcrypt.hash(demoPassword, 12);
-      const adminPass = process.env.ADMIN_PASSWORD || crypto.randomBytes(12).toString('base64url').slice(0, 16) + '!A1';
-      const adminHash = await bcrypt.hash(adminPass, 12);
-      const adminUsername = process.env.ADMIN_USERNAME || crypto.randomBytes(4).toString('hex');
-      const adminEmail = process.env.ADMIN_EMAIL || `${adminUsername}@unshelvd.com`;
-
-      console.log(`Admin username: ${adminUsername}  email: ${adminEmail}  password: ${adminPass}`);
-      if (process.env.NODE_ENV === 'production') {
-        console.log('⚠️  Admin credentials logged above. Store them immediately — they will not be shown again.');
-        console.log('   To avoid this log in production, set ADMIN_EMAIL, ADMIN_USERNAME, and ADMIN_PASSWORD in Secret Manager.');
-      }
-
-      await client.query(
-        'INSERT INTO users (username, display_name, email, password, role, location) VALUES ($1, $2, $3, $4, $5, $6)',
-        [adminUsername, "Unshelv'd Admin", adminEmail, adminHash, 'admin', 'Battle Creek, MI']
-      );
 
       const janeRes = await client.query(
         'INSERT INTO users (username, display_name, email, password, bio, location) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
