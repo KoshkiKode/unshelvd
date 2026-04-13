@@ -234,6 +234,15 @@ export function applySecurityMiddleware(app: Express, pgPool?: Pool) {
     message: { message: "Rate limit exceeded. Please slow down." },
     standardHeaders: true,
     legacyHeaders: false,
+    // Avoid overlapping counters/headers on routes with dedicated limiters.
+    skip: (req) => {
+      const path = req.originalUrl.split("?")[0];
+      return (
+        path.startsWith("/api/auth/") ||
+        path.startsWith("/api/search/") ||
+        path.startsWith("/api/payments/checkout")
+      );
+    },
     store: makeStore(API_WINDOW_MS),
   });
   app.use("/api/", apiLimiter);
