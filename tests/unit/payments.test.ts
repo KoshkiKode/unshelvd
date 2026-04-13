@@ -38,6 +38,7 @@ import {
   handleTransferFailed,
   refundPayment,
   getUserTransactions,
+  adminReleaseToSeller,
 } from "../../server/payments";
 import { db } from "../../server/storage";
 
@@ -506,6 +507,72 @@ describe("refundPayment", () => {
 
     const result = await refundPayment(3);
     expect(result).toEqual({ status: "refunded" });
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// adminReleaseToSeller — guard clauses
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("adminReleaseToSeller — guard clauses", () => {
+  beforeEach(() => {
+    dbResults.length = 0;
+    vi.clearAllMocks();
+  });
+
+  it("throws 'Transaction not found' when no transaction exists", async () => {
+    dbResults.push([]);
+    await expect(adminReleaseToSeller(1)).rejects.toThrow("Transaction not found");
+  });
+
+  it("throws when transaction is not in disputed status", async () => {
+    dbResults.push([{ id: 1, status: "paid", stripePaymentIntentId: "pi_test" }]);
+    await expect(adminReleaseToSeller(1)).rejects.toThrow(/not disputed/);
+  });
+
+  it("throws 'Stripe is not configured' for a Stripe transaction when Stripe is unavailable (no key in tests)", async () => {
+    // In tests STRIPE_SECRET_KEY is absent → getStripe() returns null (s === null).
+    // A transaction with stripePaymentIntentId and no PayPal auth should hit the guard.
+    dbResults.push([{
+      id: 1,
+      status: "disputed",
+      sellerId: 5,
+      buyerId: 2,
+      bookId: 10,
+      sellerPayout: 18,
+      stripePaymentIntentId: "pi_test",
+      stripeTransferId: null,
+      paypalAuthorizationId: null,
+      paypalCaptureId: null,
+    }]);
+
+    await expect(adminReleaseToSeller(1)).rejects.toThrow(/Stripe is not configured/);
+  });
+
+  it("completes successfully for a transaction with no Stripe and no PayPal (cash/manual payment)", async () => {
+    // No stripePaymentIntentId → no Stripe transfer needed; no paypalAuthorizationId → no capture.
+    // This is the manual/cash transaction case — funds were exchanged outside the platform.
+    dbResults.push([{
+      id: 2,
+      status: "disputed",
+      sellerId: 5,
+      buyerId: 2,
+      bookId: 10,
+      sellerPayout: 18,
+      stripePaymentIntentId: null,
+      stripeTransferId: null,
+      paypalAuthorizationId: null,
+      paypalCaptureId: null,
+    }]);
+    // db.update(transactions) → completed
+    dbResults.push(undefined);
+    // db.update(users) → totalSales
+    dbResults.push(undefined);
+    // db.update(users) → totalPurchases
+    dbResults.push(undefined);
+
+    const result = await adminReleaseToSeller(2);
+    expect(result).toEqual({ status: "completed" });
   });
 });
 
