@@ -1794,7 +1794,12 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Reset link is invalid or has expired." });
       }
 
-      const pwResult = validatePassword(password, {});
+      // Pass name context so the policy can reject passwords that contain the
+      // user's own username or display name (same as during registration).
+      const pwResult = validatePassword(password, {
+        username: user.username,
+        displayName: user.displayName,
+      });
       if (!pwResult.valid) {
         return res.status(400).json({ message: pwResult.errors?.[0] || "Password does not meet requirements" });
       }

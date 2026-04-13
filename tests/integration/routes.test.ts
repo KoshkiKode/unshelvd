@@ -2595,6 +2595,8 @@ describe("POST /api/auth/reset-password", () => {
       {
         id: 1,
         email: "user@example.com",
+        username: "alice",
+        displayName: "Alice",
         passwordResetToken: "validtoken123",
         passwordResetExpiry: new Date(Date.now() + 60 * 60 * 1000),
       },
@@ -2608,6 +2610,11 @@ describe("POST /api/auth/reset-password", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/password has been reset/i);
+    // Verify that validatePassword was called with the user's name context so the
+    // policy can reject passwords containing the username or display name.
+    const validatePasswordMock = vi.mocked(validatePassword);
+    const callArgs = validatePasswordMock.mock.calls.at(-1);
+    expect(callArgs?.[1]).toMatchObject({ username: "alice", displayName: "Alice" });
   });
 
   it("returns 400 when the token is not found in the database", async () => {

@@ -225,26 +225,37 @@ export async function createPaymentIntent(buyerId: number, bookId: number, offer
     // Create PaymentIntent on OUR account (not the seller's)
     // Money comes to us first — we transfer to seller after delivery
     // Idempotency key prevents duplicate charges if the request is retried.
-    const paymentIntent = await s.paymentIntents.create({
-      amount: Math.round(amount * 100), // cents
-      currency: "usd",
-      metadata: {
-        transactionId: String(transaction.id),
-        bookId: String(bookId),
-        buyerId: String(buyerId),
-        sellerId: String(book.userId),
-        platformFee: String(platformFee),
-        sellerPayout: String(sellerPayout),
-      },
-      // Automatic payment methods — supports cards, Apple Pay, Google Pay, etc.
-      automatic_payment_methods: { enabled: true },
-    }, { idempotencyKey: `checkout_${transaction.id}` });
+    try {
+      const paymentIntent = await s.paymentIntents.create({
+        amount: Math.round(amount * 100), // cents
+        currency: "usd",
+        metadata: {
+          transactionId: String(transaction.id),
+          bookId: String(bookId),
+          buyerId: String(buyerId),
+          sellerId: String(book.userId),
+          platformFee: String(platformFee),
+          sellerPayout: String(sellerPayout),
+        },
+        // Automatic payment methods — supports cards, Apple Pay, Google Pay, etc.
+        automatic_payment_methods: { enabled: true },
+      }, { idempotencyKey: `checkout_${transaction.id}` });
 
-    clientSecret = paymentIntent.client_secret;
+      clientSecret = paymentIntent.client_secret;
 
-    await db.update(transactions)
-      .set({ stripePaymentIntentId: paymentIntent.id })
-      .where(eq(transactions.id, transaction.id));
+      await db.update(transactions)
+        .set({ stripePaymentIntentId: paymentIntent.id })
+        .where(eq(transactions.id, transaction.id));
+    } catch (stripeErr) {
+      // Stripe API failed — undo the book lock and delete the pending transaction so
+      // neither the book nor the buyer gets stuck.  The error is re-thrown so the
+      // caller receives a proper HTTP 400/500 response.
+      await db.update(books)
+        .set({ status: book.status })
+        .where(and(eq(books.id, bookId), eq(books.status, "not-for-sale")));
+      await db.delete(transactions).where(eq(transactions.id, transaction.id));
+      throw stripeErr;
+    }
   }
 
   return {
@@ -500,7 +511,14 @@ export async function adminReleaseToSeller(transactionId: number) {
       await db.update(transactions)
         .set({ stripeTransferId: transfer.id })
         .where(eq(transactions.id, transactionId));
+    } else {
+      // Stripe is configured but the seller has no connected account — cannot pay out.
+      throw new Error("Seller does not have a connected Stripe account. Cannot release funds.");
     }
+  } else if (tx.stripePaymentIntentId && !s) {
+    // This was a Stripe transaction but Stripe is no longer configured.
+    // Refuse rather than silently marking it complete without transferring any funds.
+    throw new Error("Stripe is not configured. Cannot release funds for this transaction.");
   }
 
   await db.update(transactions)
