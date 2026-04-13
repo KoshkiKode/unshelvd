@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { MessageSquare, Send, User, ArrowLeft } from "lucide-react";
+import { MessageSquare, Send, User as UserIcon, ArrowLeft } from "lucide-react";
 import type { Message, User } from "@shared/schema";
 
 interface Conversation {
@@ -105,7 +105,7 @@ export default function Messages() {
                       {conv.user?.avatarUrl ? (
                         <img src={conv.user.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
                       ) : (
-                        <User className="h-4 w-4 text-primary/50" />
+                        <UserIcon className="h-4 w-4 text-primary/50" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">

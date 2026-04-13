@@ -432,7 +432,7 @@ export function registerAdminRoutes(app: Express) {
 
   // ═══ Check admin status ═══
   app.get("/api/admin/check", requireAdmin, async (req, res) => {
-    return res.json({ isAdmin: true, userId: req.user.id });
+    return res.json({ isAdmin: true, userId: req.user!.id });
   });
 
   // 🏃‍♂️ Catalog Seeder (run from admin panel)

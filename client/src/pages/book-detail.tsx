@@ -73,7 +73,7 @@ export default function BookDetail() {
   const messageMutation = useMutation({
     mutationFn: async () => {
       await apiRequest("POST", "/api/messages", {
-        receiverId: book!.seller.id,
+        receiverId: book!.seller!.id,
         bookId: parseInt(id!),
         content: messageContent,
       });

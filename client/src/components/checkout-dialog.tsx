@@ -10,7 +10,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
 interface CheckoutDialogProps {
-  book: Book & { seller?: { displayName: string } };
+  book: Book & { seller?: { displayName: string } | null };
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }

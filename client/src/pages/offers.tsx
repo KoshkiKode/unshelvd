@@ -76,7 +76,7 @@ export default function Offers() {
 
           <div className="flex items-center gap-3 mt-2">
             <span className="text-lg font-bold text-primary">${offer.amount.toFixed(2)}</span>
-            <Badge className={`text-[10px] ${statusColors[offer.status] || ""}`}>
+            <Badge className={`text-[10px] ${statusColors[offer.status ?? ""] || ""}`}>
               {offer.status}
             </Badge>
           </div>
