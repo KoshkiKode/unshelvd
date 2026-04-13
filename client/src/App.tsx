@@ -10,6 +10,15 @@ import { I18nProvider } from "@/i18n/use-i18n";
 import Navbar from "@/components/layout/navbar";
 import Footer from "@/components/layout/footer";
 import ConnectivityGuard from "@/components/connectivity-guard";
+import { Loader2 } from "lucide-react";
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[50vh]">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
 
 const Home = lazy(() => import("@/pages/home"));
 const Browse = lazy(() => import("@/pages/browse"));
@@ -50,7 +59,7 @@ function AppRouter() {
     <>
       <Navbar />
       <main>
-        <Suspense fallback={null}>
+        <Suspense fallback={<PageLoader />}>
         <Switch>
           <Route path="/" component={Home} />
           <Route path="/browse" component={Browse} />
