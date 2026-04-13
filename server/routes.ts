@@ -1677,7 +1677,9 @@ export async function registerRoutes(
       if (!user) return res.status(404).json({ message: "User not found" });
       // Strip all internal/sensitive fields before returning to any caller.
       // emailVerifyToken + emailVerifyExpiry are security tokens — never expose.
-      // email is private personal data — show only to the account owner via /api/auth/me.
+      // email is private personal data — this endpoint is public and returns profile
+      // info visible to other users. The authenticated owner can get their own email
+      // via GET /api/auth/me.
       const {
         password,
         passwordResetToken,
