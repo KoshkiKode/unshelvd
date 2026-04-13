@@ -62,7 +62,7 @@ jobs:
             ENABLE_USER_SCRIPT_SANDBOXING=NO
 
       - name: Upload simulator app artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unshelvd-ios-sim-${{ github.sha }}
           path: ios/App/build/Build/Products/Debug-iphonesimulator/App.app
@@ -158,7 +158,7 @@ jobs:
             -exportOptionsPlist scripts/ExportOptions.plist
 
       - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unshelvd-ios-${{ github.sha }}
           path: ${{ runner.temp }}/export/*.ipa
