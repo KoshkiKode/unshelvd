@@ -216,16 +216,24 @@ export async function registerRoutes(
 
   // === HEALTH CHECK ===
   app.get("/api/health", async (_req, res) => {
+    let client;
     try {
-      // Use two separate queries so the timeout applies only to the
-      // session-level config, not as part of a multi-statement string.
-      await pool.query("SET LOCAL statement_timeout = 3000");
-      await pool.query("SELECT 1");
+      client = await pool.connect();
+      // BEGIN + SET LOCAL keeps the timeout scoped to this connection's transaction
+      await client.query("BEGIN");
+      await client.query("SET LOCAL statement_timeout = 3000");
+      await client.query("SELECT 1");
+      await client.query("COMMIT");
       res.json({ status: "ok", db: "ok", timestamp: new Date().toISOString() });
     } catch (err: any) {
+      if (client) {
+        try { await client.query("ROLLBACK"); } catch { /* ignore rollback errors */ }
+      }
       res
         .status(503)
         .json({ status: "degraded", db: "error", error: err.message, timestamp: new Date().toISOString() });
+    } finally {
+      client?.release();
     }
   });
 
@@ -1668,10 +1676,15 @@ export async function registerRoutes(
       const user = await storage.getUser(id);
       if (!user) return res.status(404).json({ message: "User not found" });
       // Strip all internal/sensitive fields before returning to any caller.
+      // emailVerifyToken + emailVerifyExpiry are security tokens — never expose.
+      // email is private personal data — show only to the account owner via /api/auth/me.
       const {
         password,
         passwordResetToken,
         passwordResetExpiry,
+        emailVerifyToken,
+        emailVerifyExpiry,
+        email,
         stripeAccountId,
         stripeOnboarded,
         ...safeUser

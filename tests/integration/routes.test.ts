@@ -74,6 +74,10 @@ vi.mock("../../server/storage", () => {
 
   const poolMock = {
     query: vi.fn().mockResolvedValue({ rows: [] }),
+    connect: vi.fn().mockResolvedValue({
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+      release: vi.fn(),
+    }),
   };
 
   return {
@@ -162,7 +166,10 @@ async function buildApp() {
 }
 
 const mockStorage = storage as ReturnType<typeof vi.mocked<typeof storage>>;
-const mockPool = pool as unknown as { query: ReturnType<typeof vi.fn> };
+const mockPool = pool as unknown as {
+  query: ReturnType<typeof vi.fn>;
+  connect: ReturnType<typeof vi.fn>;
+};
 
 /** Push values onto the db queue so that successive `await db.select()...` calls
  *  each resolve to the corresponding entry in the array. */
@@ -2478,7 +2485,11 @@ describe("GET /api/health", () => {
   });
 
   it("returns { status: 'ok', db: 'ok' } when the database is reachable", async () => {
-    mockPool.query.mockResolvedValue({ rows: [] });
+    const mockClient = {
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+      release: vi.fn(),
+    };
+    mockPool.connect.mockResolvedValueOnce(mockClient);
 
     const res = await request(app).get("/api/health");
     expect(res.status).toBe(200);
@@ -2488,7 +2499,14 @@ describe("GET /api/health", () => {
   });
 
   it("returns 503 with { status: 'degraded', db: 'error' } when the database throws", async () => {
-    mockPool.query.mockRejectedValueOnce(new Error("connection refused"));
+    const mockClient = {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [] })        // BEGIN
+        .mockRejectedValueOnce(new Error("connection refused")) // SET LOCAL
+        .mockResolvedValue({ rows: [] }),           // ROLLBACK
+      release: vi.fn(),
+    };
+    mockPool.connect.mockResolvedValueOnce(mockClient);
 
     const res = await request(app).get("/api/health");
     expect(res.status).toBe(503);
