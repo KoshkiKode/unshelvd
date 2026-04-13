@@ -85,6 +85,7 @@ vi.mock("../../server/payments", () => ({
   handleTransferFailed: vi.fn(),
   handleChargeRefunded: vi.fn(),
   refundPayment: vi.fn().mockResolvedValue(undefined),
+  adminReleaseToSeller: vi.fn().mockResolvedValue(undefined),
   markShipped: vi.fn(),
   confirmDelivery: vi.fn(),
   getUserTransactions: vi.fn().mockResolvedValue([]),
@@ -133,12 +134,29 @@ vi.mock("bcryptjs", () => ({
   },
 }));
 
+vi.mock("../../server/email", () => ({
+  sendWelcome: vi.fn().mockResolvedValue(undefined),
+  sendEmailVerification: vi.fn().mockResolvedValue(undefined),
+  sendPasswordReset: vi.fn().mockResolvedValue(undefined),
+  sendNewMessage: vi.fn().mockResolvedValue(undefined),
+  sendNewOffer: vi.fn().mockResolvedValue(undefined),
+  sendOfferStatusChanged: vi.fn().mockResolvedValue(undefined),
+  sendPaymentReceived: vi.fn().mockResolvedValue(undefined),
+  sendBookShipped: vi.fn().mockResolvedValue(undefined),
+  sendDeliveryConfirmed: vi.fn().mockResolvedValue(undefined),
+  sendAutoCompleted: vi.fn().mockResolvedValue(undefined),
+  sendNewBookRequest: vi.fn().mockResolvedValue(undefined),
+  sendDisputeOpened: vi.fn().mockResolvedValue(undefined),
+  sendDisputeResolved: vi.fn().mockResolvedValue(undefined),
+  invalidateEmailCache: vi.fn(),
+}));
+
 // ─── imports after mocks ────────────────────────────────────────────────────
 
 import { storage, db } from "../../server/storage";
 import { registerRoutes } from "../../server/routes";
 import { getAllSettings, setSettings } from "../../server/platform-settings";
-import { refundPayment } from "../../server/payments";
+import { refundPayment, adminReleaseToSeller } from "../../server/payments";
 import bcrypt from "bcryptjs";
 
 // ─── helpers ───────────────────────────────────────────────────────────────
@@ -677,6 +695,119 @@ describe("POST /api/admin/transactions/:id/refund", () => {
     const res = await agent.post("/api/admin/transactions/99/refund");
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/payment not found/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/admin/disputes/:id/resolve
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/admin/disputes/:id/resolve", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns 401 for unauthenticated requests", async () => {
+    const res = await request(app).post("/api/admin/disputes/1/resolve").send({ resolution: "refund_buyer" });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for non-admin users", async () => {
+    const agent = await loginAs(app, regularUser);
+    mockStorage.getUser.mockResolvedValueOnce(regularUser);
+
+    const res = await agent.post("/api/admin/disputes/1/resolve").send({ resolution: "refund_buyer" });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 400 for non-numeric ID", async () => {
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent.post("/api/admin/disputes/abc/resolve").send({ resolution: "refund_buyer" });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when resolution is invalid", async () => {
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent.post("/api/admin/disputes/1/resolve").send({ resolution: "invalid_value" });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/resolution must be/i);
+  });
+
+  it("returns 404 when transaction does not exist", async () => {
+    // db returns empty array (no transaction found)
+    pushDbResults([]);
+
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent.post("/api/admin/disputes/99/resolve").send({ resolution: "refund_buyer" });
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/not found/i);
+  });
+
+  it("returns 400 when transaction is not disputed", async () => {
+    pushDbResults([{ id: 5, status: "paid", buyerId: 2, sellerId: 3, bookId: 1 }]);
+
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent.post("/api/admin/disputes/5/resolve").send({ resolution: "refund_buyer" });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/not disputed/i);
+  });
+
+  it("refunds the buyer when resolution is refund_buyer", async () => {
+    pushDbResults(
+      [{ id: 5, status: "disputed", buyerId: 2, sellerId: 3, bookId: 1 }], // transaction lookup
+      [{ email: "buyer@example.com" }],  // buyer email lookup
+      [{ email: "seller@example.com" }], // seller email lookup
+      [{ title: "Test Book" }],          // book title lookup
+    );
+
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent.post("/api/admin/disputes/5/resolve").send({ resolution: "refund_buyer" });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/refunded/i);
+    expect(vi.mocked(refundPayment)).toHaveBeenCalledWith(5);
+  });
+
+  it("releases payment to the seller when resolution is release_to_seller", async () => {
+    pushDbResults(
+      [{ id: 5, status: "disputed", buyerId: 2, sellerId: 3, bookId: 1 }], // transaction lookup
+      [{ email: "buyer@example.com" }],  // buyer email lookup
+      [{ email: "seller@example.com" }], // seller email lookup
+      [{ title: "Test Book" }],          // book title lookup
+    );
+
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent.post("/api/admin/disputes/5/resolve").send({ resolution: "release_to_seller" });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/released/i);
+    expect(vi.mocked(adminReleaseToSeller)).toHaveBeenCalledWith(5);
+  });
+
+  it("returns 500 when refundPayment throws during refund_buyer", async () => {
+    vi.mocked(refundPayment).mockRejectedValueOnce(new Error("Stripe error"));
+    pushDbResults([{ id: 5, status: "disputed", buyerId: 2, sellerId: 3, bookId: 1 }]);
+
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent.post("/api/admin/disputes/5/resolve").send({ resolution: "refund_buyer" });
+    expect(res.status).toBe(500);
+    expect(res.body.message).toMatch(/stripe error/i);
   });
 });
 
