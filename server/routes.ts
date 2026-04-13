@@ -786,6 +786,9 @@ export async function registerRoutes(
   app.get("/api/search/isbn/:isbn", async (req, res) => {
     try {
       const isbn = req.params.isbn.replace(/[^0-9X]/gi, "");
+      if (!isbn) {
+        return res.status(400).json({ message: "Invalid ISBN" });
+      }
       const url = `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`;
       const response = await fetch(url);
       const data = (await response.json()) as any;
@@ -2016,10 +2019,18 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Disputes can only be opened for paid or shipped orders" });
       }
 
-      await db
+      const [updatedTx] = await db
         .update(transactions)
         .set({ status: "disputed", updatedAt: new Date() })
-        .where(eq(transactions.id, txId));
+        .where(and(
+          eq(transactions.id, txId),
+          or(eq(transactions.status, "paid"), eq(transactions.status, "shipped")),
+        ))
+        .returning();
+
+      if (!updatedTx) {
+        return res.status(409).json({ message: "Transaction is no longer in a disputable state" });
+      }
 
       // Notify the seller so they're aware a dispute is in progress (fire-and-forget)
       const [seller] = await db.select().from(users).where(eq(users.id, tx.sellerId));

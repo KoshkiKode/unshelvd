@@ -260,10 +260,18 @@ export class DatabaseStorage implements IStorage {
 
     const convMap = new Map<number, { otherUserId: number; lastMessage: Message; unreadCount: number }>();
 
+    // Build unread counts in a single pass to avoid an O(n²) inner filter per conversation
+    const unreadByPartner = new Map<number, number>();
+    for (const msg of allMessages) {
+      if (msg.senderId !== userId && msg.receiverId === userId && !msg.isRead) {
+        unreadByPartner.set(msg.senderId, (unreadByPartner.get(msg.senderId) ?? 0) + 1);
+      }
+    }
+
     for (const msg of allMessages) {
       const otherUserId = msg.senderId === userId ? msg.receiverId : msg.senderId;
       if (!convMap.has(otherUserId)) {
-        const unreadCount = allMessages.filter(m => m.senderId === otherUserId && m.receiverId === userId && !m.isRead).length;
+        const unreadCount = unreadByPartner.get(otherUserId) ?? 0;
         convMap.set(otherUserId, { otherUserId, lastMessage: msg, unreadCount });
       }
     }
