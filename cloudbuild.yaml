@@ -101,11 +101,9 @@ steps:
       - "--args=script/seed.js"
       - "--region=${_REGION}"
       - "--set-cloudsql-instances=${PROJECT_ID}:${_REGION}:${_SQL_INSTANCE}"
-      # Admin credential secrets are optional.
-      # If ADMIN_EMAIL, ADMIN_USERNAME, or ADMIN_PASSWORD do not yet exist in
-      # Secret Manager, remove them from --set-secrets below and the seed script
-      # will auto-generate credentials (printed to the job log — save immediately).
-      # Create them first with: see DEPLOY.md § "Admin Credentials"
+      # Admin credential secrets are optional overrides.
+      # If ADMIN_EMAIL/ADMIN_USERNAME/ADMIN_PASSWORD are omitted, the seed script
+      # auto-generates fresh admin credentials each run and prints them to job logs.
       - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest,ADMIN_EMAIL=ADMIN_EMAIL:latest,ADMIN_USERNAME=ADMIN_USERNAME:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest"
       - "--set-env-vars=NODE_ENV=production"
       - "--max-retries=1"
@@ -123,10 +121,9 @@ steps:
   #     --substitutions=_STRIPE_PK=pk_live_...
   #
   # ── Admin credentials ───────────────────────────────────────────────────────
-  # Set ADMIN_EMAIL, ADMIN_USERNAME, ADMIN_PASSWORD in Secret Manager (once).
-  # The service reads them at runtime to prevent auto-generated credentials from
-  # being printed in logs.  If any are absent the secrets mount is skipped — see
-  # the comment on --set-secrets below.
+  # Optional admin credential overrides:
+  # Set ADMIN_EMAIL/ADMIN_USERNAME/ADMIN_PASSWORD in Secret Manager only if you
+  # want deterministic admin credentials instead of auto-generated rotation.
   #
   # ────────────────────────────────────────────────────────────────────────────
   - name: "gcr.io/cloud-builders/gcloud"

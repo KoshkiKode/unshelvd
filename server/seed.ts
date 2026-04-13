@@ -3,12 +3,41 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { users, books, bookRequests, works, bookCatalog } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
 
 // Open Library cover URLs by ISBN
 const cover = (isbn: string) => `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
 // Open Library cover URLs by cover ID
 const coverById = (id: number) => `https://covers.openlibrary.org/b/id/${id}-L.jpg`;
+const ADMIN_DISPLAY_NAME = "Unshelv'd Admin";
+const ADMIN_EMAIL_DOMAIN = "koshkikode.com";
+
+function generateAdminUsername(): string {
+  return `admin_${crypto.randomBytes(4).toString("hex")}`;
+}
+
+function generateAdminPassword(): string {
+  return `${crypto.randomBytes(12).toString("base64url").slice(0, 16)}!A1`;
+}
+
+function printAdminCredentials(
+  username: string,
+  email: string,
+  password: string,
+  action: "created" | "rotated",
+) {
+  const actionLine = `  ACTION: ${action.toUpperCase()}`;
+  console.log("╔══════════════════════════════════════════════════════╗");
+  console.log("║  ADMIN CREDENTIALS                               ║");
+  console.log(`║${actionLine.padEnd(52)}║`);
+  console.log("║  SAVE THESE NOW!                                  ║");
+  console.log("╠══════════════════════════════════════════════════════╣");
+  console.log(`║  Username: ${username.padEnd(40)}║`);
+  console.log(`║  Email:    ${email.padEnd(40)}║`);
+  console.log(`║  Password: ${password.padEnd(40)}║`);
+  console.log(`║  SHA-256:  ${crypto.createHash("sha256").update(password).digest("hex").slice(0, 38)}..║`);
+  console.log("╚══════════════════════════════════════════════════════╝");
+}
 
 async function seed() {
   // Unix socket connections (Cloud SQL) don't use SSL
@@ -36,9 +65,7 @@ async function seed() {
   const needsCatalog = catalogCount === 0;
 
   if (!needsWorks && !needsCatalog && skipUsers) {
-    console.log("Database already fully seeded, skipping.");
-    await pool.end();
-    return;
+    console.log("Catalog/work data already seeded. Rotating admin credentials only.");
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -362,46 +389,71 @@ async function seed() {
     console.log(`Seeded ${allWorksRows.length} works and ${catalogTotal} catalog entries.`);
   }
 
-  // For existing installs we're done
+  // ═══════════════════════════════════════
+  // ADMIN USER — always rotate credentials, keep same account when present
+  // ═══════════════════════════════════════
+  const adminRows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.role, "admin"))
+    .orderBy(users.id)
+    .limit(1);
+  const existingAdminId = adminRows[0]?.id;
+  const adminAction: "created" | "rotated" = existingAdminId ? "rotated" : "created";
+
+  const configuredUsername = process.env.ADMIN_USERNAME || "";
+  const configuredEmail = process.env.ADMIN_EMAIL || "";
+  const configuredPassword = process.env.ADMIN_PASSWORD || "";
+
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const username = configuredUsername || generateAdminUsername();
+    const email = configuredEmail || `${username}@${ADMIN_EMAIL_DOMAIN}`;
+    const password = configuredPassword || generateAdminPassword();
+    const adminHash = await bcrypt.hash(password, 12);
+
+    try {
+      if (existingAdminId) {
+        await db
+          .update(users)
+          .set({
+            username,
+            displayName: ADMIN_DISPLAY_NAME,
+            email,
+            password: adminHash,
+            role: "admin",
+          })
+          .where(eq(users.id, existingAdminId));
+      } else {
+        await db.insert(users).values({
+          username,
+          displayName: ADMIN_DISPLAY_NAME,
+          email,
+          password: adminHash,
+          bio: "Platform administrator.",
+          location: "Battle Creek, MI",
+          role: "admin",
+        });
+      }
+
+      printAdminCredentials(username, email, password, adminAction);
+      break;
+    } catch (err: any) {
+      const isUniqueViolation = err?.code === "23505";
+      const usingExplicitEnv =
+        Boolean(process.env.ADMIN_USERNAME) ||
+        Boolean(process.env.ADMIN_EMAIL) ||
+        Boolean(process.env.ADMIN_PASSWORD);
+      if (!isUniqueViolation || usingExplicitEnv || attempt === 9) {
+        throw err;
+      }
+    }
+  }
+
+  // For existing installs we're done after credential rotation.
   if (skipUsers) {
     await pool.end();
     return;
   }
-
-  // ═══════════════════════════════════════
-  // ADMIN USER — SHA-256 derived password
-  // ═══════════════════════════════════════
-  const adminUsername = process.env.ADMIN_USERNAME || crypto.randomBytes(4).toString("hex");
-  const adminEmail = process.env.ADMIN_EMAIL || `${adminUsername}@unshelvd.com`;
-  let adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) {
-    adminPassword = crypto.randomBytes(12).toString("base64url").slice(0, 16) + "!A1";
-  }
-
-  console.log("╔══════════════════════════════════════════════════════╗");
-  console.log("║  ADMIN CREDENTIALS — SAVE THESE IMMEDIATELY!         ║");
-  console.log("║  These will NOT be shown again.                      ║");
-  console.log("╠══════════════════════════════════════════════════════╣");
-  console.log(`║  Username: ${adminUsername.padEnd(40)}║`);
-  console.log(`║  Email:    ${adminEmail.padEnd(40)}║`);
-  console.log(`║  Password: ${adminPassword.padEnd(40)}║`);
-  console.log(`║  SHA-256:  ${crypto.createHash("sha256").update(adminPassword).digest("hex").slice(0, 38)}..║`);
-  console.log("╚══════════════════════════════════════════════════════╝");
-  if (process.env.NODE_ENV === "production") {
-    console.log("⚠️  To avoid credentials in logs: set ADMIN_EMAIL, ADMIN_USERNAME, and ADMIN_PASSWORD in GCP Secret Manager.");
-  }
-
-  const adminHash = await bcrypt.hash(adminPassword, 12);
-
-  await db.insert(users).values({
-    username: adminUsername,
-    displayName: "Unshelv'd Admin",
-    email: adminEmail,
-    password: adminHash,
-    bio: "Platform administrator.",
-    location: "Battle Creek, MI",
-    role: "admin",
-  });
 
   // ═══════════════════════════════════════
   // DEMO USERS
