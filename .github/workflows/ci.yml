@@ -43,3 +43,10 @@ jobs:
         run: npm test
         env:
           NODE_ENV: test
+
+      - name: Upload web build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unshelvd-web-${{ github.sha }}
+          path: dist/
+          retention-days: 30
