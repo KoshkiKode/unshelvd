@@ -1565,6 +1565,9 @@ export async function registerRoutes(
 
       const { orderId } = req.body as { orderId?: string };
       if (!orderId) return res.status(400).json({ message: "orderId is required" });
+      if (!/^[A-Z0-9]{1,22}$/.test(orderId)) {
+        return res.status(400).json({ message: "Invalid orderId format" });
+      }
 
       // Verify the authenticated user is the buyer for this order.
       const [tx] = await db
