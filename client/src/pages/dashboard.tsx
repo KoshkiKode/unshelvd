@@ -408,8 +408,8 @@ export default function Dashboard() {
                       onConfirmDelivery={() => deliverMutation.mutate(tx.id)}
                       confirming={deliverMutation.isPending && deliverMutation.variables === tx.id}
                       onRate={tx.status === "completed" && !tx.buyerRating ? () => { setRateTx(tx); setRatingValue(0); } : undefined}
-                      onDispute={["paid", "shipped"].includes(tx.status) ? () => setDisputeTx(tx) : undefined}
-                      onCancel={["pending", "paid"].includes(tx.status) ? () => setCancelTx(tx) : undefined}
+                      onDispute={["paid", "shipped"].includes(tx.status ?? "") ? () => setDisputeTx(tx) : undefined}
+                      onCancel={["pending", "paid"].includes(tx.status ?? "") ? () => setCancelTx(tx) : undefined}
                     />
                   ))}
                 </div>
@@ -847,7 +847,7 @@ function TransactionCard({
   onDispute?: () => void;
   onCancel?: () => void;
 }){
-  const status = TX_STATUS[tx.status] ?? { label: tx.status, color: "", icon: null };
+  const status = TX_STATUS[tx.status ?? ""] ?? { label: tx.status ?? "", color: "", icon: null };
 
   return (
     <div className="flex items-start gap-3 p-3 border rounded-lg bg-card">
