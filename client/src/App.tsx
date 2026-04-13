@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Switch, Route, Router } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
 import { queryClient } from "./lib/queryClient";
@@ -8,33 +9,48 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { I18nProvider } from "@/i18n/use-i18n";
 import Navbar from "@/components/layout/navbar";
 import Footer from "@/components/layout/footer";
-import Home from "@/pages/home";
-import Browse from "@/pages/browse";
-import Catalog from "@/pages/catalog";
-import BookDetail from "@/pages/book-detail";
-import UserProfile from "@/pages/user-profile";
-import Requests from "@/pages/requests";
-import Dashboard from "@/pages/dashboard";
-import AddBook from "@/pages/add-book";
-import Messages from "@/pages/messages";
-import Offers from "@/pages/offers";
-import { LoginPage, RegisterPage, ForgotPasswordPage, ResetPasswordPage } from "@/pages/auth";
-import WorkPage from "@/pages/work";
-import About from "@/pages/about";
-import AdminDashboard from "@/pages/admin";
-import NotFound from "@/pages/not-found";
 import ConnectivityGuard from "@/components/connectivity-guard";
-import Settings from "@/pages/settings";
-import PayPalReturn from "@/pages/paypal-return";
-import PayPalCancel from "@/pages/paypal-cancel";
-import PrivacyPolicy from "@/pages/privacy";
-import TermsOfService from "@/pages/terms";
+
+const Home = lazy(() => import("@/pages/home"));
+const Browse = lazy(() => import("@/pages/browse"));
+const Catalog = lazy(() => import("@/pages/catalog"));
+const BookDetail = lazy(() => import("@/pages/book-detail"));
+const UserProfile = lazy(() => import("@/pages/user-profile"));
+const Requests = lazy(() => import("@/pages/requests"));
+const Dashboard = lazy(() => import("@/pages/dashboard"));
+const AddBook = lazy(() => import("@/pages/add-book"));
+const Messages = lazy(() => import("@/pages/messages"));
+const Offers = lazy(() => import("@/pages/offers"));
+const WorkPage = lazy(() => import("@/pages/work"));
+const About = lazy(() => import("@/pages/about"));
+const AdminDashboard = lazy(() => import("@/pages/admin"));
+const NotFound = lazy(() => import("@/pages/not-found"));
+const Settings = lazy(() => import("@/pages/settings"));
+const PayPalReturn = lazy(() => import("@/pages/paypal-return"));
+const PayPalCancel = lazy(() => import("@/pages/paypal-cancel"));
+const PrivacyPolicy = lazy(() => import("@/pages/privacy"));
+const TermsOfService = lazy(() => import("@/pages/terms"));
+
+// Auth pages share one chunk since they're usually visited together
+const LoginPage = lazy(() =>
+  import("@/pages/auth").then((m) => ({ default: m.LoginPage }))
+);
+const RegisterPage = lazy(() =>
+  import("@/pages/auth").then((m) => ({ default: m.RegisterPage }))
+);
+const ForgotPasswordPage = lazy(() =>
+  import("@/pages/auth").then((m) => ({ default: m.ForgotPasswordPage }))
+);
+const ResetPasswordPage = lazy(() =>
+  import("@/pages/auth").then((m) => ({ default: m.ResetPasswordPage }))
+);
 
 function AppRouter() {
   return (
     <>
       <Navbar />
       <main>
+        <Suspense fallback={null}>
         <Switch>
           <Route path="/" component={Home} />
           <Route path="/browse" component={Browse} />
@@ -60,6 +76,7 @@ function AppRouter() {
           <Route path="/paypal/cancel" component={PayPalCancel} />
           <Route component={NotFound} />
         </Switch>
+        </Suspense>
       </main>
       <Footer />
     </>
