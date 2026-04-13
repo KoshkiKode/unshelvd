@@ -1,6 +1,8 @@
-# Unshelv'd — Database Setup (Amazon Aurora / PostgreSQL)
+# Unshelv'd — Database Setup (PostgreSQL / Amazon Aurora / Google Cloud SQL)
 
-All the files you need to create and restore the Unshelv'd database on **Amazon Aurora PostgreSQL** (or any PostgreSQL-compatible database) are in this folder.
+All the files you need to create and restore the Unshelv'd database on any
+**PostgreSQL-compatible database** (Amazon Aurora, RDS, Google Cloud SQL, or
+standard PostgreSQL) are in this folder.
 
 ---
 
@@ -8,13 +10,13 @@ All the files you need to create and restore the Unshelv'd database on **Amazon 
 
 | File | Purpose |
 |------|---------|
-| `schema.sql` | `CREATE TABLE IF NOT EXISTS` — all 8 tables |
+| `schema.sql` | `CREATE TABLE IF NOT EXISTS` — all 9 tables |
 | `seed-catalog.sql` | `INSERT … ON CONFLICT DO NOTHING` — 25 works + 53 catalog editions (multi-language) |
 | `setup.sh` | Bash script (Linux / macOS) — runs migrations + full seed via Node.js |
 | `setup.ps1` | PowerShell script (Windows) — same as above |
 
 > **These SQL files are the authoritative backup of the database structure and initial data.**  
-> Any time the Aurora instance is recreated or reset, run `schema.sql` then `seed-catalog.sql` to restore it.
+> Any time the database instance is recreated or reset, run `schema.sql` then `seed-catalog.sql` to restore it.
 
 ---
 
@@ -79,7 +81,7 @@ Open PowerShell in the root of this repo:
 
 Both scripts will:
 1. Install npm dependencies if needed
-2. Run migrations (creates all 8 tables via `script/migrate.js`)
+2. Run migrations (creates all 9 tables via `script/migrate.js`)
 3. Run the full seed (adds works, catalog entries, and demo users/books via `script/seed.js`)
 
 ---

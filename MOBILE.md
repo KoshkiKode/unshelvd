@@ -11,7 +11,7 @@
 
 ```bash
 # Clone and install
-git clone https://github.com/dogeisbae/unshelvd.git
+git clone https://github.com/KoshkiKode/unshelvd.git
 cd unshelvd
 npm install
 

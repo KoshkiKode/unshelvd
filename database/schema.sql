@@ -202,3 +202,15 @@ CREATE INDEX IF NOT EXISTS "transactions_buyer_id_idx"     ON "transactions"   (
 CREATE INDEX IF NOT EXISTS "transactions_seller_id_idx"    ON "transactions"   ("seller_id");
 CREATE INDEX IF NOT EXISTS "transactions_status_idx"       ON "transactions"   ("status");
 
+-- ============================================================
+-- Platform settings (key/value store for runtime configuration)
+-- Keys: stripe_enabled, paypal_enabled, platform_fee_percent,
+--       maintenance_mode, registrations_enabled, etc.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS "platform_settings" (
+    "key"        text PRIMARY KEY,
+    "value"      text,
+    "updated_at" timestamp DEFAULT now()
+);
+

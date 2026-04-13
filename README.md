@@ -55,9 +55,9 @@ npm run build:apk        # Android debug APK
 npm run build:ios         # Opens Xcode (macOS only)
 ```
 
-## Deploy to Google Cloud
+## Deploy to Production
 
-See [DEPLOY.md](./DEPLOY.md) for step-by-step instructions.
+See [README-SETUP.md](./README-SETUP.md) for step-by-step instructions (Google Cloud Run, AWS ECS Fargate, or full GCP).
 
 ## Project Structure
 
@@ -68,21 +68,30 @@ unshelvd/
 │   ├── hooks/             # Auth hook
 │   ├── i18n/              # 10-language translations
 │   ├── lib/               # Query client, constants (languages, countries, scripts)
-│   └── pages/             # 13 pages (home, browse, book detail, work, dashboard,
-│                          #   add book, messages, offers, requests, profile,
-│                          #   about, admin, auth)
+│   └── pages/             # 20 pages (home, browse, catalog, book detail, work,
+│                          #   dashboard, add book, messages, offers, requests,
+│                          #   user profile, settings, about, admin, auth,
+│                          #   terms, privacy, paypal return/cancel, not found)
 ├── server/                # Express backend
+│   ├── index.ts           # Entry point, HTTP server, session, WebSocket
 │   ├── routes.ts          # All API endpoints
 │   ├── storage.ts         # Database queries (Drizzle)
 │   ├── payments.ts        # Stripe Connect (charges, transfers, onboarding)
+│   ├── paypal.ts          # PayPal orders + webhooks
+│   ├── email.ts           # Transactional email (Nodemailer / SES)
+│   ├── jobs.ts            # Background jobs (auto-complete, expire offers)
 │   ├── work-resolver.ts   # Auto-links books to works via Open Library
 │   ├── admin.ts           # Admin dashboard API
 │   ├── security.ts        # Helmet, rate limiting, input sanitization
+│   ├── platform-settings.ts # Runtime platform config (payments toggle, fees)
 │   ├── seed.ts            # Initial data + admin account
+│   ├── auto-seed.ts       # Startup seeder for works + catalog
 │   └── catalog-import.ts  # Open Library bulk import
 ├── shared/                # Shared between frontend + backend
-│   ├── schema.ts          # Drizzle schema (8 tables)
+│   ├── schema.ts          # Drizzle schema (9 tables)
 │   └── password-policy.ts # Unicode-aware password validation
+├── database/              # SQL backups and setup scripts
+├── migrations/            # Drizzle migration files
 ├── android/               # Capacitor Android project
 ├── ios/                   # Capacitor iOS project
 ├── scripts/               # Build scripts (Android, iOS, catalog seeder)
