@@ -116,10 +116,12 @@ const productionCspDirectives = {
     "'self'",
     // Google Fonts stylesheet
     "https://fonts.googleapis.com",
+    // Fontshare fonts (Zodiak + Satoshi)
+    "https://api.fontshare.com",
     // Tailwind / shadcn inject inline styles at runtime
     "'unsafe-inline'",
   ],
-  fontSrc: ["'self'", "https://fonts.gstatic.com"],
+  fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.fontshare.com"],
   imgSrc: [
     "'self'",
     "data:",
@@ -140,6 +142,8 @@ const productionCspDirectives = {
     "https://api.stripe.com",
     // Open Library search API (catalog import)
     "https://openlibrary.org",
+    // Fontshare (preconnect hint in index.html)
+    "https://api.fontshare.com",
     // PayPal API
     "https://www.paypal.com",
     "https://www.sandbox.paypal.com",
