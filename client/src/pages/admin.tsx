@@ -172,6 +172,22 @@ export default function AdminDashboard() {
     onError: (err: Error) => toast({ title: "Refund failed", description: err.message, variant: "destructive" }),
   });
 
+  // ── Dispute resolution ──
+  const [resolveDisputeTx, setResolveDisputeTx] = useState<AdminTransaction | null>(null);
+  const resolveDisputeMutation = useMutation({
+    mutationFn: async ({ id, resolution }: { id: number; resolution: "refund_buyer" | "release_to_seller" }) => {
+      const res = await apiRequest("POST", `/api/admin/disputes/${id}/resolve`, { resolution });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/overview"] });
+      setResolveDisputeTx(null);
+      toast({ title: data.message });
+    },
+    onError: (err: Error) => toast({ title: "Resolve failed", description: err.message, variant: "destructive" }),
+  });
+
   // ── Users ──
   const [userPage, setUserPage] = useState(0);
   const USER_LIMIT = 25;
@@ -221,6 +237,7 @@ export default function AdminDashboard() {
   const [paypalClientId, setPaypalClientId] = useState("");
   const [paypalClientSecret, setPaypalClientSecret] = useState("");
   const [paypalMode, setPaypalMode] = useState("sandbox");
+  const [paypalWebhookId, setPaypalWebhookId] = useState("");
 
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [emailSmtpHost, setEmailSmtpHost] = useState("");
@@ -244,6 +261,7 @@ export default function AdminDashboard() {
     setPaypalClientId(settingsData.paypal_client_id ?? "");
     setPaypalClientSecret(settingsData.paypal_client_secret ?? "");
     setPaypalMode(settingsData.paypal_mode ?? "sandbox");
+    setPaypalWebhookId(settingsData.paypal_webhook_id ?? "");
     setEmailEnabled(settingsData.email_enabled !== "false");
     setEmailSmtpHost(settingsData.email_smtp_host ?? "");
     setEmailSmtpPort(settingsData.email_smtp_port ?? "587");
@@ -288,6 +306,7 @@ export default function AdminDashboard() {
       paypal_client_id: paypalClientId,
       paypal_client_secret: paypalClientSecret,
       paypal_mode: paypalMode,
+      paypal_webhook_id: paypalWebhookId,
     });
   };
 
@@ -414,8 +433,8 @@ export default function AdminDashboard() {
                     </div>
                     <p className="text-xs text-muted-foreground truncate">
                       {tx.book?.title ?? "Unknown book"}
-                      {" · "}Buyer: {tx.buyer?.username ?? tx.buyerId}
-                      {" · "}Seller: {tx.seller?.username ?? tx.sellerId}
+                      {" · "}Buyer: {tx.buyer?.username ?? tx.buyer?.id}
+                      {" · "}Seller: {tx.seller?.username ?? tx.seller?.id}
                     </p>
                     <p className="text-[10px] text-muted-foreground">
                       {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString() : ""}
@@ -432,6 +451,18 @@ export default function AdminDashboard() {
                       >
                         <AlertTriangle className="h-3 w-3 mr-1" />
                         Dispute
+                      </Button>
+                    )}
+                    {tx.status === "disputed" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7 text-blue-600 border-blue-200 hover:bg-blue-50"
+                        onClick={() => setResolveDisputeTx(tx)}
+                        disabled={resolveDisputeMutation.isPending}
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Resolve
                       </Button>
                     )}
                     {["pending", "paid", "shipped", "disputed"].includes(tx.status) && (
@@ -745,6 +776,17 @@ export default function AdminDashboard() {
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">Leave blank to keep the existing secret.</p>
                   </div>
+                  <div>
+                    <Label htmlFor="paypal-webhook-id" className="text-xs font-medium">Webhook ID</Label>
+                    <Input
+                      id="paypal-webhook-id"
+                      placeholder="From PayPal developer dashboard → Webhooks"
+                      value={paypalWebhookId}
+                      onChange={(e) => setPaypalWebhookId(e.target.value)}
+                      className="mt-1 font-mono text-xs"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Required for PayPal webhook signature verification.</p>
+                  </div>
                   <Button
                     onClick={handleSavePayPal}
                     disabled={saveSettingsMutation.isPending}
@@ -954,6 +996,60 @@ export default function AdminDashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* ── Resolve Dispute Dialog ── */}
+      {resolveDisputeTx && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background rounded-lg shadow-lg p-6 w-full max-w-md mx-4">
+            <h2 className="text-lg font-semibold mb-1">Resolve Dispute</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Transaction #{resolveDisputeTx.id} — <strong>{resolveDisputeTx.book?.title ?? "Unknown book"}</strong>
+              <br />
+              Buyer: {resolveDisputeTx.buyer?.username ?? resolveDisputeTx.buyer?.id}
+              {" · "}
+              Seller: {resolveDisputeTx.seller?.username ?? resolveDisputeTx.seller?.id}
+              {" · "}
+              <span className="text-green-700 font-medium">${resolveDisputeTx.amount?.toFixed(2)}</span>
+            </p>
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="outline"
+                className="justify-start text-left h-auto py-3 px-4"
+                disabled={resolveDisputeMutation.isPending}
+                onClick={() => resolveDisputeMutation.mutate({ id: resolveDisputeTx.id, resolution: "refund_buyer" })}
+              >
+                <RefreshCw className="h-4 w-4 mr-2 shrink-0 text-blue-600" />
+                <div>
+                  <div className="font-medium">Refund buyer</div>
+                  <div className="text-xs text-muted-foreground">Issue a full refund to the buyer</div>
+                </div>
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-start text-left h-auto py-3 px-4"
+                disabled={resolveDisputeMutation.isPending}
+                onClick={() => resolveDisputeMutation.mutate({ id: resolveDisputeTx.id, resolution: "release_to_seller" })}
+              >
+                <CheckCircle className="h-4 w-4 mr-2 shrink-0 text-green-600" />
+                <div>
+                  <div className="font-medium">Release to seller</div>
+                  <div className="text-xs text-muted-foreground">Release the payment to the seller</div>
+                </div>
+              </Button>
+            </div>
+            <div className="flex justify-end mt-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setResolveDisputeTx(null)}
+                disabled={resolveDisputeMutation.isPending}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
