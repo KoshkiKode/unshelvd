@@ -189,13 +189,14 @@ export async function authorizePayPalOrder(
   orderId: string,
 ): Promise<{ authorizationId: string; status: string }> {
   validatePayPalId(orderId, "order ID");
+  const safeOrderId = encodeURIComponent(orderId);
   const creds = await getPayPalCredentials();
   if (!creds) throw new Error("PayPal is not configured");
 
   const token = await getAccessToken(creds);
   const base = getBaseUrl(creds.mode);
 
-  const res = await fetch(`${base}/v2/checkout/orders/${orderId}/authorize`, {
+  const res = await fetch(`${base}/v2/checkout/orders/${safeOrderId}/authorize`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
