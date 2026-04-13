@@ -10,17 +10,17 @@ A peer-to-peer book marketplace for every language, every country, every era. Bu
 - **Historical nations**: Yugoslavia, USSR, Ottoman Empire, Austria-Hungary — recognized as countries of origin
 - **Work-edition graph**: every book automatically linked to all its editions, translations, and printings
 - **Book requests**: post what you're looking for, get matched with sellers
-- **In-app payments** with escrow protection (Stripe Connect)
+- **In-app payments** with escrow protection (Stripe Connect + PayPal)
 - **10 UI languages**: English, Spanish, French, German, Portuguese, Russian, Chinese, Japanese, Korean, Arabic (RTL)
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 18, TypeScript, Tailwind CSS, shadcn/ui |
-| Backend | Express.js, Passport.js (auth), Stripe Connect (payments) |
+| Frontend | React 19, TypeScript, Tailwind CSS, shadcn/ui |
+| Backend | Express.js, Passport.js (auth), Stripe Connect + PayPal (payments) |
 | Database | PostgreSQL + Drizzle ORM |
-| Desktop | Tauri v2 |
+| Desktop | Tauri v2 (optional — see [DESKTOP.md](./DESKTOP.md)) |
 | Mobile | Capacitor (Android + iOS) |
 | Hosting | Google Cloud Run + Cloud SQL |
 | Catalog | Open Library API + proprietary database |

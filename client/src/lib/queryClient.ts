@@ -12,7 +12,7 @@ try {
 /**
  * API base URL resolution:
  * 
- * 1. Deployed web (Perplexity/S3): __PORT_5000__ is replaced at deploy time with the proxy path
+ * 1. Deployed web: __PORT_5000__ is replaced at deploy time with the proxy path
  * 2. Local dev (browser): empty string → relative URLs → same origin (localhost:5000)
  * 3. Capacitor native app: uses VITE_API_URL env var → your Cloud Run / production server
  * 4. Fallback for native: if no env var set, tries localhost (useful for dev with `cap run`)
