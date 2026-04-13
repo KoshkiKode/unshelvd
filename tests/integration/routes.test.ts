@@ -3214,8 +3214,9 @@ describe("POST /api/payments/:id/dispute", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    pushDbResults([{ id: 5, buyerId: TEST_USER.id, sellerId: 88, status: "paid" }]);
-    // UPDATE transaction (no return value needed)
+    const tx = { id: 5, buyerId: TEST_USER.id, sellerId: 88, status: "paid" };
+    pushDbResults([tx]); // SELECT transaction
+    pushDbResults([{ ...tx, status: "disputed" }]); // UPDATE … RETURNING
 
     const res = await agent.post("/api/payments/5/dispute");
     expect(res.status).toBe(200);
@@ -3226,7 +3227,9 @@ describe("POST /api/payments/:id/dispute", () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
-    pushDbResults([{ id: 6, buyerId: TEST_USER.id, sellerId: 88, status: "shipped" }]);
+    const tx = { id: 6, buyerId: TEST_USER.id, sellerId: 88, status: "shipped" };
+    pushDbResults([tx]); // SELECT transaction
+    pushDbResults([{ ...tx, status: "disputed" }]); // UPDATE … RETURNING
 
     const res = await agent.post("/api/payments/6/dispute");
     expect(res.status).toBe(200);
