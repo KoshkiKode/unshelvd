@@ -49,7 +49,7 @@ Jump to the [Cost Comparison](#cost-comparison) section at the end.
 | Security | ✅ CORS, rate limits, sanitized LIKE, no raw SQL |
 | CI | ✅ GitHub Actions: APK build + iOS verify |
 
-### ⚠️ Pre-launch checklist
+### Pre-launch checklist
 
 - [ ] **Stripe live keys** — switch `sk_test_` → `sk_live_`, update webhook endpoint to production URL
 - [ ] **Admin password** — retrieve the current auto-rotated admin credentials from the latest seed job logs
@@ -677,7 +677,7 @@ For monitoring, backups, and production checks, follow:
 
 - [Step 5 — Enable automated database backups](#step-5--enable-automated-database-backups)
 - [Step 6 — Set up monitoring](#step-6--set-up-monitoring)
-- Pre-launch checklist (near the top of this guide)
+- [Pre-launch checklist](#pre-launch-checklist)
 
 ---
 
