@@ -36,15 +36,42 @@ declare module "http" {
   }
 }
 
+function trimTrailingSlash(url: string): string {
+  let end = url.length;
+  while (end > 0 && url.charCodeAt(end - 1) === 47) end -= 1; // '/'
+  return url.slice(0, end);
+}
+
+function isHttpsRunAppOrigin(origin: string): boolean {
+  try {
+    const parsed = new URL(origin);
+    return parsed.protocol === "https:" && parsed.hostname.endsWith(".run.app");
+  } catch {
+    return false;
+  }
+}
+
 // CORS — needed for Capacitor native apps and cross-origin requests
-const allowedOrigins = [
+const defaultAllowedOrigins = [
   "capacitor://localhost",
   "https://localhost",
   "http://localhost",
   "http://localhost:5000",
   "http://10.0.2.2:5000",
+  "https://app.koshkikode.com",
   "https://unshelvd.koshkikode.com",
+  "https://koshkikode.com",
+  "https://www.koshkikode.com",
 ];
+
+const envAllowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = new Set(
+  [...defaultAllowedOrigins, ...envAllowedOrigins].map(trimTrailingSlash),
+);
 
 app.use(
   cors({
@@ -53,7 +80,8 @@ app.use(
       if (!origin) return callback(null, true);
 
       // 2. Explicitly allowed Capacitor and local development origins
-      if (allowedOrigins.includes(origin) || origin.endsWith(".run.app")) {
+      const normalizedOrigin = trimTrailingSlash(origin);
+      if (allowedOrigins.has(normalizedOrigin) || isHttpsRunAppOrigin(normalizedOrigin)) {
         return callback(null, true);
       }
 
