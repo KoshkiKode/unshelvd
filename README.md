@@ -97,7 +97,7 @@ Optional larger catalog import:
 npm run catalog:mass-seed:py
 ```
 
-This pulls a much larger Open Library dataset (12,000+ catalog books, depending on API availability).
+This pulls a much larger Open Library dataset (typically 12,000–15,000 catalog books, depending on Open Library response volume, deduplication, and temporary API throttling).
 Expect ~5–10 minutes on a typical connection; completion is indicated when the command exits successfully and returns to your shell prompt.
 
 ### 7) Start the app
@@ -134,7 +134,7 @@ npx cap open android   # or: npx cap open ios
 
 By default for native local dev, the app API target is:
 
-- Android emulator: `http://10.0.2.2:5000`
+- Android emulator: `http://10.0.2.2:5000` (`10.0.2.2` is the emulator alias to your host machine's `localhost`)
 - iOS simulator: `http://localhost:5000`
 
 ### Production mobile build
