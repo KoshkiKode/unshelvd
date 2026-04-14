@@ -60,7 +60,7 @@ Optional but recommended for predictable admin login:
 Tip: generate a strong admin password with `openssl rand -base64 24`.
 
 If admin vars are not set, `npm run db:seed` auto-generates admin credentials and prints them in the terminal.
-Running the seed script again rotates the admin login and invalidates the previous admin password.
+Running the seed script again regenerates admin credentials and invalidates the previous admin password.
 To preserve stable admin access across reseeds, set `ADMIN_USERNAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` before running `npm run db:seed`.
 
 ### 4) Install dependencies
@@ -97,7 +97,7 @@ Optional larger catalog import:
 npm run catalog:mass-seed:py
 ```
 
-This pulls a much larger Open Library dataset (~12,000+ catalog books, depending on API availability).
+This pulls a much larger Open Library dataset (12,000+ catalog books, depending on API availability).
 Expect ~5–10 minutes on a typical connection; completion is indicated when the command exits successfully and returns to your shell prompt.
 
 ### 7) Start the app
