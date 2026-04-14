@@ -56,9 +56,9 @@ Jump to the [Cost Comparison](#cost-comparison) section at the end.
 - [ ] **CORS origins** — confirm `allowedOrigins` in `server/index.ts` includes your production domain
 - [ ] **Session secret** — `openssl rand -hex 32` — never reuse a dev value
 - [ ] **Email** — verify SES domain + request production access (lifts sandbox limits)
-- [ ] **Stripe webhook** — register `https://YOUR_DOMAIN/api/webhooks/stripe` with events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `account.updated`, `transfer.failed`, `charge.refunded`
-- [ ] **PayPal (optional)** — if PayPal is enabled, register `https://YOUR_DOMAIN/api/webhooks/paypal` in the PayPal Developer Dashboard with event: `PAYMENT.AUTHORIZATION.VOIDED`; copy the Webhook ID into the admin settings panel
-- [ ] **Mobile API URL** — build native apps with `VITE_API_URL=https://YOUR_DOMAIN`
+- [ ] **Stripe webhook** — register `https://unshelvd.koshkikode.com/api/webhooks/stripe` with events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `account.updated`, `transfer.failed`, `charge.refunded`
+- [ ] **PayPal (optional)** — if PayPal is enabled, register `https://unshelvd.koshkikode.com/api/webhooks/paypal` in the PayPal Developer Dashboard with event: `PAYMENT.AUTHORIZATION.VOIDED`; copy the Webhook ID into the admin settings panel
+- [ ] **Mobile API URL** — build native apps with `VITE_API_URL=https://unshelvd.koshkikode.com`
 - [ ] **Database backups** — enable automated backups (Cloud SQL or RDS)
 - [ ] **Monitoring** — set up uptime check on `/api/health`
 - [ ] **Google Play / App Store** — sign AAB/IPA, upload to stores if distributing publicly
@@ -101,7 +101,7 @@ npm run dev             # http://localhost:5000
 | `ADMIN_EMAIL` | Admin account email override (optional) | Your choice |
 | `ADMIN_USERNAME` | Admin username override (optional) | Your choice |
 | `ADMIN_PASSWORD` | Admin password override (optional) | Strong, e.g. `openssl rand -base64 18` |
-| `PUBLIC_APP_URL` | Canonical public URL used in auth emails (recommended for web+mobile) | e.g. `https://app.koshkikode.com` |
+| `PUBLIC_APP_URL` | Canonical public URL used in auth emails (recommended for web+mobile) | e.g. `https://unshelvd.koshkikode.com` |
 
 Optional:
 
@@ -248,7 +248,7 @@ gcloud run services describe unshelvd --region=$REGION \
 
 > **Apex domain note:** Route 53 supports ALIAS records at the zone apex. However,
 > Cloud Run does not natively support them. The recommended approach is to use a
-> subdomain like `app.koshkikode.com` as a CNAME, or use a load balancer (see GCP
+> subdomain like `unshelvd.koshkikode.com` as a CNAME, or use a load balancer (see GCP
 > Exclusive section for custom domain mapping).
 
 3. Set up a **custom domain** in Cloud Run for HTTPS:
@@ -256,7 +256,7 @@ gcloud run services describe unshelvd --region=$REGION \
 ```bash
 gcloud run domain-mappings create \
   --service=unshelvd \
-  --domain=app.koshkikode.com \   # or unshelvd.koshkikode.com
+  --domain=unshelvd.koshkikode.com \
   --region=$REGION
 ```
 
@@ -301,7 +301,7 @@ gcloud monitoring uptime create \
   --display-name="Unshelv'd API health" \
   --http-check-path=/api/health \
   --monitored-resource-type=uptime-url \
-  --resource-labels=host=app.koshkikode.com \
+  --resource-labels=host=unshelvd.koshkikode.com \
   --period=1
 ```
 
@@ -566,7 +566,7 @@ setup (the CLI for this is verbose). Key settings:
    - Name: `app` (or `@` for apex)
    - Value: your ALB DNS name
 
-2. Register the Stripe webhook at `https://app.koshkikode.com/api/webhooks/stripe`.
+2. Register the Stripe webhook at `https://unshelvd.koshkikode.com/api/webhooks/stripe`.
 
 ### Step 10 — Run migrations and seed
 
@@ -638,12 +638,12 @@ the CNAME record pointing to the Cloud Run URL (see Hybrid Step 3).
 # Map your domain to the Cloud Run service (Cloud handles TLS automatically)
 gcloud run domain-mappings create \
   --service=unshelvd \
-  --domain=app.koshkikode.com \
+  --domain=unshelvd.koshkikode.com \
   --region=$REGION
 
 # Cloud Run will print CNAME/A/AAAA records to add in Cloud DNS or Route 53
 gcloud run domain-mappings describe \
-  --domain=app.koshkikode.com \
+  --domain=unshelvd.koshkikode.com \
   --region=$REGION
 ```
 
@@ -687,7 +687,7 @@ For monitoring, backups, and production checks, follow:
 
 ```bash
 # Build signed release AAB
-VITE_API_URL=https://app.koshkikode.com npm run build
+VITE_API_URL=https://unshelvd.koshkikode.com npm run build
 npx cap sync android
 
 cd android
@@ -708,7 +708,7 @@ Upload the `.aab` to [Google Play Console](https://play.google.com/console).
 ### iOS (Apple App Store)
 
 ```bash
-VITE_API_URL=https://app.koshkikode.com npm run build
+VITE_API_URL=https://unshelvd.koshkikode.com npm run build
 npx cap sync ios
 npx cap open ios   # opens Xcode (macOS only)
 ```
@@ -830,7 +830,7 @@ aws ecs update-service \
 | Stripe webhooks failing | Wrong endpoint URL or signing secret | Verify endpoint URL in Stripe Dashboard matches your domain |
 | Emails not delivered | SES still in sandbox mode | Request SES production access in AWS Console |
 | CORS errors in browser/admin | Production domain not in allowed origins | Set `CORS_ALLOWED_ORIGINS=https://your-domain,https://other-domain` and redeploy |
-| Mobile app can't reach API | `VITE_API_URL` not set at build time | Rebuild with `VITE_API_URL=https://YOUR_DOMAIN` |
+| Mobile app can't reach API | `VITE_API_URL` not set at build time | Rebuild with `VITE_API_URL=https://unshelvd.koshkikode.com` |
 
 ---
 
