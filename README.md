@@ -97,8 +97,8 @@ Optional larger catalog import:
 npm run catalog:mass-seed:py
 ```
 
-This pulls a much larger Open Library dataset (typically 12,000–15,000 catalog books, depending on Open Library response volume, deduplication, and temporary API throttling).
-Expect ~5–10 minutes on a typical connection; completion is indicated when the command exits successfully and returns to your shell prompt.
+This pulls a much larger Open Library dataset (typically 12,000-15,000 catalog books, depending on Open Library response volume, deduplication, and temporary API throttling).
+Expect ~5-10 minutes on a typical connection; completion is indicated when the command exits successfully and returns to your shell prompt.
 
 ### 7) Start the app
 
