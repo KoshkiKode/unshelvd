@@ -55,11 +55,11 @@ Optional but recommended for predictable admin login:
 
 - `ADMIN_USERNAME=admin`
 - `ADMIN_EMAIL=admin@example.com`
-- `ADMIN_PASSWORD=Use-A-Long-Random-Password-Like-z7Q!9mK#4tR@2pL`
+- `ADMIN_PASSWORD=<generate-secure-password>`
 
 Tip: generate a strong admin password with `openssl rand -base64 24`.
 
-If admin vars are not set, `npm run db:seed` auto-generates admin credentials and prints them in the terminal each run.
+If admin vars are not set, `npm run db:seed` auto-generates admin credentials and prints them in the terminal every time you run the seed script (which rotates the admin login and invalidates the previous admin password).
 
 ### 4) Install dependencies
 
