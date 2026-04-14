@@ -11,6 +11,18 @@ deployment. Three paths are described:
 
 Jump to the [Cost Comparison](#cost-comparison) section at the end.
 
+## Step-by-step flow (follow in order)
+
+1. Complete [Common Prerequisites](#common-prerequisites-all-paths).
+2. Choose one deployment path:
+   - [Hybrid (recommended)](#hybrid-aws-route-53--google-cloud-run)
+   - [AWS Exclusive](#aws-exclusive-ecs-fargate--rds)
+   - [GCP Exclusive](#gcp-exclusive-full-google-cloud)
+3. In your chosen path, run every numbered **Step** section in order without skipping.
+4. Complete [Mobile App Deployment](#mobile-app-deployment) if you are shipping Android/iOS.
+5. Review [Troubleshooting](#troubleshooting) if any step fails.
+6. Use [Updating / Re-deploying](#updating--re-deploying) for future releases.
+
 ---
 
 ## Is the Codebase v1.0.0-Ready?
@@ -588,11 +600,18 @@ as additional ECS task environment variables (or Secrets Manager entries).
 > Use this path if you want to move everything into GCP (or already have your
 > domain in Cloud DNS / an external DNS provider).
 
-The backend is identical to the Hybrid setup. The only difference is DNS.
+The backend is identical to the Hybrid setup. The only difference is DNS and email provider choice.
 
-### DNS options (no Route 53)
+### Step 1 — Run Hybrid Step 1 and Step 2 first
 
-**Option A — Cloud DNS (migrate domain from Route 53)**
+Complete these first:
+
+1. [Hybrid Step 1 — Google Cloud infrastructure](#step-1--google-cloud-infrastructure-one-time)
+2. [Hybrid Step 2 — Deploy](#step-2--deploy-and-every-subsequent-deploy)
+
+### Step 2 — Configure DNS (choose one option)
+
+#### Option A — Cloud DNS (migrate domain from Route 53)
 
 ```bash
 gcloud dns managed-zones create unshelvd-zone \
@@ -608,12 +627,12 @@ gcloud dns managed-zones describe unshelvd-zone \
 # AWS Console → Route 53 → Registered Domains → koshkikode.com → Edit Name Servers
 ```
 
-**Option B — Keep Route 53 as the DNS host, add a CNAME only**
+#### Option B — Keep Route 53 as the DNS host, add a CNAME only
 
 This is the Hybrid approach. No changes needed to Route 53 hosting — just add
 the CNAME record pointing to the Cloud Run URL (see Hybrid Step 3).
 
-### Cloud Run custom domain + TLS
+### Step 3 — Map your custom domain to Cloud Run and verify TLS
 
 ```bash
 # Map your domain to the Cloud Run service (Cloud handles TLS automatically)
@@ -628,7 +647,7 @@ gcloud run domain-mappings describe \
   --region=$REGION
 ```
 
-### Email in GCP-only setup
+### Step 4 — Configure email provider for GCP-only setup
 
 Google Cloud does not provide a built-in SMTP service. Recommended options:
 
@@ -652,10 +671,13 @@ EMAIL_FROM=Unshelv'd <noreply@koshkikode.com>
 
 Store in Secret Manager and add to `--set-secrets` in `cloudbuild.yaml`.
 
-### Everything else
+### Step 5 — Complete remaining production items
 
-Infrastructure setup (Cloud SQL, Artifact Registry, Secret Manager, Cloud Run
-deployment, monitoring, backups) is identical to the [Hybrid path](#step-1--google-cloud-infrastructure-one-time).
+For monitoring, backups, and production checks, follow:
+
+- [Step 5 — Enable automated database backups](#step-5--enable-automated-database-backups)
+- [Step 6 — Set up monitoring](#step-6--set-up-monitoring)
+- Pre-launch checklist (near the top of this guide)
 
 ---
 
