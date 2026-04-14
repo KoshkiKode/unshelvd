@@ -136,9 +136,21 @@ describe("insertBookSchema", () => {
     expect(() => insertBookSchema.parse({ ...valid, title: "" })).toThrow();
   });
 
+  it("rejects a title longer than 500 characters", () => {
+    expect(() =>
+      insertBookSchema.parse({ ...valid, title: "A".repeat(501) })
+    ).toThrow();
+  });
+
   it("rejects a missing author", () => {
     const { author, ...rest } = valid;
     expect(() => insertBookSchema.parse(rest)).toThrow();
+  });
+
+  it("rejects an author longer than 200 characters", () => {
+    expect(() =>
+      insertBookSchema.parse({ ...valid, author: "A".repeat(201) })
+    ).toThrow();
   });
 
   it("rejects an invalid condition value", () => {
@@ -199,6 +211,45 @@ describe("insertBookSchema", () => {
       })
     ).not.toThrow();
   });
+
+  it("rejects a description longer than 5000 characters", () => {
+    expect(() =>
+      insertBookSchema.parse({ ...valid, description: "A".repeat(5001) })
+    ).toThrow();
+  });
+
+  it("rejects an isbn longer than 20 characters", () => {
+    expect(() =>
+      insertBookSchema.parse({ ...valid, isbn: "1".repeat(21) })
+    ).toThrow();
+  });
+
+  it("rejects a genre longer than 200 characters", () => {
+    expect(() =>
+      insertBookSchema.parse({ ...valid, genre: "A".repeat(201) })
+    ).toThrow();
+  });
+
+  it("rejects a publisher longer than 200 characters", () => {
+    expect(() =>
+      insertBookSchema.parse({ ...valid, publisher: "A".repeat(201) })
+    ).toThrow();
+  });
+
+  it("rejects an edition longer than 100 characters", () => {
+    expect(() =>
+      insertBookSchema.parse({ ...valid, edition: "A".repeat(101) })
+    ).toThrow();
+  });
+
+  it("rejects a year of 0 or negative", () => {
+    expect(() => insertBookSchema.parse({ ...valid, year: 0 })).toThrow();
+    expect(() => insertBookSchema.parse({ ...valid, year: -1 })).toThrow();
+  });
+
+  it("rejects a year greater than 9999", () => {
+    expect(() => insertBookSchema.parse({ ...valid, year: 10000 })).toThrow();
+  });
 });
 
 // ────────────────────────────────────────────────────────────────
@@ -215,6 +266,12 @@ describe("insertBookRequestSchema", () => {
   it("rejects an empty title", () => {
     expect(() =>
       insertBookRequestSchema.parse({ title: "" })
+    ).toThrow();
+  });
+
+  it("rejects a title longer than 500 characters", () => {
+    expect(() =>
+      insertBookRequestSchema.parse({ title: "A".repeat(501) })
     ).toThrow();
   });
 
@@ -242,6 +299,18 @@ describe("insertBookRequestSchema", () => {
       insertBookRequestSchema.parse({ ...valid, maxPrice: 0 })
     ).not.toThrow();
   });
+
+  it("rejects a description longer than 2000 characters", () => {
+    expect(() =>
+      insertBookRequestSchema.parse({ ...valid, description: "A".repeat(2001) })
+    ).toThrow();
+  });
+
+  it("rejects an author longer than 200 characters", () => {
+    expect(() =>
+      insertBookRequestSchema.parse({ ...valid, author: "A".repeat(201) })
+    ).toThrow();
+  });
 });
 
 // ────────────────────────────────────────────────────────────────
@@ -258,6 +327,12 @@ describe("insertMessageSchema", () => {
   it("rejects an empty content string", () => {
     expect(() =>
       insertMessageSchema.parse({ ...valid, content: "" })
+    ).toThrow();
+  });
+
+  it("rejects a content string longer than 5000 characters", () => {
+    expect(() =>
+      insertMessageSchema.parse({ ...valid, content: "A".repeat(5001) })
     ).toThrow();
   });
 
@@ -317,6 +392,12 @@ describe("insertOfferSchema", () => {
     expect(() =>
       insertOfferSchema.parse({ ...valid, message: null })
     ).not.toThrow();
+  });
+
+  it("rejects a message longer than 1000 characters", () => {
+    expect(() =>
+      insertOfferSchema.parse({ ...valid, message: "A".repeat(1001) })
+    ).toThrow();
   });
 });
 
