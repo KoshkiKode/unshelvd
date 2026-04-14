@@ -544,7 +544,7 @@ async function seed() {
     { userId: mirko.id, title: "We", author: "Yevgeny Zamyatin", description: "Looking for an original Russian edition (Мы). Any Soviet-era print.", maxPrice: 100, language: "Russian", countryOfOrigin: "USSR / Soviet Union" },
   ]);
 
-  console.log("Seed complete: 1 admin + 3 demo users, 20 books, 5 requests, 126 works, 156 catalog entries.");;
+  console.log("Seed complete: 1 admin + 3 demo users, 20 books, 5 requests, 126 works, 156 catalog entries.");
   await pool.end();
 }
 

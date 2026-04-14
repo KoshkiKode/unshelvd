@@ -14,8 +14,9 @@ import {
   works,
   users,
   transactions,
+  TERMINAL_TX_STATUSES,
 } from "@shared/schema";
-import { eq, and, or, ilike, desc, asc, sql, isNull } from "drizzle-orm";
+import { eq, and, or, ilike, desc, asc, sql, isNull, inArray, notInArray } from "drizzle-orm";
 import { resolveWork, getWorkEditions, updateWorkStats } from "./work-resolver";
 import {
   createPaymentIntent,
@@ -113,6 +114,26 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
     return res.status(403).json({ message: "Account deleted" });
   }
   next();
+}
+
+function parsePagination(
+  limitRaw: string | undefined,
+  offsetRaw: string | undefined,
+  defaults: { limit: number; maxLimit: number; offset: number } = {
+    limit: 20,
+    maxLimit: 100,
+    offset: 0,
+  },
+) {
+  const parsedLimit = Number.parseInt(limitRaw ?? "", 10);
+  const parsedOffset = Number.parseInt(offsetRaw ?? "", 10);
+  const limit = Number.isFinite(parsedLimit)
+    ? Math.max(1, Math.min(parsedLimit, defaults.maxLimit))
+    : defaults.limit;
+  const offset = Number.isFinite(parsedOffset)
+    ? Math.max(0, parsedOffset)
+    : defaults.offset;
+  return { limit, offset };
 }
 
 export async function registerRoutes(
@@ -621,10 +642,18 @@ export async function registerRoutes(
         lang,
         country,
       } = req.query as { [key: string]: string };
-      const limit = Math.min(parseInt(limitStr) || 24, 100);
+      const parsedLimit = Number.parseInt(limitStr ?? "", 10);
+      const limit = Number.isFinite(parsedLimit)
+        ? Math.max(1, Math.min(parsedLimit, 100))
+        : 24;
       // Support both offset and page-based pagination
-      const page = parseInt(pageStr) || 1;
-      const offset = parseInt(offsetStr) || (page - 1) * limit;
+      const parsedPage = Number.parseInt(pageStr ?? "", 10);
+      const page = Number.isFinite(parsedPage) ? Math.max(1, parsedPage) : 1;
+      const pageOffset = (page - 1) * limit;
+      const parsedOffset = Number.parseInt(offsetStr ?? "", 10);
+      const offset = Number.isFinite(parsedOffset)
+        ? Math.max(0, parsedOffset)
+        : pageOffset;
 
       const conditions = [];
       if (q && q.length >= 2) {
@@ -676,29 +705,30 @@ export async function registerRoutes(
   app.get("/api/requests", async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
-      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
-      const offset = parseInt(req.query.offset as string) || 0;
+      const { limit, offset } = parsePagination(
+        req.query.limit as string | undefined,
+        req.query.offset as string | undefined,
+      );
       const { requests, total } = await storage.getBookRequests(
         { status, limit, offset },
       );
 
-      // Enrich with user info
-      const enriched = await Promise.all(
-        requests.map(async (r) => {
-          const user = await storage.getUser(r.userId);
-          return {
-            ...r,
-            user: user
-              ? {
-                  id: user.id,
-                  username: user.username,
-                  displayName: user.displayName,
-                  avatarUrl: user.avatarUrl,
-                }
-              : null,
-          };
-        }),
-      );
+      // Batch-load all request owners in a single query
+      const userIds = [...new Set(requests.map((r) => r.userId))];
+      const userRows = userIds.length > 0
+        ? await db.select({
+            id: users.id,
+            username: users.username,
+            displayName: users.displayName,
+            avatarUrl: users.avatarUrl,
+          }).from(users).where(inArray(users.id, userIds))
+        : [];
+      const userMap = new Map(userRows.map((u) => [u.id, u]));
+
+      const enriched = requests.map((r) => {
+        const user = userMap.get(r.userId);
+        return { ...r, user: user ?? null };
+      });
 
       return res.json({ requests: enriched, total });
     } catch (err) {
@@ -827,8 +857,10 @@ export async function registerRoutes(
       const q = req.query.q as string;
       const lang = req.query.language as string;
       const country = req.query.countryOfOrigin as string;
-      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
-      const offset = parseInt(req.query.offset as string) || 0;
+      const { limit, offset } = parsePagination(
+        req.query.limit as string | undefined,
+        req.query.offset as string | undefined,
+      );
 
       const conditions = [];
       if (q && q.length >= 2) {
@@ -2088,7 +2120,7 @@ export async function registerRoutes(
         .where(
           and(
             or(eq(transactions.buyerId, user.id), eq(transactions.sellerId, user.id)),
-            sql`${transactions.status} NOT IN ('completed', 'refunded', 'failed', 'cancelled')`,
+            notInArray(transactions.status, TERMINAL_TX_STATUSES),
           ),
         )
         .limit(1);
