@@ -602,7 +602,7 @@ as additional ECS task environment variables (or Secrets Manager entries).
 
 The backend is identical to the Hybrid setup. The only difference is DNS and email provider choice.
 
-### Step 1 — Run Hybrid Step 1 and Step 2 first
+### Step 1 — Complete Hybrid infrastructure setup first
 
 Complete these first:
 
@@ -611,7 +611,7 @@ Complete these first:
 
 ### Step 2 — Configure DNS (choose one option)
 
-#### Option A — Cloud DNS (migrate domain from Route 53)
+**Option A — Cloud DNS (migrate domain from Route 53)**
 
 ```bash
 gcloud dns managed-zones create unshelvd-zone \
@@ -627,7 +627,7 @@ gcloud dns managed-zones describe unshelvd-zone \
 # AWS Console → Route 53 → Registered Domains → koshkikode.com → Edit Name Servers
 ```
 
-#### Option B — Keep Route 53 as the DNS host, add a CNAME only
+**Option B — Keep Route 53 as the DNS host, add a CNAME only**
 
 This is the Hybrid approach. No changes needed to Route 53 hosting — just add
 the CNAME record pointing to the Cloud Run URL (see Hybrid Step 3).
