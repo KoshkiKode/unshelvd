@@ -89,12 +89,14 @@ npm run dev             # http://localhost:5000
 | `ADMIN_EMAIL` | Admin account email override (optional) | Your choice |
 | `ADMIN_USERNAME` | Admin username override (optional) | Your choice |
 | `ADMIN_PASSWORD` | Admin password override (optional) | Strong, e.g. `openssl rand -base64 18` |
+| `PUBLIC_APP_URL` | Canonical public URL used in auth emails (recommended for web+mobile) | e.g. `https://app.koshkikode.com` |
 
 Optional:
 
 | Variable | Description |
 |----------|-------------|
 | `VITE_API_URL` | Production API URL for native app builds |
+| `CORS_ALLOWED_ORIGINS` | Extra comma-separated origins allowed to call API/admin endpoints |
 | `VITE_ADSENSE_CLIENT` | Google AdSense publisher ID |
 | `VITE_THRIFTBOOKS_AFF_ID` | ThriftBooks affiliate ID |
 
@@ -805,7 +807,7 @@ aws ecs update-service \
 | ECS task exits immediately | Missing secrets or wrong IAM permissions | Check CloudWatch logs for startup error; verify Secrets Manager ARNs |
 | Stripe webhooks failing | Wrong endpoint URL or signing secret | Verify endpoint URL in Stripe Dashboard matches your domain |
 | Emails not delivered | SES still in sandbox mode | Request SES production access in AWS Console |
-| CORS errors in browser | Production domain not in allowed origins | Add domain to `allowedOrigins` in `server/index.ts`, redeploy |
+| CORS errors in browser/admin | Production domain not in allowed origins | Set `CORS_ALLOWED_ORIGINS=https://your-domain,https://other-domain` and redeploy |
 | Mobile app can't reach API | `VITE_API_URL` not set at build time | Rebuild with `VITE_API_URL=https://YOUR_DOMAIN` |
 
 ---

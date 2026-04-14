@@ -116,6 +116,39 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+function trimTrailingSlash(url: string): string {
+  return url.replace(/\/+$/, "");
+}
+
+function getPublicAppOrigin(req: Request): string {
+  const configuredOrigin =
+    process.env.PUBLIC_APP_URL ||
+    process.env.APP_URL ||
+    process.env.WEB_BASE_URL;
+  if (configuredOrigin) {
+    return trimTrailingSlash(configuredOrigin);
+  }
+
+  const requestOrigin = req.headers.origin;
+  if (typeof requestOrigin === "string") {
+    try {
+      const parsed = new URL(requestOrigin);
+      if (parsed.protocol === "https:" || parsed.protocol === "http:") {
+        return trimTrailingSlash(`${parsed.protocol}//${parsed.host}`);
+      }
+    } catch {
+      // Ignore malformed Origin headers.
+    }
+  }
+
+  const host = req.get("host");
+  if (host) {
+    return trimTrailingSlash(`${req.protocol}://${host}`);
+  }
+
+  return "http://localhost:5000";
+}
+
 function parsePagination(
   limitRaw: string | undefined,
   offsetRaw: string | undefined,
@@ -301,8 +334,7 @@ export async function registerRoutes(
         .where(eq(users.id, user.id));
 
       // Send verification email (fire-and-forget — never blocks registration)
-      const origin = req.headers.origin || `https://${req.headers.host}`;
-      const verifyUrl = `${origin}/api/auth/verify-email?token=${emailVerifyToken}`;
+      const verifyUrl = `${getPublicAppOrigin(req)}/api/auth/verify-email?token=${emailVerifyToken}`;
       sendEmailVerification(user.email, user.displayName, verifyUrl).catch((err) =>
         console.error("[email] verification email failed:", err),
       );
@@ -381,8 +413,7 @@ export async function registerRoutes(
         .set({ emailVerifyToken, emailVerifyExpiry })
         .where(eq(users.id, user.id));
 
-      const origin = req.headers.origin || `https://${req.headers.host}`;
-      const verifyUrl = `${origin}/api/auth/verify-email?token=${emailVerifyToken}`;
+      const verifyUrl = `${getPublicAppOrigin(req)}/api/auth/verify-email?token=${emailVerifyToken}`;
       sendEmailVerification(user.email, user.displayName, verifyUrl).catch((err) =>
         console.error("[email] resend-verification failed:", err),
       );
