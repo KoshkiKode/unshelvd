@@ -46,7 +46,7 @@ docker-compose up -d db
 cp .env.example .env
 ```
 
-In `/home/runner/work/unshelvd/unshelvd/.env`, make sure these are set:
+In `.env` (project root), make sure these are set:
 
 - `DATABASE_URL=postgresql://unshelvd:unshelvd_dev@localhost:5432/unshelvd`
 - `SESSION_SECRET=<your-random-secret>`
@@ -99,7 +99,7 @@ npm run catalog:mass-seed:py
 npm run dev
 ```
 
-Open: `http://localhost:5000/#/`
+Open: `http://localhost:5000` (hash routes are used, for example `/#/login`).
 
 ---
 
