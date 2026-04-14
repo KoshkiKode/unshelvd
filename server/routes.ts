@@ -1697,7 +1697,7 @@ export async function registerRoutes(
         avatarUrl: z.string().refine(
           (v) => v === "" || v.startsWith("https://") || /^data:image\/(jpeg|jpg|png|webp|gif);base64,/.test(v),
           { message: "Avatar must be an HTTPS URL or a valid image data URI" },
-        ).optional().or(z.literal("")),
+        ).optional(),
       });
       const data = allowedFields.parse(req.body);
       const updated = await storage.updateUser(req.user!.id, data);

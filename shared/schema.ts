@@ -252,11 +252,11 @@ export const insertBookSchema = createInsertSchema(books).omit({
   originalLanguage: z.string().max(100).nullable().optional(),
   countryOfOrigin: z.string().max(100).nullable().optional(),
   printCountry: z.string().max(100).nullable().optional(),
-  era: z.string().nullable().optional(),
+  era: z.string().max(100).nullable().optional(),
   script: z.string().max(50).nullable().optional(),
   calendarSystem: z.string().max(50).nullable().optional(),
   calendarYear: z.string().max(20).nullable().optional(),
-  textDirection: z.string().nullable().optional(),
+  textDirection: z.string().max(20).nullable().optional(),
   catalogId: z.number().nullable().optional(),
   workId: z.number().nullable().optional(),
 });
