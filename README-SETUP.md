@@ -101,7 +101,7 @@ npm run dev             # http://localhost:5000
 | `ADMIN_EMAIL` | Admin account email override (optional) | Your choice |
 | `ADMIN_USERNAME` | Admin username override (optional) | Your choice |
 | `ADMIN_PASSWORD` | Admin password override (optional) | Strong, e.g. `openssl rand -base64 18` |
-| `PUBLIC_APP_URL` | Canonical public URL used in auth emails (recommended for web+mobile) | e.g. `https://app.koshkikode.com` |
+| `PUBLIC_APP_URL` | Canonical public URL used in auth emails (recommended for web+mobile) | e.g. `https://unshelvd.koshkikode.com` |
 
 Optional:
 
@@ -248,7 +248,7 @@ gcloud run services describe unshelvd --region=$REGION \
 
 > **Apex domain note:** Route 53 supports ALIAS records at the zone apex. However,
 > Cloud Run does not natively support them. The recommended approach is to use a
-> subdomain like `app.koshkikode.com` as a CNAME, or use a load balancer (see GCP
+> subdomain like `unshelvd.koshkikode.com` as a CNAME, or use a load balancer (see GCP
 > Exclusive section for custom domain mapping).
 
 3. Set up a **custom domain** in Cloud Run for HTTPS:
@@ -256,7 +256,7 @@ gcloud run services describe unshelvd --region=$REGION \
 ```bash
 gcloud run domain-mappings create \
   --service=unshelvd \
-  --domain=app.koshkikode.com \   # or unshelvd.koshkikode.com
+  --domain=unshelvd.koshkikode.com \
   --region=$REGION
 ```
 
@@ -301,7 +301,7 @@ gcloud monitoring uptime create \
   --display-name="Unshelv'd API health" \
   --http-check-path=/api/health \
   --monitored-resource-type=uptime-url \
-  --resource-labels=host=app.koshkikode.com \
+  --resource-labels=host=unshelvd.koshkikode.com \
   --period=1
 ```
 
@@ -566,7 +566,7 @@ setup (the CLI for this is verbose). Key settings:
    - Name: `app` (or `@` for apex)
    - Value: your ALB DNS name
 
-2. Register the Stripe webhook at `https://app.koshkikode.com/api/webhooks/stripe`.
+2. Register the Stripe webhook at `https://unshelvd.koshkikode.com/api/webhooks/stripe`.
 
 ### Step 10 — Run migrations and seed
 
@@ -638,12 +638,12 @@ the CNAME record pointing to the Cloud Run URL (see Hybrid Step 3).
 # Map your domain to the Cloud Run service (Cloud handles TLS automatically)
 gcloud run domain-mappings create \
   --service=unshelvd \
-  --domain=app.koshkikode.com \
+  --domain=unshelvd.koshkikode.com \
   --region=$REGION
 
 # Cloud Run will print CNAME/A/AAAA records to add in Cloud DNS or Route 53
 gcloud run domain-mappings describe \
-  --domain=app.koshkikode.com \
+  --domain=unshelvd.koshkikode.com \
   --region=$REGION
 ```
 
@@ -687,7 +687,7 @@ For monitoring, backups, and production checks, follow:
 
 ```bash
 # Build signed release AAB
-VITE_API_URL=https://app.koshkikode.com npm run build
+VITE_API_URL=https://unshelvd.koshkikode.com npm run build
 npx cap sync android
 
 cd android
@@ -708,7 +708,7 @@ Upload the `.aab` to [Google Play Console](https://play.google.com/console).
 ### iOS (Apple App Store)
 
 ```bash
-VITE_API_URL=https://app.koshkikode.com npm run build
+VITE_API_URL=https://unshelvd.koshkikode.com npm run build
 npx cap sync ios
 npx cap open ios   # opens Xcode (macOS only)
 ```

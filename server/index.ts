@@ -58,7 +58,6 @@ const defaultAllowedOrigins = [
   "http://localhost",
   "http://localhost:5000",
   "http://10.0.2.2:5000",
-  "https://app.koshkikode.com",
   "https://unshelvd.koshkikode.com",
   "https://koshkikode.com",
   "https://www.koshkikode.com",
