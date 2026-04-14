@@ -13,14 +13,14 @@ import {
   ArrowLeft,
   Users,
   BookCopy,
-  ExternalLink,
+  ExternalLink as ExternalLinkIcon,
   Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getTextDirection, isCJK } from "@/lib/constants";
 import type { Work, Book, CatalogEntry } from "@shared/schema";
 import AffiliateLinks from "@/components/affiliate-links";
-import ExternalAnchor from "@/components/external-link";
+import ExternalLink from "@/components/external-link";
 
 interface WorkResponse {
   work: Work;
@@ -313,14 +313,14 @@ export default function WorkPage() {
                             </Link>
                             {/* Per-edition ThriftBooks link when we have an ISBN */}
                             {(ed.isbn13 || ed.isbn10) && (
-                              <ExternalAnchor
+                              <ExternalLink
                                 href={`https://www.thriftbooks.com/browse/?b.search=${encodeURIComponent((ed.isbn13 || ed.isbn10)!.replace(/[^0-9X]/gi, ""))}${import.meta.env?.VITE_THRIFTBOOKS_AFF_ID ? `&ref=${import.meta.env.VITE_THRIFTBOOKS_AFF_ID}` : ""}`}
                                 rel="noopener noreferrer sponsored"
                                 className="flex-shrink-0 inline-flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors"
                                 title="Search on ThriftBooks"
                               >
-                                TB <ExternalLink className="h-2.5 w-2.5" />
-                              </ExternalAnchor>
+                                TB <ExternalLinkIcon className="h-2.5 w-2.5" />
+                              </ExternalLink>
                             )}
                           </div>
                         </CardContent>
