@@ -59,7 +59,8 @@ Optional but recommended for predictable admin login:
 
 Tip: generate a strong admin password with `openssl rand -base64 24`.
 
-If admin vars are not set, `npm run db:seed` auto-generates admin credentials and prints them in the terminal every time you run the seed script (which rotates the admin login and invalidates the previous admin password).
+If admin vars are not set, `npm run db:seed` auto-generates admin credentials and prints them in the terminal.
+Running the seed script again rotates the admin login and invalidates the previous admin password.
 
 ### 4) Install dependencies
 
