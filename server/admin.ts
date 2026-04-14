@@ -175,9 +175,9 @@ export function registerAdminRoutes(app: Express) {
       const bookMap = new Map(bookRows.map((b) => [b.id, b]));
       const enriched = results.map((tx) => ({
         ...tx,
-        buyer: userMap.get(tx.buyerId) ?? null,
-        seller: userMap.get(tx.sellerId) ?? null,
-        book: bookMap.get(tx.bookId) ?? null,
+        buyer: userMap.get(tx.buyerId),
+        seller: userMap.get(tx.sellerId),
+        book: bookMap.get(tx.bookId),
       }));
 
       const countQuery = db
