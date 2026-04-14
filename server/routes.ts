@@ -115,6 +115,26 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+function parsePagination(
+  limitRaw: string | undefined,
+  offsetRaw: string | undefined,
+  defaults: { limit: number; maxLimit: number; offset: number } = {
+    limit: 20,
+    maxLimit: 100,
+    offset: 0,
+  },
+) {
+  const parsedLimit = Number.parseInt(limitRaw ?? "", 10);
+  const parsedOffset = Number.parseInt(offsetRaw ?? "", 10);
+  const limit = Number.isFinite(parsedLimit)
+    ? Math.max(1, Math.min(parsedLimit, defaults.maxLimit))
+    : defaults.limit;
+  const offset = Number.isFinite(parsedOffset)
+    ? Math.max(0, parsedOffset)
+    : defaults.offset;
+  return { limit, offset };
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express,
@@ -621,10 +641,20 @@ export async function registerRoutes(
         lang,
         country,
       } = req.query as { [key: string]: string };
-      const limit = Math.min(parseInt(limitStr) || 24, 100);
+      const { limit: baseLimit } = parsePagination(limitStr, undefined, {
+        limit: 24,
+        maxLimit: 100,
+        offset: 0,
+      });
       // Support both offset and page-based pagination
-      const page = parseInt(pageStr) || 1;
-      const offset = parseInt(offsetStr) || (page - 1) * limit;
+      const parsedPage = Number.parseInt(pageStr ?? "", 10);
+      const page = Number.isFinite(parsedPage) ? Math.max(1, parsedPage) : 1;
+      const pageOffset = (page - 1) * baseLimit;
+      const { limit, offset } = parsePagination(limitStr, offsetStr, {
+        limit: 24,
+        maxLimit: 100,
+        offset: pageOffset,
+      });
 
       const conditions = [];
       if (q && q.length >= 2) {
@@ -827,8 +857,10 @@ export async function registerRoutes(
       const q = req.query.q as string;
       const lang = req.query.language as string;
       const country = req.query.countryOfOrigin as string;
-      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
-      const offset = parseInt(req.query.offset as string) || 0;
+      const { limit, offset } = parsePagination(
+        req.query.limit as string | undefined,
+        req.query.offset as string | undefined,
+      );
 
       const conditions = [];
       if (q && q.length >= 2) {

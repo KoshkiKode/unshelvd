@@ -1660,6 +1660,15 @@ describe("GET /api/catalog/search", () => {
     expect(res.status).toBe(200);
     expect(res.body.limit).toBe(100);
   });
+
+  it("sanitizes negative pagination values", async () => {
+    pushDbResults([]);
+    pushDbResults([{ count: 0 }]);
+    const res = await request(app).get("/api/catalog/search?limit=-5&offset=-10");
+    expect(res.status).toBe(200);
+    expect(res.body.limit).toBe(1);
+    expect(res.body.offset).toBe(0);
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -3589,4 +3598,3 @@ describe("POST /api/payments/paypal/capture-order — authenticated", () => {
     expect(res.body.message).toMatch(/Authorize failed/i);
   });
 });
-
