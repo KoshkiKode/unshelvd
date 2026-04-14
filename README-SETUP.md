@@ -56,9 +56,9 @@ Jump to the [Cost Comparison](#cost-comparison) section at the end.
 - [ ] **CORS origins** — confirm `allowedOrigins` in `server/index.ts` includes your production domain
 - [ ] **Session secret** — `openssl rand -hex 32` — never reuse a dev value
 - [ ] **Email** — verify SES domain + request production access (lifts sandbox limits)
-- [ ] **Stripe webhook** — register `https://YOUR_DOMAIN/api/webhooks/stripe` with events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `account.updated`, `transfer.failed`, `charge.refunded`
-- [ ] **PayPal (optional)** — if PayPal is enabled, register `https://YOUR_DOMAIN/api/webhooks/paypal` in the PayPal Developer Dashboard with event: `PAYMENT.AUTHORIZATION.VOIDED`; copy the Webhook ID into the admin settings panel
-- [ ] **Mobile API URL** — build native apps with `VITE_API_URL=https://YOUR_DOMAIN`
+- [ ] **Stripe webhook** — register `https://unshelvd.koshkikode.com/api/webhooks/stripe` with events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `account.updated`, `transfer.failed`, `charge.refunded`
+- [ ] **PayPal (optional)** — if PayPal is enabled, register `https://unshelvd.koshkikode.com/api/webhooks/paypal` in the PayPal Developer Dashboard with event: `PAYMENT.AUTHORIZATION.VOIDED`; copy the Webhook ID into the admin settings panel
+- [ ] **Mobile API URL** — build native apps with `VITE_API_URL=https://unshelvd.koshkikode.com`
 - [ ] **Database backups** — enable automated backups (Cloud SQL or RDS)
 - [ ] **Monitoring** — set up uptime check on `/api/health`
 - [ ] **Google Play / App Store** — sign AAB/IPA, upload to stores if distributing publicly
@@ -830,7 +830,7 @@ aws ecs update-service \
 | Stripe webhooks failing | Wrong endpoint URL or signing secret | Verify endpoint URL in Stripe Dashboard matches your domain |
 | Emails not delivered | SES still in sandbox mode | Request SES production access in AWS Console |
 | CORS errors in browser/admin | Production domain not in allowed origins | Set `CORS_ALLOWED_ORIGINS=https://your-domain,https://other-domain` and redeploy |
-| Mobile app can't reach API | `VITE_API_URL` not set at build time | Rebuild with `VITE_API_URL=https://YOUR_DOMAIN` |
+| Mobile app can't reach API | `VITE_API_URL` not set at build time | Rebuild with `VITE_API_URL=https://unshelvd.koshkikode.com` |
 
 ---
 
