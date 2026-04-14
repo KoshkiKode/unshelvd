@@ -387,11 +387,13 @@ describe("GET /api/admin/transactions", () => {
       status: "pending",
       createdAt: new Date("2024-06-01"),
     };
-    // 1. transaction rows  2. buyer  3. seller  4. book  5. total count
+    // 1. transaction rows  2. users batch (buyer + seller)  3. books batch  4. total count
     pushDbResults(
       [tx],
-      [{ id: 2, username: "buyer", displayName: "Buyer", email: "buyer@test.com" }],
-      [{ id: 3, username: "seller", displayName: "Seller", email: "seller@test.com" }],
+      [
+        { id: 2, username: "buyer", displayName: "Buyer", email: "buyer@test.com" },
+        { id: 3, username: "seller", displayName: "Seller", email: "seller@test.com" },
+      ],
       [{ id: 4, title: "Test Book", author: "Test Author" }],
       [{ count: 1 }],
     );

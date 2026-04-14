@@ -14,8 +14,9 @@ import {
   works,
   users,
   transactions,
+  TERMINAL_TX_STATUSES,
 } from "@shared/schema";
-import { eq, and, or, ilike, desc, asc, sql, isNull } from "drizzle-orm";
+import { eq, and, or, ilike, desc, asc, sql, isNull, inArray, notInArray } from "drizzle-orm";
 import { resolveWork, getWorkEditions, updateWorkStats } from "./work-resolver";
 import {
   createPaymentIntent,
@@ -704,29 +705,30 @@ export async function registerRoutes(
   app.get("/api/requests", async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
-      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
-      const offset = parseInt(req.query.offset as string) || 0;
+      const { limit, offset } = parsePagination(
+        req.query.limit as string | undefined,
+        req.query.offset as string | undefined,
+      );
       const { requests, total } = await storage.getBookRequests(
         { status, limit, offset },
       );
 
-      // Enrich with user info
-      const enriched = await Promise.all(
-        requests.map(async (r) => {
-          const user = await storage.getUser(r.userId);
-          return {
-            ...r,
-            user: user
-              ? {
-                  id: user.id,
-                  username: user.username,
-                  displayName: user.displayName,
-                  avatarUrl: user.avatarUrl,
-                }
-              : null,
-          };
-        }),
-      );
+      // Batch-load all request owners in a single query
+      const userIds = [...new Set(requests.map((r) => r.userId))];
+      const userRows = userIds.length > 0
+        ? await db.select({
+            id: users.id,
+            username: users.username,
+            displayName: users.displayName,
+            avatarUrl: users.avatarUrl,
+          }).from(users).where(inArray(users.id, userIds))
+        : [];
+      const userMap = new Map(userRows.map((u) => [u.id, u]));
+
+      const enriched = requests.map((r) => {
+        const user = userMap.get(r.userId);
+        return { ...r, user: user ?? null };
+      });
 
       return res.json({ requests: enriched, total });
     } catch (err) {
@@ -2118,7 +2120,7 @@ export async function registerRoutes(
         .where(
           and(
             or(eq(transactions.buyerId, user.id), eq(transactions.sellerId, user.id)),
-            sql`${transactions.status} NOT IN ('completed', 'refunded', 'failed', 'cancelled')`,
+            notInArray(transactions.status, TERMINAL_TX_STATUSES),
           ),
         )
         .limit(1);

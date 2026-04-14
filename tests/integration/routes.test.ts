@@ -586,7 +586,8 @@ describe("GET /api/requests", () => {
     const user7 = { id: 7, username: "frank", displayName: "Frank Herbert", avatarUrl: null };
 
     (mockStorage.getBookRequests as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ requests: [req1], total: 1 });
-    (mockStorage.getUser as ReturnType<typeof vi.fn>).mockResolvedValueOnce(user7);
+    // Batch user lookup — route uses db.select().from(users).where(inArray(...))
+    pushDbResults([user7]);
 
     const res = await request(app).get("/api/requests");
     expect(res.status).toBe(200);

@@ -21,7 +21,7 @@ import {
   works,
   messages,
 } from "@shared/schema";
-import { eq, desc, sql, and, gte, lte, count } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lte, count, inArray } from "drizzle-orm";
 import { refundPayment, adminReleaseToSeller } from "./payments";
 import {
   getAllSettings,
@@ -158,34 +158,27 @@ export function registerAdminRoutes(app: Express) {
         .limit(limit)
         .offset(offset);
 
-      // Enrich with user and book info
-      const enriched = await Promise.all(
-        results.map(async (tx) => {
-          const [buyer] = await db
-            .select({
-              id: users.id,
-              username: users.username,
-              displayName: users.displayName,
-              email: users.email,
-            })
-            .from(users)
-            .where(eq(users.id, tx.buyerId));
-          const [seller] = await db
-            .select({
-              id: users.id,
-              username: users.username,
-              displayName: users.displayName,
-              email: users.email,
-            })
-            .from(users)
-            .where(eq(users.id, tx.sellerId));
-          const [book] = await db
-            .select({ id: books.id, title: books.title, author: books.author })
-            .from(books)
-            .where(eq(books.id, tx.bookId));
-          return { ...tx, buyer, seller, book };
-        }),
-      );
+      // Enrich with user and book info (batch-load to avoid N+1 queries)
+      const userIds = [...new Set(results.flatMap((tx) => [tx.buyerId, tx.sellerId]))];
+      const bookIds = [...new Set(results.map((tx) => tx.bookId))];
+      const [userRows, bookRows] = await Promise.all([
+        userIds.length > 0
+          ? db.select({ id: users.id, username: users.username, displayName: users.displayName, email: users.email })
+              .from(users).where(inArray(users.id, userIds))
+          : Promise.resolve([]),
+        bookIds.length > 0
+          ? db.select({ id: books.id, title: books.title, author: books.author })
+              .from(books).where(inArray(books.id, bookIds))
+          : Promise.resolve([]),
+      ]);
+      const userMap = new Map(userRows.map((u) => [u.id, u]));
+      const bookMap = new Map(bookRows.map((b) => [b.id, b]));
+      const enriched = results.map((tx) => ({
+        ...tx,
+        buyer: userMap.get(tx.buyerId) ?? null,
+        seller: userMap.get(tx.sellerId) ?? null,
+        book: bookMap.get(tx.bookId) ?? null,
+      }));
 
       const countQuery = db
         .select({ count: sql<number>`count(*)::int` })
