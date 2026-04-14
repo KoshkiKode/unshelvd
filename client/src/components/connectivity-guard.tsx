@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { checkBackendHealth } from "@/lib/queryClient";
-import { AlertCircle, RefreshCw, WifiOff } from "lucide-react";
+import { API_BASE, checkBackendHealth } from "@/lib/api-base";
+import { RefreshCw, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -65,7 +65,7 @@ export default function ConnectivityGuard({ children }: { children: React.ReactN
             </Button>
             
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono">
-              Attempting to reach: {import.meta.env.VITE_API_URL || "localhost"}
+              Attempting to reach: {API_BASE || "same-origin backend"}
             </p>
           </div>
         </div>

@@ -22,6 +22,22 @@ export function getPlatform(): "android" | "ios" | "web" {
   return Capacitor.getPlatform() as "android" | "ios" | "web";
 }
 
+export async function openExternalUrl(url: string): Promise<void> {
+  if (!/^https?:\/\//i.test(url)) return;
+
+  if (!isNative()) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
+
+  try {
+    const { Browser } = await import("@capacitor/browser");
+    await Browser.open({ url });
+  } catch {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
+
 // ─── Haptic feedback ──────────────────────────────────────────────────────
 
 /**

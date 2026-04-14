@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import ExternalLink from "@/components/external-link";
 
 export default function PrivacyPolicy() {
   return (
@@ -20,7 +21,7 @@ export default function PrivacyPolicy() {
           <h2 className="font-serif text-lg font-semibold text-foreground mb-2">1. Who We Are</h2>
           <p>
             Unshelv'd ("we", "us", "our") is a peer-to-peer book marketplace operated by KoshkiKode LLC.
-            Our website is <a href="https://unshelvd.koshkikode.com" className="text-primary underline">unshelvd.koshkikode.com</a>.
+            Our website is <ExternalLink href="https://unshelvd.koshkikode.com" className="text-primary underline">unshelvd.koshkikode.com</ExternalLink>.
             If you have questions about this policy, message us through the app.
           </p>
         </section>
@@ -58,8 +59,8 @@ export default function PrivacyPolicy() {
             please review them before transacting:
           </p>
           <ul className="list-disc list-inside space-y-1 mt-2">
-            <li><a href="https://stripe.com/privacy" className="text-primary underline" target="_blank" rel="noopener noreferrer">Stripe Privacy Policy</a></li>
-            <li><a href="https://www.paypal.com/webapps/mpp/ua/privacy-full" className="text-primary underline" target="_blank" rel="noopener noreferrer">PayPal Privacy Policy</a></li>
+            <li><ExternalLink href="https://stripe.com/privacy" className="text-primary underline">Stripe Privacy Policy</ExternalLink></li>
+            <li><ExternalLink href="https://www.paypal.com/webapps/mpp/ua/privacy-full" className="text-primary underline">PayPal Privacy Policy</ExternalLink></li>
           </ul>
         </section>
 
