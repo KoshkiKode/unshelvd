@@ -25,35 +25,121 @@ A peer-to-peer book marketplace for every language, every country, every era. Bu
 | Hosting | Google Cloud Run + Cloud SQL |
 | Catalog | Open Library API + proprietary database |
 
-## Quick Start
+## Complete Local Setup (Web + API + Database + Admin + Mobile)
+
+### 1) Prerequisites
+
+- Node.js 20+
+- Docker (for local PostgreSQL)
+- Python 3 (optional, for large catalog seeding)
+- Android Studio (Android builds), and Xcode on macOS (iOS builds)
+
+### 2) Start PostgreSQL
 
 ```bash
-# Start PostgreSQL
 docker-compose up -d db
+```
 
-# Install + configure
+### 3) Configure environment
+
+```bash
 cp .env.example .env
+```
+
+In `/home/runner/work/unshelvd/unshelvd/.env`, make sure these are set:
+
+- `DATABASE_URL=postgresql://unshelvd:unshelvd_dev@localhost:5432/unshelvd`
+- `SESSION_SECRET=<your-random-secret>`
+
+Optional but recommended for predictable admin login:
+
+- `ADMIN_USERNAME=admin`
+- `ADMIN_EMAIL=admin@example.com`
+- `ADMIN_PASSWORD=YourStrongPassword!123`
+
+If admin vars are not set, `npm run db:seed` auto-generates admin credentials and prints them in the terminal each run.
+
+### 4) Install dependencies
+
+```bash
 npm install
+```
 
-# Set up database
+### 5) Create all database tables
+
+```bash
 npm run db:push
-npm run db:seed          # Creates admin + demo data (save the admin credentials!)
+```
 
-# Populate book catalog (~12,000 books)
-python3 scripts/seed-catalog.py
+This creates the full PostgreSQL schema used by the app (users, books, catalog, requests, messages, offers, transactions, platform settings, and works).
 
-# Start dev server
+### 6) Seed full app data (admin + users + books + requests + catalog/work data)
+
+```bash
+npm run db:seed
+```
+
+This seeds:
+
+- Admin account (created or rotated)
+- Demo users
+- Book listings
+- Book requests
+- Works and catalog entries
+
+Optional larger catalog import:
+
+```bash
+npm run catalog:mass-seed:py
+```
+
+### 7) Start the app
+
+```bash
 npm run dev
 ```
 
-Open http://localhost:5000
+Open: `http://localhost:5000/#/`
 
-## Build for Mobile
+---
+
+## Log in to Admin (Website)
+
+1. Open `http://localhost:5000/#/login`
+2. Sign in with the admin email/password from `.env` (or from `npm run db:seed` output)
+3. Open `http://localhost:5000/#/admin` (or use the **Admin** link in the navbar)
+
+---
+
+## Log in to Admin (Android / iOS App)
+
+### Local emulator/simulator
 
 ```bash
-npm run build:apk        # Android debug APK
-npm run build:ios         # Opens Xcode (macOS only)
+npm run build
+npx cap sync
+npx cap open android   # or: npx cap open ios
 ```
+
+- Run the app from Android Studio/Xcode
+- Go to **Login** inside the app and sign in with the same admin credentials
+- Open the **Admin** screen from the in-app navigation
+
+By default for native local dev, the app API target is:
+
+- Android emulator: `http://10.0.2.2:5000`
+- iOS simulator: `http://localhost:5000`
+
+### Production mobile build
+
+Set a reachable backend before building/syncing:
+
+```bash
+VITE_API_URL=https://your-api-domain npm run build
+npx cap sync
+```
+
+Then sign in with your production admin account and open the admin screen from the app navigation.
 
 ## Deploy to Production
 
