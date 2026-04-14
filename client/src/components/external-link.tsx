@@ -12,6 +12,14 @@ export default function ExternalLink({
   target,
   ...props
 }: ExternalLinkProps) {
+  const resolvedTarget = target ?? "_blank";
+  const relTokens = new Set((rel ?? "").split(/\s+/).filter(Boolean));
+  if (resolvedTarget === "_blank") {
+    relTokens.add("noopener");
+    relTokens.add("noreferrer");
+  }
+  const resolvedRel = relTokens.size > 0 ? [...relTokens].join(" ") : undefined;
+
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
     onClick?.(event);
     if (event.defaultPrevented) return;
@@ -27,8 +35,8 @@ export default function ExternalLink({
       {...props}
       href={href}
       onClick={handleClick}
-      target={target ?? "_blank"}
-      rel={rel ?? "noopener noreferrer"}
+      target={resolvedTarget}
+      rel={resolvedRel}
     />
   );
 }

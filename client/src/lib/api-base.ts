@@ -1,4 +1,4 @@
-import { Capacitor } from "@capacitor/core";
+import { getPlatform, isNative } from "./native";
 
 function trimTrailingSlash(url: string): string {
   return url.replace(/\/+$/, "");
@@ -6,11 +6,11 @@ function trimTrailingSlash(url: string): string {
 
 export function getApiBase(): string {
   // Running inside a native Capacitor app
-  if (Capacitor.isNativePlatform()) {
+  if (isNative()) {
     const envUrl = import.meta.env.VITE_API_URL;
     if (envUrl) return trimTrailingSlash(envUrl);
 
-    if (Capacitor.getPlatform() === "android") return "http://10.0.2.2:5000";
+    if (getPlatform() === "android") return "http://10.0.2.2:5000";
     return "http://localhost:5000";
   }
 
