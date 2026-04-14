@@ -55,7 +55,9 @@ Optional but recommended for predictable admin login:
 
 - `ADMIN_USERNAME=admin`
 - `ADMIN_EMAIL=admin@example.com`
-- `ADMIN_PASSWORD=YourStrongPassword!123`
+- `ADMIN_PASSWORD=Use-A-Long-Random-Password-Like-z7Q!9mK#4tR@2pL`
+
+Tip: generate a strong admin password with `openssl rand -base64 24`.
 
 If admin vars are not set, `npm run db:seed` auto-generates admin credentials and prints them in the terminal each run.
 
@@ -92,6 +94,8 @@ Optional larger catalog import:
 ```bash
 npm run catalog:mass-seed:py
 ```
+
+This pulls a much larger Open Library dataset (roughly ~12,000+ catalog books, depending on API availability) and can take several minutes.
 
 ### 7) Start the app
 
