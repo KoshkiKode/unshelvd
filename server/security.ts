@@ -17,6 +17,7 @@ const AUTH_WINDOW_MS = 15 * 60 * 1000;  // 15 minutes
 const PAYMENT_WINDOW_MS = 60 * 1000;    // 1 minute
 const API_WINDOW_MS = 60 * 1000;        // 1 minute
 const SEARCH_WINDOW_MS = 60 * 1000;     // 1 minute
+const RESEND_WINDOW_MS = 60 * 1000;     // 1 minute
 
 /**
  * PostgreSQL-backed rate limit store for express-rate-limit.
@@ -215,6 +216,17 @@ export function applySecurityMiddleware(app: Express, pgPool?: Pool) {
   app.use("/api/auth/register", authLimiter);
   app.use("/api/auth/forgot-password", authLimiter);
   app.use("/api/auth/reset-password", authLimiter);
+
+  // Resend verification email — prevent email-service abuse by logged-in users
+  const resendVerificationLimiter = rateLimit({
+    windowMs: RESEND_WINDOW_MS,
+    max: 3, // 3 resend attempts per minute
+    message: { message: "Too many verification email requests. Please try again later." },
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: makeStore(RESEND_WINDOW_MS),
+  });
+  app.use("/api/auth/resend-verification", resendVerificationLimiter);
 
   // Moderate limit on payment routes
   const paymentLimiter = rateLimit({

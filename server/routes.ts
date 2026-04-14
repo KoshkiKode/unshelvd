@@ -1595,7 +1595,7 @@ export async function registerRoutes(
         status: "pending",
       }).returning();
 
-      const origin = req.headers.origin || `https://${req.headers.host}`;
+      const origin = getPublicAppOrigin(req);
       let orderId: string;
       let approveUrl: string;
       try {
@@ -1693,8 +1693,11 @@ export async function registerRoutes(
         displayName: z.string().min(1).max(100).optional(),
         bio: z.string().max(500).optional(),
         location: z.string().max(100).optional(),
-        // Accept HTTPS URLs or data: URIs (for direct image upload)
-        avatarUrl: z.string().optional().or(z.literal("")),
+        // Accept HTTPS URLs or data: image URIs (for direct image upload), or empty string to clear
+        avatarUrl: z.string().refine(
+          (v) => v === "" || v.startsWith("https://") || /^data:image\/(jpeg|jpg|png|webp|gif);base64,/.test(v),
+          { message: "Avatar must be an HTTPS URL or a valid image data URI" },
+        ).optional().or(z.literal("")),
       });
       const data = allowedFields.parse(req.body);
       const updated = await storage.updateUser(req.user!.id, data);
@@ -1721,7 +1724,10 @@ export async function registerRoutes(
       const valid = await bcrypt.compare(currentPassword, user.password);
       if (!valid) return res.status(400).json({ message: "Current password is incorrect" });
 
-      const pwResult = validatePassword(newPassword, {});
+      const pwResult = validatePassword(newPassword, {
+        username: user.username,
+        displayName: user.displayName,
+      });
       if (!pwResult.valid)
         return res.status(400).json({ message: pwResult.errors?.[0] || "Password does not meet requirements" });
 
@@ -1823,7 +1829,7 @@ export async function registerRoutes(
         passwordResetExpiry: expiry,
       }).where(eq(users.id, user.id));
 
-      const resetUrl = `${req.protocol}://${req.get("host")}/#/reset-password?token=${token}`;
+      const resetUrl = `${getPublicAppOrigin(req)}/#/reset-password?token=${token}`;
 
       // Send reset email (fire-and-forget)
       sendPasswordReset(email, resetUrl).catch((err) =>

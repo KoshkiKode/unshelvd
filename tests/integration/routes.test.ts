@@ -2386,6 +2386,45 @@ describe("PATCH /api/users/me (requires auth)", () => {
     expect(res.status).toBe(200);
     expect(res.body.avatarUrl).toBe("");
   });
+
+  it("accepts a valid HTTPS avatarUrl", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const updated = { ...TEST_USER, avatarUrl: "https://example.com/photo.jpg" };
+    mockStorage.updateUser.mockResolvedValueOnce(updated);
+
+    const res = await agent.patch("/api/users/me").send({ avatarUrl: "https://example.com/photo.jpg" });
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects a javascript: avatarUrl scheme", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.patch("/api/users/me").send({ avatarUrl: "javascript:alert(1)" });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects an http: (non-HTTPS) avatarUrl", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.patch("/api/users/me").send({ avatarUrl: "http://example.com/photo.jpg" });
+    expect(res.status).toBe(400);
+  });
+
+  it("accepts a valid data:image avatarUrl", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const dataUri = "data:image/png;base64,iVBORw0KGgo=";
+    const updated = { ...TEST_USER, avatarUrl: dataUri };
+    mockStorage.updateUser.mockResolvedValueOnce(updated);
+
+    const res = await agent.patch("/api/users/me").send({ avatarUrl: dataUri });
+    expect(res.status).toBe(200);
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -2424,6 +2463,11 @@ describe("POST /api/auth/change-password (requires auth)", () => {
     });
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/Password updated/i);
+    // Verify that validatePassword was called with the user's name context so the
+    // policy can reject passwords containing the username or display name.
+    const validatePasswordMock = vi.mocked(validatePassword);
+    const callArgs = validatePasswordMock.mock.calls.at(-1);
+    expect(callArgs?.[1]).toMatchObject({ username: TEST_USER.username, displayName: TEST_USER.displayName });
   });
 
   it("returns 400 when the current password is incorrect", async () => {
