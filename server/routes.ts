@@ -117,7 +117,9 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 function trimTrailingSlash(url: string): string {
-  return url.replace(/\/+$/, "");
+  let end = url.length;
+  while (end > 0 && url.charCodeAt(end - 1) === 47) end -= 1; // '/'
+  return url.slice(0, end);
 }
 
 function getPublicAppOrigin(req: Request): string {
@@ -146,6 +148,9 @@ function getPublicAppOrigin(req: Request): string {
     return trimTrailingSlash(`${req.protocol}://${host}`);
   }
 
+  if (process.env.NODE_ENV === "production") {
+    console.warn("[auth] PUBLIC_APP_URL/APP_URL/WEB_BASE_URL not set; falling back to localhost verification origin.");
+  }
   return "http://localhost:5000";
 }
 
