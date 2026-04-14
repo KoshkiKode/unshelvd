@@ -253,6 +253,24 @@ describe("applySecurityMiddleware", () => {
     }
     expect(lastStatus).toBe(429);
   });
+
+  it("keeps /api/auth/login under the dedicated auth limiter (limit=10)", async () => {
+    const app = express();
+    applySecurityMiddleware(app);
+    app.post("/api/auth/login", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app).post("/api/auth/login").send({});
+    expect(res.headers["ratelimit-limit"]).toBe("10");
+  });
+
+  it("keeps non-special API routes under the general API limiter (limit=100)", async () => {
+    const app = express();
+    applySecurityMiddleware(app);
+    app.get("/api/ping", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app).get("/api/ping");
+    expect(res.headers["ratelimit-limit"]).toBe("100");
+  });
 });
 
 // ────────────────────────────────────────────────────────────────

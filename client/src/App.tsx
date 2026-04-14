@@ -60,31 +60,31 @@ function AppRouter() {
       <Navbar />
       <main>
         <Suspense fallback={<PageLoader />}>
-        <Switch>
-          <Route path="/" component={Home} />
-          <Route path="/browse" component={Browse} />
-          <Route path="/catalog" component={Catalog} />
-          <Route path="/book/:id" component={BookDetail} />
-          <Route path="/work/:id" component={WorkPage} />
-          <Route path="/about" component={About} />
-          <Route path="/privacy" component={PrivacyPolicy} />
-          <Route path="/terms" component={TermsOfService} />
-          <Route path="/user/:id" component={UserProfile} />
-          <Route path="/requests" component={Requests} />
-          <Route path="/dashboard" component={Dashboard} />
-          <Route path="/dashboard/add-book" component={AddBook} />
-          <Route path="/dashboard/settings" component={Settings} />
-          <Route path="/dashboard/messages" component={Messages} />
-          <Route path="/dashboard/offers" component={Offers} />
-          <Route path="/admin" component={AdminDashboard} />
-          <Route path="/login" component={LoginPage} />
-          <Route path="/register" component={RegisterPage} />
-          <Route path="/forgot-password" component={ForgotPasswordPage} />
-          <Route path="/reset-password" component={ResetPasswordPage} />
-          <Route path="/paypal/return" component={PayPalReturn} />
-          <Route path="/paypal/cancel" component={PayPalCancel} />
-          <Route component={NotFound} />
-        </Switch>
+          <Switch>
+            <Route path="/" component={Home} />
+            <Route path="/browse" component={Browse} />
+            <Route path="/catalog" component={Catalog} />
+            <Route path="/book/:id" component={BookDetail} />
+            <Route path="/work/:id" component={WorkPage} />
+            <Route path="/about" component={About} />
+            <Route path="/privacy" component={PrivacyPolicy} />
+            <Route path="/terms" component={TermsOfService} />
+            <Route path="/user/:id" component={UserProfile} />
+            <Route path="/requests" component={Requests} />
+            <Route path="/dashboard" component={Dashboard} />
+            <Route path="/dashboard/add-book" component={AddBook} />
+            <Route path="/dashboard/settings" component={Settings} />
+            <Route path="/dashboard/messages" component={Messages} />
+            <Route path="/dashboard/offers" component={Offers} />
+            <Route path="/admin" component={AdminDashboard} />
+            <Route path="/login" component={LoginPage} />
+            <Route path="/register" component={RegisterPage} />
+            <Route path="/forgot-password" component={ForgotPasswordPage} />
+            <Route path="/reset-password" component={ResetPasswordPage} />
+            <Route path="/paypal/return" component={PayPalReturn} />
+            <Route path="/paypal/cancel" component={PayPalCancel} />
+            <Route component={NotFound} />
+          </Switch>
         </Suspense>
       </main>
       <Footer />

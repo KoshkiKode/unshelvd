@@ -44,7 +44,8 @@ Jump to the [Cost Comparison](#cost-comparison) section at the end.
 - [ ] **CORS origins** — confirm `allowedOrigins` in `server/index.ts` includes your production domain
 - [ ] **Session secret** — `openssl rand -hex 32` — never reuse a dev value
 - [ ] **Email** — verify SES domain + request production access (lifts sandbox limits)
-- [ ] **Stripe webhook** — register `https://YOUR_DOMAIN/api/webhooks/stripe` with events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `account.updated`, `transfer.failed`
+- [ ] **Stripe webhook** — register `https://YOUR_DOMAIN/api/webhooks/stripe` with events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `account.updated`, `transfer.failed`, `charge.refunded`
+- [ ] **PayPal (optional)** — if PayPal is enabled, register `https://YOUR_DOMAIN/api/webhooks/paypal` in the PayPal Developer Dashboard with event: `PAYMENT.AUTHORIZATION.VOIDED`; copy the Webhook ID into the admin settings panel
 - [ ] **Mobile API URL** — build native apps with `VITE_API_URL=https://YOUR_DOMAIN`
 - [ ] **Database backups** — enable automated backups (Cloud SQL or RDS)
 - [ ] **Monitoring** — set up uptime check on `/api/health`

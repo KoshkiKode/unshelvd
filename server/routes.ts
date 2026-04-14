@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { storage, pool } from "./storage";
+import { storage, pool, db } from "./storage";
 import {
   insertUserSchema,
   loginSchema,
@@ -15,7 +15,6 @@ import {
   users,
   transactions,
 } from "@shared/schema";
-import { db } from "./storage";
 import { eq, and, or, ilike, desc, asc, sql, isNull } from "drizzle-orm";
 import { resolveWork, getWorkEditions, updateWorkStats } from "./work-resolver";
 import {
@@ -61,7 +60,7 @@ import {
   sendDisputeOpened,
   sendOrderCancelled,
 } from "./email";
-import { z } from "zod";
+import { z, ZodError } from "zod";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
@@ -72,7 +71,6 @@ import crypto from "crypto";
 
 const PgSessionStore = connectPgSimple(session);
 const MemoryStore = createMemoryStore(session);
-import { ZodError } from "zod";
 
 // Extend express session
 declare module "express-session" {
