@@ -641,20 +641,18 @@ export async function registerRoutes(
         lang,
         country,
       } = req.query as { [key: string]: string };
-      const { limit: baseLimit } = parsePagination(limitStr, undefined, {
-        limit: 24,
-        maxLimit: 100,
-        offset: 0,
-      });
+      const parsedLimit = Number.parseInt(limitStr ?? "", 10);
+      const limit = Number.isFinite(parsedLimit)
+        ? Math.max(1, Math.min(parsedLimit, 100))
+        : 24;
       // Support both offset and page-based pagination
       const parsedPage = Number.parseInt(pageStr ?? "", 10);
       const page = Number.isFinite(parsedPage) ? Math.max(1, parsedPage) : 1;
-      const pageOffset = (page - 1) * baseLimit;
-      const { limit, offset } = parsePagination(limitStr, offsetStr, {
-        limit: 24,
-        maxLimit: 100,
-        offset: pageOffset,
-      });
+      const pageOffset = (page - 1) * limit;
+      const parsedOffset = Number.parseInt(offsetStr ?? "", 10);
+      const offset = Number.isFinite(parsedOffset)
+        ? Math.max(0, parsedOffset)
+        : pageOffset;
 
       const conditions = [];
       if (q && q.length >= 2) {
