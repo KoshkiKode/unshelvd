@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import ExternalLink from "@/components/external-link";
 import { useState, useEffect } from "react";
 
 interface StatCardProps {
@@ -729,7 +730,7 @@ export default function AdminDashboard() {
                   </div>
                   <CardDescription>
                     Accept payments via PayPal. Uses the PayPal Orders v2 REST API.
-                    Create an app at <a href="https://developer.paypal.com" target="_blank" rel="noreferrer" className="underline">developer.paypal.com</a>.
+                    Create an app at <ExternalLink href="https://developer.paypal.com" rel="noreferrer" className="underline">developer.paypal.com</ExternalLink>.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">

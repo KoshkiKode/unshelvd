@@ -18,6 +18,7 @@
  */
 
 import { ExternalLink, BookMarked, Tag, ShoppingBag } from "lucide-react";
+import ExternalAnchor from "@/components/external-link";
 
 interface AffiliateLinkProps {
   title: string;
@@ -165,9 +166,8 @@ export default function AffiliateLinks({
     <div className={className} data-testid="affiliate-links">
       {/* ThriftBooks — primary affiliate link (shown when likely to have the book) */}
       {showPrimarySection && (
-        <a
+        <ExternalAnchor
           href={thriftBooksUrl}
-          target="_blank"
           rel="noopener noreferrer sponsored"
           className="group flex items-center gap-3 rounded-lg border border-blue-200 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20 p-3 transition-all duration-200 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950/30"
           data-testid="thriftbooks-link"
@@ -194,7 +194,7 @@ export default function AffiliateLinks({
           <div className="flex-shrink-0">
             <Tag className="h-4 w-4 text-blue-400 dark:text-blue-500 opacity-40 group-hover:opacity-70 transition-opacity" />
           </div>
-        </a>
+        </ExternalAnchor>
       )}
 
       {/* Secondary marketplace links */}
@@ -206,16 +206,14 @@ export default function AffiliateLinks({
           {showPrimarySection ? "Also on" : "Find this book on"}
         </span>
         {secondaryLinks.map((link) => (
-          <a
+          <ExternalAnchor
             key={link.name}
             href={link.url}
-            target="_blank"
-            rel="noopener noreferrer"
             className={`inline-flex items-center gap-1 text-xs font-medium transition-colors ${link.color}`}
           >
             {link.name}
             <ExternalLink className="h-2.5 w-2.5 opacity-50" />
-          </a>
+          </ExternalAnchor>
         ))}
       </div>
     </div>

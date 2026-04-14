@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { BookOpen } from "lucide-react";
+import ExternalLink from "@/components/external-link";
 
 export default function Footer() {
   return (
@@ -34,14 +35,12 @@ export default function Footer() {
             <p>© {new Date().getFullYear()} KoshkiKode LLC. MIT License.</p>
             <p>
               Book covers &amp; metadata courtesy of{" "}
-              <a
+              <ExternalLink
                 href="https://openlibrary.org"
-                target="_blank"
-                rel="noopener noreferrer"
                 className="underline hover:text-foreground transition-colors"
               >
                 Open Library
-              </a>
+              </ExternalLink>
               .
             </p>
           </div>
@@ -50,4 +49,3 @@ export default function Footer() {
     </footer>
   );
 }
-
