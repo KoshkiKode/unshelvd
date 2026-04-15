@@ -29,6 +29,7 @@
 #   _MIN_INSTANCES        Cloud Run min instances       (default: 1 — keeps one warm for WebSocket)
 #   _MAX_INSTANCES        Cloud Run max instances       (default: 3)
 #   _STRIPE_PK            Stripe publishable key        (default: "" — payments disabled)
+#   _API_URL              Optional API base URL for Vite (default: "" — same-origin)
 #   _THRIFTBOOKS_AFF_ID   ThriftBooks affiliate ID      (default: "" — affiliate links disabled)
 #   _ADSENSE_CLIENT       AdSense publisher ID          (default: "" — ads disabled)
 
@@ -44,6 +45,8 @@ substitutions:
   # Override at deploy time:  --substitutions=_STRIPE_PK=pk_live_...
   # Leave blank to run in dev/no-payment mode.
   _STRIPE_PK: ""
+  # Optional API URL override for client bundle. Leave blank for same-origin API.
+  _API_URL: ""
   # Affiliate and ad IDs — safe to bake into the client bundle at build time.
   _THRIFTBOOKS_AFF_ID: ""
   _ADSENSE_CLIENT: ""
@@ -60,6 +63,7 @@ steps:
       - "--build-arg=VITE_THRIFTBOOKS_AFF_ID=${_THRIFTBOOKS_AFF_ID}"
       - "--build-arg=VITE_ADSENSE_CLIENT=${_ADSENSE_CLIENT}"
       - "--build-arg=VITE_STRIPE_PUBLISHABLE_KEY=${_STRIPE_PK}"
+      - "--build-arg=VITE_API_URL=${_API_URL}"
       - "."
 
   # 2. Push to Artifact Registry
