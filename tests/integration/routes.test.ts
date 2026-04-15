@@ -151,6 +151,7 @@ import {
   checkSellerStatus,
   handleChargeRefunded,
 } from "../../server/payments";
+import { resolveWork, updateWorkStats } from "../../server/work-resolver";
 import { isPayPalEnabled, createPayPalOrder, authorizePayPalOrder } from "../../server/paypal";
 import { validatePassword } from "../../shared/password-policy";
 
@@ -1895,6 +1896,83 @@ describe("POST /api/books — authenticated", () => {
     });
 
     expect(res.status).toBe(400);
+  });
+
+  it("still creates a book when work resolution fails", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+    vi.mocked(resolveWork).mockRejectedValueOnce(new Error("resolver unavailable"));
+
+    const createdBook = {
+      id: 11,
+      userId: TEST_USER.id,
+      title: "Dune",
+      author: "Frank Herbert",
+      condition: "good",
+      status: "for-sale",
+      price: 20,
+      workId: null,
+    };
+    mockStorage.createBook.mockResolvedValueOnce(createdBook);
+    mockStorage.getBookRequests.mockResolvedValueOnce({ requests: [] });
+
+    const res = await agent.post("/api/books").send({
+      title: "Dune",
+      author: "Frank Herbert",
+      condition: "good",
+      status: "for-sale",
+      price: 20,
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockStorage.createBook).toHaveBeenCalledWith(
+      TEST_USER.id,
+      expect.objectContaining({ workId: null }),
+    );
+    expect(vi.mocked(updateWorkStats)).not.toHaveBeenCalled();
+  });
+
+  it("returns matched open requests for other users when a listing is created", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const createdBook = {
+      id: 12,
+      userId: TEST_USER.id,
+      title: "Dune",
+      author: "Frank Herbert",
+      condition: "good",
+      status: "for-sale",
+      price: 18,
+      workId: 1,
+    };
+    mockStorage.createBook.mockResolvedValueOnce(createdBook);
+    mockStorage.getBookRequests.mockResolvedValueOnce({
+      requests: [
+        { id: 101, userId: 7, title: "Dune", author: "Frank Herbert" },
+        { id: 102, userId: TEST_USER.id, title: "Dune", author: "Frank Herbert" },
+      ],
+    });
+    mockStorage.getUser.mockResolvedValueOnce({
+      id: 7,
+      email: "reader@example.com",
+      displayName: "Reader",
+    });
+
+    const res = await agent.post("/api/books").send({
+      title: "Dune",
+      author: "Frank Herbert",
+      condition: "good",
+      status: "for-sale",
+      price: 18,
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockStorage.getBookRequests).toHaveBeenCalledWith({ status: "open", limit: 100 });
+    expect(res.body.matchedRequests).toEqual([
+      { id: 101, title: "Dune", userId: 7 },
+      { id: 102, title: "Dune", userId: TEST_USER.id },
+    ]);
   });
 });
 
