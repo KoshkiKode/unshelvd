@@ -12,7 +12,9 @@
 #   STRIPE_SECRET_KEY     — Stripe server-side secret key  (sk_live_... / sk_test_...)
 #   STRIPE_WEBHOOK_SECRET — Stripe webhook signing secret  (whsec_...)
 #
-# Optional admin credential secrets (see DEPLOY.md § "Admin Credentials"):
+# Optional admin credential secrets — only needed if you want to pin credentials
+#   instead of using the auto-generated ones printed in the seed-job logs.
+#   Create these in Secret Manager BEFORE enabling them (see step 4 in this file):
 #   ADMIN_EMAIL           — admin account email
 #   ADMIN_USERNAME        — admin account username
 #   ADMIN_PASSWORD        — admin account password (strong, randomly generated)
@@ -105,10 +107,12 @@ steps:
       - "--args=script/seed.js"
       - "--region=${_REGION}"
       - "--set-cloudsql-instances=${PROJECT_ID}:${_REGION}:${_SQL_INSTANCE}"
-      # Admin credential secrets are optional overrides.
-      # If ADMIN_EMAIL/ADMIN_USERNAME/ADMIN_PASSWORD are omitted, the seed script
-      # auto-generates fresh admin credentials each run and prints them to job logs.
-      - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest,ADMIN_EMAIL=ADMIN_EMAIL:latest,ADMIN_USERNAME=ADMIN_USERNAME:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest"
+      # Only DATABASE_URL and SESSION_SECRET are required here.
+      # ADMIN_EMAIL / ADMIN_USERNAME / ADMIN_PASSWORD are optional overrides — the
+      # seed script auto-generates fresh credentials and prints them to the job log
+      # if these are not set.  Do NOT add them to --set-secrets unless you have
+      # created those secrets in Secret Manager first, or the job deploy will fail.
+      - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest"
       - "--set-env-vars=NODE_ENV=production"
       - "--max-retries=1"
       - "--task-timeout=300s"
