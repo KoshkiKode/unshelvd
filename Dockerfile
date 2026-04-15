@@ -11,6 +11,8 @@ RUN npm ci
 COPY . .
 
 # Accept build-time env vars for the Vite client bundle
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
 ARG VITE_THRIFTBOOKS_AFF_ID
 ENV VITE_THRIFTBOOKS_AFF_ID=$VITE_THRIFTBOOKS_AFF_ID
 ARG VITE_ADSENSE_CLIENT
@@ -29,6 +31,9 @@ WORKDIR /app
 # Install production dependencies only
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
+
+# Ensure production runtime behavior in Cloud Run
+ENV NODE_ENV=production
 
 # Copy built output
 COPY --from=builder /app/dist ./dist
