@@ -4,6 +4,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
+    "prebuild": "tsx scripts/sync-version.ts",
     "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "tsx scripts/verify-env.ts && tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
