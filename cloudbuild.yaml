@@ -122,11 +122,23 @@ steps:
   # 5. Deploy the main Cloud Run service
   #
   # ── Stripe secrets ──────────────────────────────────────────────────────────
-  # Add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET to Secret Manager first
-  # (see DEPLOY.md § "Stripe Payments"), then pass _STRIPE_PK at deploy time:
+  # STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are intentionally NOT in
+  # --set-secrets by default.  Cloud Run refuses to deploy if a referenced
+  # secret doesn't exist in Secret Manager, so adding them before you've
+  # created the secrets breaks every deploy.
   #
+  # Once you have created both secrets in Secret Manager:
+  #   gcloud secrets create STRIPE_SECRET_KEY --data-file=-   <<< "sk_live_..."
+  #   gcloud secrets create STRIPE_WEBHOOK_SECRET --data-file=- <<< "whsec_..."
+  #
+  # Add them to the --set-secrets line below:
+  #   --set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest,STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest
+  #
+  # Also pass the publishable key at deploy time:
   #   gcloud builds submit --config=cloudbuild.yaml \
   #     --substitutions=_STRIPE_PK=pk_live_...
+  #
+  # The app runs in no-payment mode (Stripe disabled) when these are absent.
   #
   # ── Admin credentials ───────────────────────────────────────────────────────
   # Optional admin credential overrides:
@@ -150,9 +162,10 @@ steps:
       - "--max-instances=${_MAX_INSTANCES}"
       - "--startup-cpu-boost"
       - "--set-cloudsql-instances=${PROJECT_ID}:${_REGION}:${_SQL_INSTANCE}"
-      # Stripe secrets (add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET to Secret
-      # Manager first — see DEPLOY.md):
-      - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest,STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest"
+      # Only the two required secrets by default. Add Stripe secrets here once
+      # you have created STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET in Secret
+      # Manager (see comment above).
+      - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest"
       - "--set-env-vars=NODE_ENV=production"
 
 images:
