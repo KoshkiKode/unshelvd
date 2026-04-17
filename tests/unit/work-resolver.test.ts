@@ -1211,3 +1211,80 @@ describe("resolveWork — resolveViaOpenLibrary: author name and title fallback 
     );
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────
+// resolveWork — uncovered guard/branch paths
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("resolveWork — guard and branch path coverage", () => {
+  beforeEach(() => {
+    dbResults.length = 0;
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("skips OL search and fuzzy matching when title and author are empty", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    // Strategy 4 direct insert
+    dbResults.push([{ id: 700, title: "", author: "" }]);
+
+    const result = await resolveWork({ title: "", author: "" });
+
+    expect(result).toEqual({ workId: 700, isNew: true, confidence: "created" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps author as 'Unknown' when the OL author endpoint returns non-ok", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ title: "Branch Book", works: [{ key: "/works/OL990W" }] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            title: "Branch Book",
+            authors: [{ author: { key: "/authors/OL990A" } }],
+            edition_count: 1,
+          }),
+        })
+        // author endpoint response is non-ok
+        .mockResolvedValueOnce({ ok: false }),
+    );
+
+    dbResults.push([], [{ id: 701, title: "Branch Book", author: "Unknown" }]);
+
+    const result = await resolveWork({
+      title: "Branch Book",
+      author: "Input Author",
+      isbn: "9990001112",
+    });
+
+    expect(result).toEqual({ workId: 701, isNew: true, confidence: "exact" });
+    expect((db as any).values).toHaveBeenCalledWith(
+      expect.objectContaining({ author: "Unknown" }),
+    );
+  });
+
+  it("falls through to Strategy 4 when title overlaps but author overlap fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network error")));
+
+    // Strategy 3 candidate has title overlap but different author
+    dbResults.push([{ id: 702, title: "Dune Messiah: Collector Edition", author: "Completely Different" }]);
+    dbResults.push([{ id: 703, title: "Dune Messiah", author: "Frank Herbert" }]);
+
+    const result = await resolveWork({
+      title: "Dune Messiah",
+      author: "Frank Herbert",
+    });
+
+    expect(result).toEqual({ workId: 703, isNew: true, confidence: "created" });
+  });
+});
