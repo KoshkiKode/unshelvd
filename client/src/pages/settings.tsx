@@ -10,14 +10,17 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ArrowLeft, Loader2, User, Lock, Trash2, Upload, ImageIcon, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Loader2, User, Lock, Trash2, Upload, ImageIcon, AlertTriangle, Globe2 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useI18n } from "@/i18n/use-i18n";
+import type { Locale } from "@/i18n/translations";
 
 export default function Settings() {
   const { user, logout } = useAuth();
+  const { locale, setLocale, locales } = useI18n();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -294,6 +297,37 @@ export default function Settings() {
             {passwordMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
             Change Password
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Language Preferences */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 font-serif text-lg">
+            <Globe2 className="h-5 w-5" />
+            Language
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-1.5">
+            <Label htmlFor="language-select">Interface Language</Label>
+            <select
+              id="language-select"
+              value={locale}
+              onChange={(e) => setLocale(e.target.value as Locale)}
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              data-testid="settings-language-select"
+            >
+              {(Object.entries(locales) as [Locale, string][]).map(([code, name]) => (
+                <option key={code} value={code}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Your preferred display language. Saved automatically.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
