@@ -1,14 +1,17 @@
 /**
  * Unshelv'd — Internationalization
- * 
- * Only includes translations we are HIGHLY confident about.
- * These are common UI strings translated by widely-agreed conventions.
- * 
- * Supported: English, Spanish, French, German, Portuguese, Russian,
- * Chinese (Simplified), Japanese, Korean, Arabic
+ *
+ * Core translated locales are hand-curated.
+ * Additional top-language locales currently use English strings as fallback.
  */
 
-export type Locale = "en" | "es" | "fr" | "de" | "pt" | "ru" | "zh" | "ja" | "ko" | "ar";
+type BaseTranslatedLocale = "en" | "es" | "fr" | "de" | "pt" | "ru" | "zh" | "ja" | "ko" | "ar";
+type FallbackLocale =
+  | "hi" | "bn" | "ur" | "id" | "sw" | "mr" | "te" | "tr" | "ta" | "vi"
+  | "fa" | "it" | "th" | "gu" | "pl" | "uk" | "ml" | "kn" | "or" | "pa"
+  | "ro" | "nl" | "el" | "cs" | "hu";
+
+export type Locale = BaseTranslatedLocale | FallbackLocale;
 
 export const localeNames: Record<Locale, string> = {
   en: "English",
@@ -21,11 +24,41 @@ export const localeNames: Record<Locale, string> = {
   ja: "日本語",
   ko: "한국어",
   ar: "العربية",
+  hi: "हिन्दी",
+  bn: "বাংলা",
+  ur: "اردو",
+  id: "Bahasa Indonesia",
+  sw: "Kiswahili",
+  mr: "मराठी",
+  te: "తెలుగు",
+  tr: "Türkçe",
+  ta: "தமிழ்",
+  vi: "Tiếng Việt",
+  fa: "فارسی",
+  it: "Italiano",
+  th: "ไทย",
+  gu: "ગુજરાતી",
+  pl: "Polski",
+  uk: "Українська",
+  ml: "മലയാളം",
+  kn: "ಕನ್ನಡ",
+  or: "ଓଡ଼ିଆ",
+  pa: "ਪੰਜਾਬੀ",
+  ro: "Română",
+  nl: "Nederlands",
+  el: "Ελληνικά",
+  cs: "Čeština",
+  hu: "Magyar",
 };
 
 export const localeDirections: Record<Locale, "ltr" | "rtl"> = {
   en: "ltr", es: "ltr", fr: "ltr", de: "ltr", pt: "ltr",
   ru: "ltr", zh: "ltr", ja: "ltr", ko: "ltr", ar: "rtl",
+  hi: "ltr", bn: "ltr", ur: "rtl", id: "ltr", sw: "ltr",
+  mr: "ltr", te: "ltr", tr: "ltr", ta: "ltr", vi: "ltr",
+  fa: "rtl", it: "ltr", th: "ltr", gu: "ltr", pl: "ltr",
+  uk: "ltr", ml: "ltr", kn: "ltr", or: "ltr", pa: "ltr",
+  ro: "ltr", nl: "ltr", el: "ltr", cs: "ltr", hu: "ltr",
 };
 
 type TranslationStrings = {
@@ -143,7 +176,7 @@ type TranslationStrings = {
   common_back: string;
 };
 
-const translations: Record<Locale, TranslationStrings> = {
+const baseTranslations: Record<BaseTranslatedLocale, TranslationStrings> = {
   en: {
     nav_browse: "Browse",
     nav_requests: "Requests",
@@ -601,6 +634,17 @@ const translations: Record<Locale, TranslationStrings> = {
     pay_checkout: "الدفع", pay_review_purchase: "راجع عملية الشراء", pay_book_price: "سعر الكتاب", pay_platform_fee: "رسوم المنصة (١٠٪)", pay_seller_receives: "يحصل البائع على", pay_total: "المجموع", pay_buyer_protection: "يتم الاحتفاظ بدفعتك بأمان حتى تؤكد استلام الكتاب.", pay_purchase_complete: "اكتملت عملية الشراء", pay_processing: "جارٍ معالجة الدفع...",
     common_cancel: "إلغاء", common_save: "حفظ", common_delete: "حذف", common_edit: "تعديل", common_loading: "جارٍ التحميل...", common_error: "حدث خطأ ما", common_search: "بحث", common_filter: "تصفية", common_sort: "ترتيب", common_back: "رجوع",
   },
+};
+
+const fallbackLocales: FallbackLocale[] = [
+  "hi", "bn", "ur", "id", "sw", "mr", "te", "tr", "ta", "vi",
+  "fa", "it", "th", "gu", "pl", "uk", "ml", "kn", "or", "pa",
+  "ro", "nl", "el", "cs", "hu",
+];
+
+const translations: Record<Locale, TranslationStrings> = {
+  ...baseTranslations,
+  ...Object.fromEntries(fallbackLocales.map((locale) => [locale, baseTranslations.en])) as Record<FallbackLocale, TranslationStrings>,
 };
 
 export default translations;
