@@ -1,24 +1,26 @@
-name: Release
+name: Build
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Unshelv'd — App Release Pipeline
+# Unshelv'd — Native App Build Pipeline
 #
-# Triggered by pushing a version tag: git tag v1.2.3 && git push --tags
+# Produces three artifacts and nothing else:
+#   • unshelvd-<version>.apk  — Android APK  (direct install / Firebase App Dist.)
+#   • unshelvd-<version>.aab  — Android AAB  (Play Store upload)
+#   • unshelvd-<version>.ipa  — iOS IPA      (TestFlight / Firebase App Dist.)
 #
-# What it does:
-#   1. Builds a signed Android APK (for direct install / Firebase App Dist.)
-#      and a signed AAB (for the Play Store) in parallel with the iOS job.
-#   2. Builds a signed iOS IPA for ad-hoc / Firebase App Distribution.
-#   3. Creates a GitHub Release with all four files as downloadable assets.
+# Triggers
+# ────────
+#   • Version tag push  (v1.2.3, v2.0.0-rc.1, …) — builds and creates a GitHub Release
+#   • workflow_dispatch — manual run, builds only (no GitHub Release)
 #
-# Required GitHub Secrets (Settings → Secrets and variables → Actions):
+# Required GitHub Secrets (Settings → Secrets and variables → Actions → Secrets):
 #
 #   Android
 #   ───────
-#   ANDROID_KEYSTORE_BASE64   — base64(your.keystore) — see MOBILE.md for keytool cmd
-#   KEYSTORE_PASSWORD         — store password for the keystore
-#   KEY_PASSWORD              — key password (often the same as store password)
-#   KEY_ALIAS                 — key alias (default: "unshelvd")
+#   ANDROID_KEYSTORE_BASE64   — base64(your.keystore)  (see MOBILE.md for keytool cmd)
+#   KEYSTORE_PASSWORD         — keystore store password
+#   KEY_PASSWORD              — key password  (often the same as store password)
+#   KEY_ALIAS                 — key alias  (default: "unshelvd")
 #
 #   iOS
 #   ───
@@ -27,11 +29,11 @@ name: Release
 #   IOS_PROVISIONING_PROFILE_BASE64  — base64-encoded Ad-Hoc provisioning profile
 #
 # Required GitHub Variables (Settings → Secrets and variables → Actions → Variables):
-#   API_URL                   — e.g. https://unshelvd.koshkikode.com
+#   API_URL   — e.g. https://unshelvd.koshkikode.com
 #
-# Optional Variables (used for affiliate/ad features in the app):
-#   THRIFTBOOKS_AFF_ID        — ThriftBooks Impact affiliate ID
-#   ADSENSE_CLIENT            — Google AdSense publisher ID
+# Optional Variables:
+#   THRIFTBOOKS_AFF_ID  — ThriftBooks Impact affiliate ID
+#   ADSENSE_CLIENT      — Google AdSense publisher ID
 #
 # To cut a release:
 #   git tag v1.2.3
@@ -41,15 +43,17 @@ name: Release
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'     # e.g. v1.0.0, v1.2.3
-      - 'v[0-9]+.[0-9]+.[0-9]+-*'   # e.g. v1.0.0-beta.1, v2.0.0-rc.1
+      - 'v[0-9]+.[0-9]+.[0-9]+'       # e.g. v1.0.0
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'     # e.g. v1.0.0-beta.1
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Version tag to release (e.g. v1.2.3)'
-        required: true
+        description: 'Version label for artifact names (e.g. v1.2.3)'
+        required: false
+        default: 'manual'
 
-# All jobs need to read checkout content and write releases + artifacts.
+# All jobs need read access to the repo; the release job also needs write to
+# create a GitHub Release and upload assets.
 permissions:
   contents: write
 
@@ -58,6 +62,8 @@ jobs:
   android:
     name: Android (APK + AAB)
     runs-on: ubuntu-latest
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
 
     outputs:
       apk_name: ${{ steps.rename.outputs.apk_name }}
@@ -82,6 +88,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Stamp version from tag
+        run: |
+          VERSION="${{ github.ref_name || inputs.tag || '' }}"
+          SEMVER="${VERSION#v}"
+          if [[ "$SEMVER" =~ ^[0-9]+\.[0-9]+\.[0-9] ]]; then
+            npm version "$SEMVER" --no-git-tag-version --allow-same-version
+            echo "Stamped package.json to $SEMVER"
+          else
+            echo "No valid semver tag ('$VERSION') — keeping package.json at $(node -p "require('./package.json').version")"
+          fi
+
       - name: Build web app (production)
         run: npm run build
         env:
@@ -96,13 +113,12 @@ jobs:
         run: npx cap sync android
 
       - name: Decode release keystore
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: env.HAS_KEYSTORE == 'true'
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/unshelvd-release.keystore
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      # Build signed APK (for direct install) AND AAB (for Play Store) in one pass
       - name: Build signed release APK + AAB
         working-directory: android
         run: ./gradlew assembleRelease bundleRelease --no-daemon
@@ -114,7 +130,7 @@ jobs:
       - name: Rename artifacts with version
         id: rename
         run: |
-          VERSION=${{ github.ref_name || inputs.tag }}
+          VERSION="${{ github.ref_name || inputs.tag || 'manual' }}"
           APK_NAME="unshelvd-${VERSION}.apk"
           AAB_NAME="unshelvd-${VERSION}.aab"
           cp android/app/build/outputs/apk/release/app-release.apk "$APK_NAME"
@@ -122,24 +138,26 @@ jobs:
           echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
           echo "aab_name=$AAB_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
           name: android-apk
           path: ${{ steps.rename.outputs.apk_name }}
           retention-days: 90
 
-      - name: Upload AAB artifact
+      - name: Upload AAB
         uses: actions/upload-artifact@v7
         with:
           name: android-aab
           path: ${{ steps.rename.outputs.aab_name }}
           retention-days: 90
 
-  # ── iOS — signed IPA for ad-hoc / Firebase distribution ─────────────────────
+  # ── iOS — signed IPA ────────────────────────────────────────────────────────
   ios:
     name: iOS (IPA)
     runs-on: macos-latest
+    permissions:
+      contents: read
 
     outputs:
       ipa_name: ${{ steps.rename.outputs.ipa_name }}
@@ -155,6 +173,17 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Stamp version from tag
+        run: |
+          VERSION="${{ github.ref_name || inputs.tag || '' }}"
+          SEMVER="${VERSION#v}"
+          if [[ "$SEMVER" =~ ^[0-9]+\.[0-9]+\.[0-9] ]]; then
+            npm version "$SEMVER" --no-git-tag-version --allow-same-version
+            echo "Stamped package.json to $SEMVER"
+          else
+            echo "No valid semver tag ('$VERSION') — keeping package.json at $(node -p "require('./package.json').version")"
+          fi
 
       - name: Build web app (production)
         run: npm run build
@@ -199,7 +228,7 @@ jobs:
           # Make the temp keychain the active one for this runner session
           security list-keychains -d user -s "$KEYCHAIN_PATH"
 
-          # Persist the password so the export step can use the same keychain
+          # Persist for use in the export step
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
 
@@ -222,9 +251,9 @@ jobs:
             archive \
             ENABLE_USER_SCRIPT_SANDBOXING=NO
 
-      - name: Export IPA (ad-hoc — for Firebase / Diawi / direct download)
+      - name: Export IPA (ad-hoc)
         run: |
-          # Unlock the keychain again in case Xcode locked it between steps
+          # Unlock keychain again in case Xcode locked it between steps
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
           xcodebuild \
@@ -236,24 +265,24 @@ jobs:
       - name: Rename IPA with version
         id: rename
         run: |
-          VERSION=${{ github.ref_name || inputs.tag }}
+          VERSION="${{ github.ref_name || inputs.tag || 'manual' }}"
           IPA_NAME="unshelvd-${VERSION}.ipa"
           cp "$RUNNER_TEMP/export/"*.ipa "$IPA_NAME"
           echo "ipa_name=$IPA_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Upload IPA artifact
+      - name: Upload IPA
         uses: actions/upload-artifact@v7
         with:
           name: ios-ipa
           path: ${{ steps.rename.outputs.ipa_name }}
           retention-days: 90
 
-  # ── GitHub Release — attach all assets ──────────────────────────────────────
+  # ── GitHub Release — only when triggered by a version tag ───────────────────
   create-release:
     name: Create GitHub Release
     needs: [android, ios]
-    # Always create a release even if one platform job was skipped
-    if: ${{ always() && (needs.android.result == 'success' || needs.ios.result == 'success') }}
+    # Only run on tag pushes; skip for manual workflow_dispatch runs
+    if: ${{ always() && startsWith(github.ref, 'refs/tags/') && (needs.android.result == 'success' || needs.ios.result == 'success') }}
     runs-on: ubuntu-latest
 
     steps:
@@ -272,7 +301,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="${{ github.ref_name || inputs.tag }}"
+          VERSION="${{ github.ref_name }}"
 
           # Build a dynamic list of available assets
           ASSET_LIST=""
