@@ -197,6 +197,11 @@ export async function registerRoutes(
         })
       : new MemoryStore({ checkPeriod: SESSION_TTL_MS });
 
+  // CSRF protection is applied globally via applySecurityMiddleware() (server/security.ts),
+  // which is called from server/index.ts before registerRoutes().  The middleware requires
+  // the custom header "X-App-CSRF: 1" on every state-changing request in production.
+  // CodeQL's js/missing-token-validation alert is a false positive here — it does not
+  // trace cross-module middleware chains.
   app.use(
     session({
       secret: process.env.SESSION_SECRET || "unshelvd-dev-secret-change-me",
@@ -2245,7 +2250,9 @@ export async function registerRoutes(
   // === IMAGE UPLOAD ===
   // Accepts a base64-encoded data URL from the client (FileReader.readAsDataURL).
   // Returns the same data URL so callers can use it consistently.
-  // Max size: 1 MB encoded (≈ 750 KB raw image).
+  // Max size: 1 MB avatar / 2 MB cover (raw).  The path-specific 3 mb body parser
+  // is registered in server/index.ts before the global 100 kb parser so large
+  // base64 payloads are accepted here without relaxing limits on other endpoints.
   app.post("/api/upload/image", requireAuth, async (req, res) => {
     try {
       const { data: dataUrl, type } = z.object({
