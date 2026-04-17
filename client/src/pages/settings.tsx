@@ -37,7 +37,9 @@ export default function Settings() {
 
   const [deletePassword, setDeletePassword] = useState("");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  // Holds the uploaded GCS URL (or data URI in dev/no-bucket mode) for preview
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const profileMutation = useMutation({
     mutationFn: async () => {
@@ -101,7 +103,7 @@ export default function Settings() {
     },
   });
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
@@ -112,11 +114,30 @@ export default function Settings() {
       toast({ title: "File too large", description: "Avatar image must be under 1 MB.", variant: "destructive" });
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setAvatarPreview(ev.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+
+    // Read as data URI so we can display a preview and send to the upload endpoint
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => resolve(ev.target?.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    // Show local preview immediately while the upload is in progress
+    setAvatarPreview(dataUrl);
+    setAvatarUploading(true);
+    try {
+      const res = await apiRequest("POST", "/api/upload/image", { data: dataUrl, type: "avatar" });
+      const { url } = await res.json();
+      setAvatarPreview(url);
+    } catch {
+      setAvatarPreview(null);
+      toast({ title: "Upload failed", description: "Could not upload your photo. Please try again.", variant: "destructive" });
+    } finally {
+      setAvatarUploading(false);
+      // Reset the file input so the same file can be re-selected if needed
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
   };
 
   if (!user) return <Redirect to="/login" />;
@@ -168,15 +189,16 @@ export default function Settings() {
                   size="sm"
                   className="gap-1.5"
                   onClick={() => avatarInputRef.current?.click()}
+                  disabled={avatarUploading}
                 >
-                  <Upload className="h-3.5 w-3.5" />
-                  Upload Photo
+                  {avatarUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                  {avatarUploading ? "Uploading…" : "Upload Photo"}
                 </Button>
                 <p className="text-[11px] text-muted-foreground">JPEG, PNG, WebP or GIF · Max 1 MB</p>
               </div>
             </div>
-            {avatarPreview && (
-              <p className="text-xs text-muted-foreground">New photo selected — save profile to apply.</p>
+            {avatarPreview && !avatarUploading && (
+              <p className="text-xs text-muted-foreground">New photo uploaded — save profile to apply.</p>
             )}
           </div>
           <div className="space-y-1.5">

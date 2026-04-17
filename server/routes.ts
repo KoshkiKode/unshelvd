@@ -69,6 +69,7 @@ import connectPgSimple from "connect-pg-simple";
 import createMemoryStore from "memorystore";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { uploadImage, deleteImage, isGcsConfigured } from "./gcs";
 
 const PgSessionStore = connectPgSimple(session);
 const MemoryStore = createMemoryStore(session);
@@ -1698,13 +1699,26 @@ export async function registerRoutes(
         displayName: z.string().min(1).max(100).optional(),
         bio: z.string().max(500).optional(),
         location: z.string().max(100).optional(),
-        // Accept HTTPS URLs or data: image URIs (for direct image upload), or empty string to clear
+        // Accept HTTPS URLs or empty string to clear; data URIs are no longer accepted
+        // here — the client must call POST /api/upload/image first.
         avatarUrl: z.string().refine(
-          (v) => v === "" || v.startsWith("https://") || /^data:image\/(jpeg|jpg|png|webp|gif);base64,/.test(v),
-          { message: "Avatar must be an HTTPS URL or a valid image data URI" },
+          (v) => v === "" || v.startsWith("https://"),
+          { message: "Avatar must be an HTTPS URL" },
         ).optional(),
       });
       const data = allowedFields.parse(req.body);
+
+      // If the avatar is being replaced and the old one lives in our GCS bucket,
+      // delete the old object so we don't accumulate orphaned files.
+      if (data.avatarUrl !== undefined) {
+        const currentUser = await storage.getUser(req.user!.id);
+        if (currentUser?.avatarUrl && currentUser.avatarUrl !== data.avatarUrl) {
+          deleteImage(currentUser.avatarUrl).catch((err) => {
+            console.error("[gcs] Failed to delete old avatar on profile update:", err);
+          });
+        }
+      }
+
       const updated = await storage.updateUser(req.user!.id, data);
       if (!updated) return res.status(404).json({ message: "User not found" });
       const { password, emailVerifyToken, emailVerifyExpiry, ...safeUser } = updated;
@@ -2180,6 +2194,14 @@ export async function registerRoutes(
       // Anonymise: remove all personal data, mark as deleted
       const deletedEmail = `deleted_${user.id}@deleted.invalid`;
       const deletedUsername = `deleted_${user.id}`;
+
+      // Delete the user's avatar from GCS (best-effort, non-fatal)
+      if (user.avatarUrl) {
+        deleteImage(user.avatarUrl).catch((err) => {
+          console.error("[gcs] Failed to delete avatar on account deletion:", err);
+        });
+      }
+
       await db.update(users).set({
         username: deletedUsername,
         displayName: "Deleted User",
@@ -2249,7 +2271,10 @@ export async function registerRoutes(
 
   // === IMAGE UPLOAD ===
   // Accepts a base64-encoded data URL from the client (FileReader.readAsDataURL).
-  // Returns the same data URL so callers can use it consistently.
+  // When GCS_BUCKET_NAME is configured, decodes the bytes and uploads to GCS,
+  // returning a permanent https://storage.googleapis.com/… URL.
+  // When GCS is not configured (local dev without a bucket), echoes the data
+  // URL back so the rest of the flow still works without cloud infra.
   // Max size: 1 MB avatar / 2 MB cover (raw).  The path-specific 3 mb body parser
   // is registered in server/index.ts before the global 100 kb parser so large
   // base64 payloads are accepted here without relaxing limits on other endpoints.
@@ -2261,9 +2286,11 @@ export async function registerRoutes(
       }).parse(req.body);
 
       // Validate it's actually a data URI with an image MIME type
-      if (!/^data:image\/(jpeg|jpg|png|webp|gif);base64,/.test(dataUrl)) {
+      const mimeMatch = dataUrl.match(/^data:(image\/(?:jpeg|jpg|png|webp|gif));base64,/);
+      if (!mimeMatch) {
         return res.status(400).json({ message: "Only JPEG, PNG, WebP, or GIF images are supported" });
       }
+      const mimeType = mimeMatch[1];
 
       const maxBytes = type === "avatar" ? 1_048_576 : 2_097_152; // 1 MB avatar, 2 MB cover
       const base64Part = dataUrl.split(",")[1] ?? "";
@@ -2273,9 +2300,17 @@ export async function registerRoutes(
         return res.status(400).json({ message: `Image too large. Maximum size is ${limitMB} MB.` });
       }
 
+      if (isGcsConfigured()) {
+        const buffer = Buffer.from(base64Part, "base64");
+        const url = await uploadImage(req.user!.id, buffer, mimeType, type);
+        return res.json({ url });
+      }
+
+      // GCS not configured — fall back to echoing the data URI (dev/no-bucket mode)
       return res.json({ url: dataUrl });
     } catch (err) {
       if (err instanceof ZodError) return res.status(400).json({ message: err.issues[0]?.message });
+      console.error("[upload/image]", err);
       return res.status(500).json({ message: "Upload failed" });
     }
   });
