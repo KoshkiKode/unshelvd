@@ -88,6 +88,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Stamp version from tag
+        run: |
+          VERSION="${{ github.ref_name || inputs.tag || '' }}"
+          SEMVER="${VERSION#v}"
+          if [[ "$SEMVER" =~ ^[0-9]+\.[0-9]+\.[0-9] ]]; then
+            npm version "$SEMVER" --no-git-tag-version --allow-same-version
+            echo "Stamped package.json to $SEMVER"
+          else
+            echo "No valid semver tag ('$VERSION') — keeping package.json at $(node -p "require('./package.json').version")"
+          fi
+
       - name: Build web app (production)
         run: npm run build
         env:
@@ -162,6 +173,17 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Stamp version from tag
+        run: |
+          VERSION="${{ github.ref_name || inputs.tag || '' }}"
+          SEMVER="${VERSION#v}"
+          if [[ "$SEMVER" =~ ^[0-9]+\.[0-9]+\.[0-9] ]]; then
+            npm version "$SEMVER" --no-git-tag-version --allow-same-version
+            echo "Stamped package.json to $SEMVER"
+          else
+            echo "No valid semver tag ('$VERSION') — keeping package.json at $(node -p "require('./package.json').version")"
+          fi
 
       - name: Build web app (production)
         run: npm run build
