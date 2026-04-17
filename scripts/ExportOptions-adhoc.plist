@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  iOS Export Options — Ad-Hoc distribution
+  ─────────────────────────────────────────
+  Used by the GitHub Actions "release.yml" workflow to export a signed .ipa
+  that can be distributed via Firebase App Distribution, Diawi, TestFlight
+  alternatives, or any other third-party service.
+
+  Requirements (set as GitHub repository secrets):
+    IOS_CERTIFICATE_BASE64           — base64-encoded Distribution certificate (.p12)
+    IOS_CERTIFICATE_PASSWORD         — password for the .p12 file
+    IOS_PROVISIONING_PROFILE_BASE64  — base64-encoded Ad-Hoc provisioning profile
+                                       (must have device UDIDs registered at
+                                        developer.apple.com → Devices)
+
+  To get an ad-hoc provisioning profile:
+    1. Register tester UDIDs in Apple Developer Portal → Certificates, IDs & Profiles → Devices
+    2. Create an App Store distribution certificate (or re-use an existing one)
+    3. Create a new Provisioning Profile → Ad Hoc → select your cert + devices
+    4. Download and base64-encode: base64 -i YourProfile.mobileprovision | pbcopy
+
+  For TestFlight (no device registration needed), use ExportOptions.plist instead
+  (method: app-store-connect) and add the Apple ID credentials to your secrets.
+-->
+<plist version="1.0">
+<dict>
+    <!-- "ad-hoc" distributes to registered devices without the App Store -->
+    <key>method</key>
+    <string>ad-hoc</string>
+
+    <!-- "export" saves the .ipa locally instead of auto-uploading -->
+    <key>destination</key>
+    <string>export</string>
+
+    <!-- Let Xcode pick the right certificate and provisioning profile automatically -->
+    <key>signingStyle</key>
+    <string>automatic</string>
+
+    <!-- Include symbols so crash reports are symbolicated in Firebase Crashlytics -->
+    <key>uploadSymbols</key>
+    <true/>
+
+    <!-- Produce a universal (non-thinned) binary so it installs on any device -->
+    <key>thinning</key>
+    <string>&lt;none&gt;</string>
+
+    <!-- Bitcode has been deprecated by Apple since Xcode 14 -->
+    <key>compileBitcode</key>
+    <false/>
+</dict>
+</plist>

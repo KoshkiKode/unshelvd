@@ -306,6 +306,31 @@ describe("applySecurityMiddleware (production mode)", () => {
     // Helmet with contentSecurityPolicy: false should not emit the header
     expect(res.headers["content-security-policy"]).toBeUndefined();
   });
+
+  it("sets Strict-Transport-Security header in production mode", async () => {
+    process.env.NODE_ENV = "production";
+    const app = express();
+    applySecurityMiddleware(app);
+    app.get("/ping", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app).get("/ping");
+    const hsts = res.headers["strict-transport-security"];
+    expect(hsts).toBeDefined();
+    // Must include max-age of at least 1 year and includeSubDomains
+    expect(hsts).toMatch(/max-age=31536000/);
+    expect(hsts).toMatch(/includeSubDomains/);
+  });
+
+  it("does not set Strict-Transport-Security header in development mode", async () => {
+    process.env.NODE_ENV = "development";
+    const app = express();
+    applySecurityMiddleware(app);
+    app.get("/ping", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app).get("/ping");
+    // Helmet only emits HSTS in production (our code passes hsts: false in the dev helmet call)
+    expect(res.headers["strict-transport-security"]).toBeUndefined();
+  });
 });
 
 // ────────────────────────────────────────────────────────────────
@@ -412,12 +437,156 @@ describe("PgRateLimitStore", () => {
       applySecurityMiddleware(app, pool);
       app.post("/api/auth/login", (_req, res) => res.json({ ok: true }));
 
-      await request(app).post("/api/auth/login").send({});
+      // Include the CSRF header so the request passes the CSRF middleware and
+      // reaches the rate-limiter (which is what this test exercises).
+      await request(app)
+        .post("/api/auth/login")
+        .set("X-App-CSRF", "1")
+        .send({});
 
       // The pool was queried — CREATE TABLE + INSERT for rate-limit tracking
       expect(pool.query).toHaveBeenCalled();
     } finally {
       process.env.NODE_ENV = originalEnv;
     }
+  });
+});
+
+// ────────────────────────────────────────────────────────────────
+// CSRF protection
+// ────────────────────────────────────────────────────────────────
+
+describe("CSRF protection (production mode)", () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  function makeProductionApp() {
+    process.env.NODE_ENV = "production";
+    const app = express();
+    app.use(express.json());
+    applySecurityMiddleware(app);
+    return app;
+  }
+
+  it("blocks a POST request without the X-App-CSRF header in production", async () => {
+    const app = makeProductionApp();
+    app.post("/api/books", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app)
+      .post("/api/books")
+      .send({ title: "test" });
+
+    expect(res.status).toBe(403);
+    expect(res.body.message).toBe("CSRF validation failed");
+  });
+
+  it("allows a POST request that carries the X-App-CSRF header in production", async () => {
+    const app = makeProductionApp();
+    app.post("/api/books", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app)
+      .post("/api/books")
+      .set("X-App-CSRF", "1")
+      .send({ title: "test" });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("allows GET requests without the X-App-CSRF header (read-only, no CSRF risk)", async () => {
+    const app = makeProductionApp();
+    app.get("/api/books", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app).get("/api/books");
+
+    expect(res.status).toBe(200);
+  });
+
+  it("blocks PATCH requests without the X-App-CSRF header in production", async () => {
+    const app = makeProductionApp();
+    app.patch("/api/books/1", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app)
+      .patch("/api/books/1")
+      .send({ title: "updated" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("exempts /api/webhooks/ routes from CSRF checks (external providers)", async () => {
+    const app = makeProductionApp();
+    app.post("/api/webhooks/stripe", (_req, res) => res.json({ ok: true }));
+
+    // No X-App-CSRF header — simulates a Stripe webhook delivery
+    const res = await request(app)
+      .post("/api/webhooks/stripe")
+      .send({ type: "payment_intent.succeeded" });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("does NOT enforce CSRF checks in development mode", async () => {
+    process.env.NODE_ENV = "development";
+    const app = express();
+    app.use(express.json());
+    applySecurityMiddleware(app);
+    app.post("/api/books", (_req, res) => res.json({ ok: true }));
+
+    // No X-App-CSRF header — should still be allowed in dev
+    const res = await request(app)
+      .post("/api/books")
+      .send({ title: "test" });
+
+    expect(res.status).toBe(200);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────
+// PayPal payment route rate limiting
+// ────────────────────────────────────────────────────────────────
+
+describe("PayPal payment route rate limiting", () => {
+  it("applies the payment limiter (max=5) to /api/payments/paypal/create-order", async () => {
+    const app = express();
+    applySecurityMiddleware(app);
+    app.post("/api/payments/paypal/create-order", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app)
+      .post("/api/payments/paypal/create-order")
+      .set("X-App-CSRF", "1")
+      .send({});
+
+    expect(res.headers["ratelimit-limit"]).toBe("5");
+  });
+
+  it("applies the payment limiter (max=5) to /api/payments/paypal/capture-order", async () => {
+    const app = express();
+    applySecurityMiddleware(app);
+    app.post("/api/payments/paypal/capture-order", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app)
+      .post("/api/payments/paypal/capture-order")
+      .set("X-App-CSRF", "1")
+      .send({});
+
+    expect(res.headers["ratelimit-limit"]).toBe("5");
+  });
+
+  it("blocks /api/payments/paypal/create-order after 5 attempts per minute", async () => {
+    const app = express();
+    applySecurityMiddleware(app);
+    app.post("/api/payments/paypal/create-order", (_req, res) => res.json({ ok: true }));
+
+    let lastStatus = 200;
+    for (let i = 0; i < 6; i++) {
+      const res = await request(app)
+        .post("/api/payments/paypal/create-order")
+        .set("X-App-CSRF", "1")
+        .send({});
+      lastStatus = res.status;
+    }
+    expect(lastStatus).toBe(429);
   });
 });
