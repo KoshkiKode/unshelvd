@@ -15,7 +15,13 @@ export async function apiRequest(
 ): Promise<Response> {
   const res = await fetch(`${API_BASE}${url}`, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers: {
+      // Custom CSRF header — required by the server on all state-changing requests.
+      // Cross-origin forms/redirects cannot set custom headers, so this prevents CSRF
+      // even though session cookies use SameSite=None (needed for Capacitor native).
+      "X-App-CSRF": "1",
+      ...(data ? { "Content-Type": "application/json" } : {}),
+    },
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });

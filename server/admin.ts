@@ -11,6 +11,7 @@
  */
 
 import type { Express, Request, Response, NextFunction } from "express";
+import { spawn } from "child_process";
 import { db } from "./storage";
 import {
   users,
@@ -437,9 +438,25 @@ export function registerAdminRoutes(app: Express) {
         .json({ message: "Please provide a list of queries." });
     }
 
+    // Validate each query: max 50 items, each a plain text string (≤ 100 chars,
+    // only letters/digits/spaces/common punctuation — no shell metacharacters).
+    // spawn() does NOT use a shell so there is no injection risk, but we validate
+    // here for defense-in-depth and to prevent the args being used maliciously if
+    // the Python script is ever updated to read sys.argv.
+    if (queries.length > 50) {
+      return res.status(400).json({ message: "Too many queries (max 50)" });
+    }
+    const SAFE_QUERY_REGEX = /^[\w\s',.\-\u00C0-\u024F\u0400-\u04FF]{1,100}$/u;
+    for (const q of queries) {
+      if (typeof q !== "string" || !SAFE_QUERY_REGEX.test(q)) {
+        return res.status(400).json({ message: `Invalid query value: "${String(q).slice(0, 50)}"` });
+      }
+    }
+
     try {
-      // Run the python script in the background
-      const { spawn } = require("child_process");
+      // Run the python script in the background (uses the hardcoded QUERIES list
+      // inside the script — user-supplied queries are validated but not currently
+      // consumed by the script; they are reserved for future use).
       const pythonProcess = spawn(
         "python3",
         ["scripts/seed-catalog.py", ...queries],

@@ -87,6 +87,109 @@ android {
 }
 ```
 
+---
+
+## CI/CD Release Pipeline
+
+### Overview
+
+Three GitHub Actions workflows handle the full release lifecycle:
+
+| Workflow | Trigger | What it builds |
+|----------|---------|----------------|
+| `ci.yml` | Every push / PR | TypeScript check, build, tests |
+| `build-android.yml` | Push to `main` or manual | Debug APK (auto) + Release APK/AAB (manual) |
+| `build-ios.yml` | Push to `main` or manual | Simulator build (auto) + IPA (manual) |
+| **`release.yml`** | **Push a `v*.*.*` tag** | **Signed APK + AAB + IPA → GitHub Release** |
+
+### Cutting a Release
+
+```bash
+# Bump version in package.json, then:
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+That tag push triggers `release.yml`, which:
+1. Builds a **signed Android APK** (for Firebase App Distribution / direct install)
+2. Builds a **signed Android AAB** (for Play Store upload)
+3. Builds a **signed iOS IPA** (for Firebase App Distribution / TestFlight)
+4. Creates a **GitHub Release** at `Releases → v1.2.3` with all three files attached
+
+### Setting Up Required Secrets
+
+Go to **GitHub → Settings → Secrets and variables → Actions**.
+
+#### Android secrets
+
+| Secret | Value |
+|--------|-------|
+| `ANDROID_KEYSTORE_BASE64` | `base64 -w0 unshelvd-release.keystore` |
+| `KEYSTORE_PASSWORD` | The store password you used with `keytool` |
+| `KEY_PASSWORD` | The key password (often the same) |
+| `KEY_ALIAS` | The alias you used (`unshelvd`) |
+
+Generate the keystore once:
+```bash
+keytool -genkey -v \
+  -keystore unshelvd-release.keystore \
+  -alias unshelvd \
+  -keyalg RSA -keysize 2048 -validity 10000 \
+  -dname "CN=Unshelvd, O=KoshkiKode, L=Battle Creek, ST=Michigan, C=US"
+
+# Encode for GitHub secret
+base64 -w0 unshelvd-release.keystore | pbcopy   # macOS
+base64 -w0 unshelvd-release.keystore | xclip     # Linux
+```
+
+⚠️ Keep the `.keystore` file somewhere safe (iCloud, 1Password, etc.).  
+You need the **same** keystore for every future release — losing it means you can't update the app.
+
+#### iOS secrets
+
+| Secret | Value |
+|--------|-------|
+| `IOS_CERTIFICATE_BASE64` | base64-encoded Distribution certificate (.p12) |
+| `IOS_CERTIFICATE_PASSWORD` | Password protecting the .p12 file |
+| `IOS_PROVISIONING_PROFILE_BASE64` | base64-encoded Ad-Hoc provisioning profile |
+
+To create an Ad-Hoc provisioning profile:
+1. Go to **Apple Developer Portal → Certificates, IDs & Profiles → Devices** and register tester device UDIDs
+2. Go to **Provisioning Profiles → +** → **Ad Hoc** → select your Distribution certificate + registered devices → download
+3. `base64 -i YourProfile.mobileprovision | pbcopy`
+
+To export your Distribution certificate:
+1. **Keychain Access → My Certificates** → right-click the certificate → **Export**
+2. Save as `.p12` with a strong password
+3. `base64 -i distribution.p12 | pbcopy`
+
+#### Required variable
+
+| Variable | Example |
+|----------|---------|
+| `API_URL` | `https://unshelvd.koshkikode.com` |
+
+### Distributing to Testers (Before the App Store)
+
+**Android** — Firebase App Distribution (recommended):
+1. Go to [Firebase Console](https://console.firebase.google.com) → App Distribution
+2. Upload the `unshelvd-v1.2.3.apk` from the GitHub Release
+3. Add tester emails → Firebase sends install links
+
+**Android** — Diawi / direct:
+1. Download the `.apk` from the GitHub Release
+2. Upload to [diawi.com](https://www.diawi.com) (generates a QR code install link)
+3. Or send the APK directly; testers enable **Install from unknown sources**
+
+**iOS** — Firebase App Distribution (recommended for pre-App Store):
+1. Go to Firebase Console → App Distribution
+2. Upload the `unshelvd-v1.2.3.ipa`
+3. Add tester emails → they get guided install instructions
+
+**iOS** — TestFlight:
+1. Use `build-ios.yml` (manual dispatch) which exports via `ExportOptions.plist` (App Store method)
+2. That job uploads directly to App Store Connect → distribute to internal testers via TestFlight
+
 ## How API Calls Work
 
 The app automatically routes API calls to the right server:
