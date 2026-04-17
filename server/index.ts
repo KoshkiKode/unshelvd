@@ -97,13 +97,15 @@ app.use(
   }),
 );
 
-// Larger body limit for the image upload endpoint only (base64 images can be up
-// to 2 MB raw, which is ~2.67 MB in base64 — well above the 100 kb default).
+// Larger body limit for endpoints that receive base64 image data.
+// • /api/upload/image  — cover images up to 2 MB raw (~2.67 MB in base64)
+// • /api/users/me      — avatar data URIs up to 1 MB raw (~1.33 MB in base64),
+//   sent directly as the avatarUrl field when the user updates their profile.
 // body-parser skips re-parsing when req._body is already set, so registering
-// this path-specific parser BEFORE the global one ensures correct behaviour
+// these path-specific parsers BEFORE the global one ensures correct behaviour
 // without changing the limit for any other endpoint.
 app.use(
-  "/api/upload/image",
+  ["/api/upload/image", "/api/users/me"],
   express.json({
     limit: "3mb",
     verify: (req, _res, buf) => {
