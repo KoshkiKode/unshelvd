@@ -52,6 +52,10 @@ substitutions:
   # Affiliate and ad IDs — safe to bake into the client bundle at build time.
   _THRIFTBOOKS_AFF_ID: ""
   _ADSENSE_CLIENT: ""
+  # GCS bucket name for profile image storage.
+  # Grant allUsers roles/storage.objectViewer for public read access.
+  # Leave blank to run in data-URI fallback mode (not recommended for production).
+  _GCS_BUCKET: ""
 
 steps:
   # 1. Build the Docker image
@@ -166,7 +170,7 @@ steps:
       # you have created STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET in Secret
       # Manager (see comment above).
       - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest"
-      - "--set-env-vars=NODE_ENV=production"
+      - "--set-env-vars=NODE_ENV=production,GCS_BUCKET_NAME=${_GCS_BUCKET}"
 
 images:
   - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE_NAME}"

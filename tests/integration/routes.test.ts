@@ -2492,16 +2492,14 @@ describe("PATCH /api/users/me (requires auth)", () => {
     expect(res.status).toBe(400);
   });
 
-  it("accepts a valid data:image avatarUrl", async () => {
+  it("rejects a data:image avatarUrl (must use /api/upload/image first)", async () => {
     const agent = await loginAs(app, TEST_USER);
     mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
 
     const dataUri = "data:image/png;base64,iVBORw0KGgo=";
-    const updated = { ...TEST_USER, avatarUrl: dataUri };
-    mockStorage.updateUser.mockResolvedValueOnce(updated);
 
     const res = await agent.patch("/api/users/me").send({ avatarUrl: dataUri });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
   });
 });
 
