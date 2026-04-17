@@ -636,11 +636,9 @@ const baseTranslations: Record<BaseTranslatedLocale, TranslationStrings> = {
   },
 };
 
-const fallbackLocales: FallbackLocale[] = [
-  "hi", "bn", "ur", "id", "sw", "mr", "te", "tr", "ta", "vi",
-  "fa", "it", "th", "gu", "pl", "uk", "ml", "kn", "or", "pa",
-  "ro", "nl", "el", "cs", "hu",
-];
+const fallbackLocales = (Object.keys(localeNames) as Locale[]).filter(
+  (locale): locale is FallbackLocale => !(locale in baseTranslations),
+);
 
 const translations: Record<Locale, TranslationStrings> = {
   ...baseTranslations,
