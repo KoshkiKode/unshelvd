@@ -18,7 +18,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **Stripe Connect escrow payments** — buyer pays upfront; funds released to seller only after delivery is confirmed; automatic platform fee
 - **PayPal payments** — optional PayPal checkout flow (authorization + capture model) as an alternative to Stripe
 - **Transactional email** — password resets, offer notifications, shipping updates, delivery confirmations via Nodemailer / AWS SES
-- **10 UI languages** — English, Spanish, French, German, Portuguese, Russian, Chinese, Japanese, Korean, Arabic (RTL)
+- **35 UI languages** — top global languages with native labels and RTL support where needed
 - **Admin dashboard** — user management, dispute resolution, platform settings (fees, maintenance mode, payment toggles), catalog seeding
 - **Rating system** — buyers and sellers can rate each other after each completed transaction
 - **Dispute resolution** — buyers can open disputes; admins can issue refunds or release funds to sellers

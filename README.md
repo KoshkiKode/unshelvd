@@ -11,7 +11,7 @@ A peer-to-peer book marketplace for every language, every country, every era. Bu
 - **Work-edition graph**: every book automatically linked to all its editions, translations, and printings
 - **Book requests**: post what you're looking for, get matched with sellers
 - **In-app payments** with escrow protection (Stripe Connect + PayPal)
-- **10 UI languages**: English, Spanish, French, German, Portuguese, Russian, Chinese, Japanese, Korean, Arabic (RTL)
+- **35 UI languages**: top global languages with native labels and RTL support where needed
 
 ## Tech Stack
 
