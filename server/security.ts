@@ -1,8 +1,9 @@
 /**
  * Unshelv'd — Security Middleware & Utilities
  * 
- * - Helmet (HTTP security headers + production CSP)
- * - Rate limiting (auth, payments, API) with shared PostgreSQL store
+ * - Helmet (HTTP security headers + production CSP + explicit HSTS)
+ * - Rate limiting (auth, payments, PayPal, API) with shared PostgreSQL store
+ * - CSRF protection via custom-header technique
  * - Input sanitization
  * - Parameter validation
  */
@@ -183,6 +184,14 @@ export function applySecurityMiddleware(app: Express, pgPool?: Pool) {
         contentSecurityPolicy: { directives: productionCspDirectives },
         crossOriginEmbedderPolicy: false, // Allow loading external images (book covers)
         crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow Capacitor
+        // Explicit HSTS — tells browsers to always use HTTPS for this domain for 1 year.
+        // Session cookies are SameSite=None in production (required for Capacitor), so
+        // HSTS is the primary mechanism ensuring all traffic is encrypted in transit.
+        hsts: {
+          maxAge: 31536000,       // 1 year in seconds
+          includeSubDomains: true,
+          preload: true,
+        },
       }),
     );
   } else {
@@ -191,9 +200,39 @@ export function applySecurityMiddleware(app: Express, pgPool?: Pool) {
         contentSecurityPolicy: false, // Disabled in development — Vite needs inline scripts
         crossOriginEmbedderPolicy: false,
         crossOriginResourcePolicy: { policy: "cross-origin" },
+        hsts: false, // No HTTPS in local development, so HSTS would be meaningless
       }),
     );
   }
+
+  // ═══ CSRF Protection — custom request header technique ═══
+  // Session cookies use SameSite=None in production (required for the Capacitor native
+  // app to make cross-origin requests), which disables the browser's built-in
+  // cross-site-request protection.  We compensate by requiring every state-changing
+  // request from our own clients to carry a custom header that a cross-site form or
+  // redirect cannot set.
+  //
+  // The client (queryClient.ts → apiRequest) attaches "X-App-CSRF: 1" to every
+  // mutation.  Webhook routes are excluded because external services (Stripe, PayPal)
+  // authenticate via their own signature headers instead.
+  //
+  // Only enforced in production — in development cookies are SameSite=Lax, which
+  // provides native cross-site protection, and we want curl/Postman to work freely.
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (!isProduction) return next();
+
+    const method = req.method.toUpperCase();
+    if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return next();
+
+    // Webhook routes carry their own provider-signed authentication
+    if (req.path.startsWith("/api/webhooks/")) return next();
+
+    if (!req.headers["x-app-csrf"]) {
+      return res.status(403).json({ message: "CSRF validation failed" });
+    }
+
+    return next();
+  });
 
   // ═══ Rate Limiters ═══
   // In production: use the shared PostgreSQL store so limits are enforced
@@ -228,7 +267,7 @@ export function applySecurityMiddleware(app: Express, pgPool?: Pool) {
   });
   app.use("/api/auth/resend-verification", resendVerificationLimiter);
 
-  // Moderate limit on payment routes
+  // Moderate limit on payment routes (Stripe + PayPal)
   const paymentLimiter = rateLimit({
     windowMs: PAYMENT_WINDOW_MS,
     max: 5, // 5 payment attempts per minute
@@ -238,6 +277,10 @@ export function applySecurityMiddleware(app: Express, pgPool?: Pool) {
     store: makeStore(PAYMENT_WINDOW_MS),
   });
   app.use("/api/payments/checkout", paymentLimiter);
+  // PayPal create-order and capture-order carry the same monetary risk as the
+  // Stripe checkout route, so they share the same strict payment limiter.
+  app.use("/api/payments/paypal/create-order", paymentLimiter);
+  app.use("/api/payments/paypal/capture-order", paymentLimiter);
 
   // General API rate limit (generous but prevents abuse)
   const apiLimiter = rateLimit({
@@ -252,7 +295,9 @@ export function applySecurityMiddleware(app: Express, pgPool?: Pool) {
       return (
         path.startsWith("/api/auth/") ||
         path.startsWith("/api/search/") ||
-        path.startsWith("/api/payments/checkout")
+        path.startsWith("/api/payments/checkout") ||
+        path.startsWith("/api/payments/paypal/create-order") ||
+        path.startsWith("/api/payments/paypal/capture-order")
       );
     },
     store: makeStore(API_WINDOW_MS),
