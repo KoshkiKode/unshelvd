@@ -13,8 +13,8 @@ export function getApiBase(): string {
       // traffic is encrypted in transit (important on public WiFi / untrusted networks).
       if (import.meta.env.PROD && !envUrl.startsWith("https://")) {
         console.error(
-          `❌ SECURITY: VITE_API_URL must use https:// in production native builds. ` +
-          `Current value: "${envUrl}" — network traffic will be unencrypted.`,
+          "❌ SECURITY: VITE_API_URL must use https:// in production native builds. " +
+          "The configured URL does not use HTTPS — network traffic will be unencrypted.",
         );
       }
       return trimTrailingSlash(envUrl);
