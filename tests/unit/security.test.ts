@@ -328,7 +328,7 @@ describe("applySecurityMiddleware (production mode)", () => {
     app.get("/ping", (_req, res) => res.json({ ok: true }));
 
     const res = await request(app).get("/ping");
-    // Helmet only emits HSTS in production (our code does not pass hsts: in dev helmet call)
+    // Helmet only emits HSTS in production (our code passes hsts: false in the dev helmet call)
     expect(res.headers["strict-transport-security"]).toBeUndefined();
   });
 });
@@ -504,7 +504,7 @@ describe("CSRF protection (production mode)", () => {
     expect(res.status).toBe(200);
   });
 
-  it("allows PATCH requests without the header to be blocked too", async () => {
+  it("blocks PATCH requests without the X-App-CSRF header in production", async () => {
     const app = makeProductionApp();
     app.patch("/api/books/1", (_req, res) => res.json({ ok: true }));
 
