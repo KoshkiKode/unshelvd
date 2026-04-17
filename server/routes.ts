@@ -1713,7 +1713,9 @@ export async function registerRoutes(
       if (data.avatarUrl !== undefined) {
         const currentUser = await storage.getUser(req.user!.id);
         if (currentUser?.avatarUrl && currentUser.avatarUrl !== data.avatarUrl) {
-          deleteImage(currentUser.avatarUrl).catch(() => {/* best-effort */});
+          deleteImage(currentUser.avatarUrl).catch((err) => {
+            console.error("[gcs] Failed to delete old avatar on profile update:", err);
+          });
         }
       }
 
@@ -2195,7 +2197,9 @@ export async function registerRoutes(
 
       // Delete the user's avatar from GCS (best-effort, non-fatal)
       if (user.avatarUrl) {
-        deleteImage(user.avatarUrl).catch(() => {/* best-effort */});
+        deleteImage(user.avatarUrl).catch((err) => {
+          console.error("[gcs] Failed to delete avatar on account deletion:", err);
+        });
       }
 
       await db.update(users).set({

@@ -130,9 +130,9 @@ export default function Settings() {
       const res = await apiRequest("POST", "/api/upload/image", { data: dataUrl, type: "avatar" });
       const { url } = await res.json();
       setAvatarPreview(url);
-    } catch (err: any) {
+    } catch {
       setAvatarPreview(null);
-      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+      toast({ title: "Upload failed", description: "Could not upload your photo. Please try again.", variant: "destructive" });
     } finally {
       setAvatarUploading(false);
       // Reset the file input so the same file can be re-selected if needed
