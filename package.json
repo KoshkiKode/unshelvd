@@ -140,7 +140,7 @@
     "@vitest/coverage-v8": "^4.1.4",
     "autoprefixer": "^10.4.27",
     "esbuild": "^0.28.0",
-    "postcss": "^8.5.9",
+    "postcss": "^8.5.10",
     "supertest": "^7.2.2",
     "tailwindcss": "^4.2.2",
     "tsx": "^4.21.0",
