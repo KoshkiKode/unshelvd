@@ -255,6 +255,9 @@ export function applySecurityMiddleware(app: Express, pgPool?: Pool) {
   app.use("/api/auth/register", authLimiter);
   app.use("/api/auth/forgot-password", authLimiter);
   app.use("/api/auth/reset-password", authLimiter);
+  // Brute-forcing the current-password field on change-password carries the same
+  // risk as brute-forcing the login endpoint, so apply the same strict limit.
+  app.use("/api/auth/change-password", authLimiter);
 
   // Resend verification email — prevent email-service abuse by logged-in users
   const resendVerificationLimiter = rateLimit({

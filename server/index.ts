@@ -97,6 +97,22 @@ app.use(
   }),
 );
 
+// Larger body limit for the image upload endpoint only (base64 images can be up
+// to 2 MB raw, which is ~2.67 MB in base64 — well above the 100 kb default).
+// body-parser skips re-parsing when req._body is already set, so registering
+// this path-specific parser BEFORE the global one ensures correct behaviour
+// without changing the limit for any other endpoint.
+app.use(
+  "/api/upload/image",
+  express.json({
+    limit: "3mb",
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  }),
+);
+
+// Default 100 kb body limit for all other endpoints
 app.use(
   express.json({
     verify: (req, _res, buf) => {

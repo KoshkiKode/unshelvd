@@ -1,4 +1,4 @@
-import express, { type Express, type Request, type Response, type NextFunction } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage, pool, db } from "./storage";
 import {
@@ -2250,16 +2250,10 @@ export async function registerRoutes(
   // === IMAGE UPLOAD ===
   // Accepts a base64-encoded data URL from the client (FileReader.readAsDataURL).
   // Returns the same data URL so callers can use it consistently.
-  // Max size: 1 MB avatar / 2 MB cover (raw).  Base64 encoding adds ~33% overhead,
-  // so the JSON body can be up to ~2.7 MB — well above the global 100 kb default.
-  // A route-specific body parser overrides the limit for this endpoint only, keeping
-  // all other routes at the safe 100 kb default.
-  // 3 MB gives comfortable headroom above the 2.67 MB worst case (2 MB × 1.33).
-  app.post(
-    "/api/upload/image",
-    requireAuth,
-    express.json({ limit: "3mb" }),
-    async (req, res) => {
+  // Max size: 1 MB avatar / 2 MB cover (raw).  The path-specific 3 mb body parser
+  // is registered in server/index.ts before the global 100 kb parser so large
+  // base64 payloads are accepted here without relaxing limits on other endpoints.
+  app.post("/api/upload/image", requireAuth, async (req, res) => {
     try {
       const { data: dataUrl, type } = z.object({
         data: z.string().min(1),
