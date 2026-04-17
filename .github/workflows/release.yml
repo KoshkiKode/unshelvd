@@ -58,6 +58,8 @@ jobs:
   android:
     name: Android (APK + AAB)
     runs-on: ubuntu-latest
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
 
     outputs:
       apk_name: ${{ steps.rename.outputs.apk_name }}
@@ -96,7 +98,7 @@ jobs:
         run: npx cap sync android
 
       - name: Decode release keystore
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: env.HAS_KEYSTORE == 'true'
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/unshelvd-release.keystore
 
       - name: Make gradlew executable
