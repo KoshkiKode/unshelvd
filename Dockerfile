@@ -32,6 +32,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
+# Run as non-root for security (Cloud Run also enforces this, but be explicit)
+USER node
+
 # Ensure production runtime behavior in Cloud Run
 ENV NODE_ENV=production
 
