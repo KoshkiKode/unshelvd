@@ -5,13 +5,15 @@
  * Additional top-language locales currently use English strings as fallback.
  */
 
-type BaseTranslatedLocale =
-  | "en" | "es" | "fr" | "de" | "pt" | "ru" | "zh" | "ja" | "ko" | "ar"
+type TopTranslatedLocale =
+  | "en" | "es" | "fr" | "de" | "pt" | "ru" | "zh" | "ja" | "ko" | "ar";
+
+type FallbackLocale =
   | "hi" | "bn" | "ur" | "id" | "sw" | "mr" | "te" | "tr" | "ta" | "vi"
   | "fa" | "it" | "th" | "gu" | "pl" | "uk" | "ml" | "kn" | "or" | "pa"
   | "ro" | "nl" | "el" | "cs" | "hu";
 
-export type Locale = BaseTranslatedLocale;
+export type Locale = TopTranslatedLocale | FallbackLocale;
 
 export const localeNames: Record<Locale, string> = {
   en: "English",
@@ -176,7 +178,7 @@ type TranslationStrings = {
   common_back: string;
 };
 
-const baseTranslations: Record<Locale, TranslationStrings> = {
+const baseTranslations: Record<TopTranslatedLocale, TranslationStrings> = {
   en: {
     nav_browse: "Browse",
     nav_requests: "Requests",
