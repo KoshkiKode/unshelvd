@@ -176,7 +176,7 @@ type TranslationStrings = {
   common_back: string;
 };
 
-const baseTranslations: Record<BaseTranslatedLocale, TranslationStrings> = {
+const baseTranslations: Record<Locale, TranslationStrings> = {
   en: {
     nav_browse: "Browse",
     nav_requests: "Requests",
