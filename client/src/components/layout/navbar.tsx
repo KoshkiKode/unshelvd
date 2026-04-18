@@ -207,6 +207,22 @@ export default function Navbar() {
                   </Link>
                 ))}
                 <div className="border-t my-2" />
+                <div className="px-1">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Language</p>
+                  <select
+                    value={locale}
+                    onChange={(e) => setLocale(e.target.value as Locale)}
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    data-testid="mobile-language-selector"
+                  >
+                    {(Object.entries(locales) as [Locale, string][]).map(([code, name]) => (
+                      <option key={code} value={code}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="border-t my-2" />
                 {user ? (
                   <Button
                     variant="ghost"

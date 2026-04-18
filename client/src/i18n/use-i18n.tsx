@@ -11,8 +11,17 @@ interface I18nContextType {
 
 const I18nContext = createContext<I18nContextType | null>(null);
 
+const LOCALE_KEY = "unshelvd_locale";
+
 function detectLocale(): Locale {
-  // Try browser language
+  // 1. User's explicit preference stored in localStorage
+  try {
+    const saved = localStorage.getItem(LOCALE_KEY) as Locale | null;
+    if (saved && translations[saved]) return saved;
+  } catch {
+    // localStorage may be unavailable (private mode, SSR, etc.)
+  }
+  // 2. Browser language preference
   const browserLang = navigator.language?.split("-")[0] as Locale;
   if (browserLang && translations[browserLang]) return browserLang;
   return "en";
@@ -25,6 +34,11 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     setLocaleState(l);
     document.documentElement.lang = l;
     document.documentElement.dir = localeDirections[l];
+    try {
+      localStorage.setItem(LOCALE_KEY, l);
+    } catch {
+      // ignore storage errors
+    }
   }, []);
 
   // Set initial direction
