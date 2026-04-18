@@ -1,17 +1,14 @@
 /**
  * Unshelv'd — Internationalization
  *
- * Core translated locales are hand-curated.
- * Additional top-language locales currently use English strings as fallback.
+ * All locales are fully translated.
  */
 
-type BaseTranslatedLocale =
+export type Locale =
   | "en" | "es" | "fr" | "de" | "pt" | "ru" | "zh" | "ja" | "ko" | "ar"
   | "hi" | "bn" | "ur" | "id" | "sw" | "mr" | "te" | "tr" | "ta" | "vi"
   | "fa" | "it" | "th" | "gu" | "pl" | "uk" | "ml" | "kn" | "or" | "pa"
   | "ro" | "nl" | "el" | "cs" | "hu";
-
-export type Locale = BaseTranslatedLocale;
 
 export const localeNames: Record<Locale, string> = {
   en: "English",
