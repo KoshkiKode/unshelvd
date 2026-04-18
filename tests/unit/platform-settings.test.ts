@@ -66,6 +66,7 @@ describe("platform-settings", () => {
     dbResults.push([
       { key: "stripe_enabled", value: "true" },
       { key: "paypal_mode", value: "sandbox" },
+      { key: "paypal_client_secret", value: null },
     ]);
 
     await expect(getSetting("missing")).resolves.toBeNull();
@@ -76,6 +77,7 @@ describe("platform-settings", () => {
     await expect(getAllSettings()).resolves.toEqual({
       stripe_enabled: "true",
       paypal_mode: "sandbox",
+      paypal_client_secret: null,
     });
 
     expect(mocks.db.select).toHaveBeenCalledTimes(1);
