@@ -1,8 +1,8 @@
-# Unshelv'd — Database Setup (PostgreSQL / Google Cloud SQL)
+# Unshelv'd — Database Setup (PostgreSQL / AlloyDB)
 
 All the files you need to create and restore the Unshelv'd database are in this folder.
 
-The production database runs on **Google Cloud SQL (PostgreSQL 16)**.
+The production database runs on **AlloyDB for PostgreSQL** (Google Cloud).
 Local development uses **Docker** (see `docker-compose.yml`).
 
 ---
@@ -41,7 +41,7 @@ DATABASE_URL=postgresql://unshelvd:unshelvd_dev@localhost:5432/unshelvd
 
 ```bash
 chmod +x database/setup.sh
-./database/setup.sh --host "YOUR-DB-HOST" --username "unshelvd" --password "YourSecurePassword" --database "unshelvd"
+./database/setup.sh --host "YOUR-DB-HOST" --username "unshelvd" --password "CHANGE_ME_PASSWORD" --database "unshelvd"
 ```
 
 ---
@@ -88,14 +88,14 @@ Both files are safe to re-run (`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`).
 
 ---
 
-## Production (Cloud SQL)
+## Production (AlloyDB)
 
 For production deployment, follow the full walkthrough in [DEPLOY.md](../DEPLOY.md).
 
-The production `DATABASE_URL` uses the Cloud SQL Auth Proxy socket format:
+The production `DATABASE_URL` connects via the AlloyDB private IP (accessed through a Serverless VPC Access connector):
 
 ```
-postgresql://unshelvd:PASSWORD@/unshelvd?host=/cloudsql/PROJECT:REGION:unshelvd-db
+postgresql://unshelvd:CHANGE_ME_PASSWORD@ALLOYDB_PRIVATE_IP:5432/unshelvd
 ```
 
 This connection string is stored in Google Secret Manager as `DATABASE_URL`.
@@ -106,10 +106,10 @@ This connection string is stored in Google Secret Manager as `DATABASE_URL`.
 
 The catalog data lives in `database/seed-catalog.sql` **in this repo** — always backed up as long as code is pushed to GitHub.
 
-For **user-generated data** (listings, messages, offers, transactions), use Cloud SQL automated backups:
+For **user-generated data** (listings, messages, offers, transactions), use AlloyDB automated backups:
 
 ```bash
-gcloud sql instances patch unshelvd-db --backup-start-time=03:00 --retained-backups-count=7 --retained-transaction-log-days=7
+gcloud alloydb backups create unshelvd-backup-$(date +%Y%m%d) --cluster=unshelvd-db --region=us-central1
 ```
 
 To export a manual backup:
@@ -124,7 +124,7 @@ pg_dump "$DATABASE_URL" --no-owner --no-acl -f database/backup-$(date +%Y%m%d).s
 
 The SQL in this folder is compatible with:
 
-- **Google Cloud SQL for PostgreSQL** (production target)
+- **AlloyDB for PostgreSQL** (production target)
 - **Standard PostgreSQL 13+** (local dev)
 
 Key choices:

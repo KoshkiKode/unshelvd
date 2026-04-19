@@ -19,7 +19,7 @@
  *   maintenance_mode        — "true" | "false"
  *   registrations_enabled   — "true" | "false"
  *   email_enabled           — "true" | "false"
- *   email_smtp_host         — SMTP server hostname
+ *   email_smtp_host         — SMTP server hostname, e.g. "smtp.example.com"
  *   email_smtp_port         — e.g. "587"
  *   email_smtp_user         — SMTP username
  *   email_smtp_pass         — SMTP password  ⚠️ secret
