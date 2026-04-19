@@ -1,7 +1,7 @@
 /**
  * Unshelv'd — Internationalization
  *
- * All locales are fully translated.
+ * Top-10 locales are fully translated; the remaining locales fall back to English.
  */
 
 export type Locale =
@@ -9,6 +9,12 @@ export type Locale =
   | "hi" | "bn" | "ur" | "id" | "sw" | "mr" | "te" | "tr" | "ta" | "vi"
   | "fa" | "it" | "th" | "gu" | "pl" | "uk" | "ml" | "kn" | "or" | "pa"
   | "ro" | "nl" | "el" | "cs" | "hu";
+
+/** Locales with full translations in baseTranslations. */
+export type TranslatedLocale = "en" | "es" | "fr" | "de" | "pt" | "ru" | "zh" | "ja" | "ko" | "ar";
+
+/** Locales that fall back to English. */
+export type FallbackLocale = Exclude<Locale, TranslatedLocale>;
 
 export const localeNames: Record<Locale, string> = {
   en: "English",
@@ -173,7 +179,7 @@ type TranslationStrings = {
   common_back: string;
 };
 
-const baseTranslations: Record<Locale, TranslationStrings> = {
+const baseTranslations: Record<TranslatedLocale, TranslationStrings> = {
   en: {
     nav_browse: "Browse",
     nav_requests: "Requests",

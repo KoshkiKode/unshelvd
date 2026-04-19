@@ -115,6 +115,8 @@ vi.mock("../../server/paypal", () => ({
   isPayPalEnabled: vi.fn(),
   createPayPalOrder: vi.fn(),
   authorizePayPalOrder: vi.fn(),
+  verifyPayPalWebhookSignature: vi.fn().mockResolvedValue(true),
+  voidPayPalAuthorization: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../../server/work-resolver", () => ({
@@ -152,8 +154,9 @@ import {
   handleChargeRefunded,
 } from "../../server/payments";
 import { resolveWork, updateWorkStats } from "../../server/work-resolver";
-import { isPayPalEnabled, createPayPalOrder, authorizePayPalOrder } from "../../server/paypal";
+import { isPayPalEnabled, createPayPalOrder, authorizePayPalOrder, verifyPayPalWebhookSignature } from "../../server/paypal";
 import { validatePassword } from "../../shared/password-policy";
+import { refundPayment } from "../../server/payments";
 
 // ─── test helpers ──────────────────────────────────────────────────────────
 
@@ -3717,5 +3720,199 @@ describe("POST /api/payments/paypal/capture-order — authenticated", () => {
     const res = await agent.post("/api/payments/paypal/capture-order").send({ orderId: "ORDER123" });
     expect(res.status).toBe(500);
     expect(res.body.message).toMatch(/Authorize failed/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/payments/:id/cancel
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/payments/:id/cancel", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const res = await request(app).post("/api/payments/1/cancel");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 for a non-numeric transaction id", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const res = await agent.post("/api/payments/notanumber/cancel");
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when transaction is not found", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([]); // SELECT transaction → empty
+
+    const res = await agent.post("/api/payments/99/cancel");
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/not found/i);
+  });
+
+  it("returns 403 when the requester is not the buyer", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([{ id: 1, buyerId: 999, sellerId: 88, bookId: 5, status: "pending" }]);
+
+    const res = await agent.post("/api/payments/1/cancel");
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/only the buyer/i);
+  });
+
+  it("returns 400 when transaction cannot be cancelled (wrong status)", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    pushDbResults([{ id: 1, buyerId: TEST_USER.id, sellerId: 88, bookId: 5, status: "shipped" }]);
+
+    const res = await agent.post("/api/payments/1/cancel");
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/before they have been shipped/i);
+  });
+
+  it("cancels a pending transaction (no refund) and returns 200", async () => {
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const tx = { id: 1, buyerId: TEST_USER.id, sellerId: 88, bookId: 5, status: "pending" };
+    pushDbResults([tx]); // SELECT transaction
+    // UPDATE transactions + UPDATE books (fire-and-forget via db)
+    // SELECT buyer, seller, book for notifications
+    pushDbResults([{ id: TEST_USER.id, email: TEST_USER.email }]); // buyer
+    pushDbResults([{ id: 88, email: "seller@example.com" }]); // seller
+    pushDbResults([{ id: 5, title: "Test Book" }]); // book
+
+    const res = await agent.post("/api/payments/1/cancel");
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/cancelled/i);
+    // refundPayment should NOT have been called for a pending tx
+    expect(vi.mocked(refundPayment)).not.toHaveBeenCalled();
+  });
+
+  it("calls refundPayment for a paid transaction and returns 200", async () => {
+    vi.mocked(refundPayment).mockResolvedValueOnce(undefined as any);
+
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const tx = { id: 2, buyerId: TEST_USER.id, sellerId: 88, bookId: 7, status: "paid" };
+    pushDbResults([tx]); // SELECT transaction
+    // SELECT buyer, seller, book for notifications
+    pushDbResults([{ id: TEST_USER.id, email: TEST_USER.email }]);
+    pushDbResults([{ id: 88, email: "seller@example.com" }]);
+    pushDbResults([{ id: 7, title: "Another Book" }]);
+
+    const res = await agent.post("/api/payments/2/cancel");
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/cancelled/i);
+    expect(vi.mocked(refundPayment)).toHaveBeenCalledWith(2);
+  });
+
+  it("returns 500 when refundPayment throws", async () => {
+    vi.mocked(refundPayment).mockRejectedValueOnce(new Error("Stripe error"));
+
+    const agent = await loginAs(app, TEST_USER);
+    mockStorage.getUser.mockResolvedValueOnce(TEST_USER);
+
+    const tx = { id: 3, buyerId: TEST_USER.id, sellerId: 88, bookId: 9, status: "paid" };
+    pushDbResults([tx]); // SELECT transaction
+
+    const res = await agent.post("/api/payments/3/cancel");
+    expect(res.status).toBe(500);
+    expect(res.body.message).toMatch(/Stripe error/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// GET /api/config/public
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("GET /api/config/public", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  it("returns public config keys (null when not configured)", async () => {
+    const res = await request(app).get("/api/config/public");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("stripePk");
+    expect(res.body).toHaveProperty("paypalClientId");
+    expect(res.body).toHaveProperty("paypalEnabled");
+    expect(res.body).toHaveProperty("stripeEnabled");
+    // DB has no settings set → defaults
+    expect(res.body.paypalEnabled).toBe(false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/webhooks/paypal
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/webhooks/paypal", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    delete process.env.PAYPAL_WEBHOOK_ID;
+    app = await buildApp();
+  });
+
+  it("returns { received: true } for an unhandled event type (no webhookId configured)", async () => {
+    const res = await request(app)
+      .post("/api/webhooks/paypal")
+      .send({ event_type: "SOME.UNKNOWN.EVENT", resource: {} });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ received: true });
+  });
+
+  it("handles PAYMENT.AUTHORIZATION.VOIDED and cancels the matching transaction", async () => {
+    const tx = { id: 5, buyerId: 10, sellerId: 20, bookId: 3, status: "paid", paypalAuthorizationId: "AUTH_123" };
+    pushDbResults([tx]); // SELECT transaction by paypalAuthorizationId
+
+    const res = await request(app)
+      .post("/api/webhooks/paypal")
+      .send({ event_type: "PAYMENT.AUTHORIZATION.VOIDED", resource: { id: "AUTH_123" } });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ received: true });
+  });
+
+  it("handles PAYMENT.AUTHORIZATION.VOIDED gracefully when no matching transaction exists", async () => {
+    pushDbResults([]); // SELECT transaction → not found
+
+    const res = await request(app)
+      .post("/api/webhooks/paypal")
+      .send({ event_type: "PAYMENT.AUTHORIZATION.VOIDED", resource: { id: "AUTH_MISSING" } });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ received: true });
+  });
+
+  it("returns 400 when webhookId is set but signature headers are missing", async () => {
+    process.env.PAYPAL_WEBHOOK_ID = "WH_TEST_123";
+    // Rebuild app so it picks up the new env var via getSetting fallback
+    const freshApp = await buildApp();
+
+    const res = await request(freshApp)
+      .post("/api/webhooks/paypal")
+      .send({ event_type: "TEST", resource: {} });
+    // Missing PayPal signature headers → 400
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/missing.*signature/i);
   });
 });
