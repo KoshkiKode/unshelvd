@@ -29,11 +29,27 @@ https://unshelvd.koshkikode.com/
 ### Request routing
 
 ```
-Route 53 → Firebase Hosting (unshelvd.koshkikode.com)
-              │
-              ├── /          → SPA static files (CDN cache)
-              └── /api/**    → Cloud Run (rewrite proxy)
+Route 53 (DNS) → Firebase Hosting (unshelvd.koshkikode.com)
+                    │
+                    ├── /          → SPA static files (Firebase global CDN)
+                    └── /api/**    → Cloud Run (rewrite proxy, us-central1)
 ```
+
+### Why Firebase Hosting + Cloud Run (not Cloud Run alone)
+
+Unshelv'd is a global peer-to-peer marketplace. The two services serve completely different workloads and pricing models:
+
+| Traffic type | Served by | Cost model |
+|---|---|---|
+| SPA shell, JS/CSS bundles, images | Firebase Hosting CDN | ~free (10 GB/month free egress on Blaze) |
+| API calls — listings, auth, Stripe | Cloud Run | Pay per request + CPU |
+
+**What this means in practice:**
+- A user in Tokyo, Lagos, or São Paulo gets the frontend from the nearest Firebase CDN edge node — no latency penalty, no Cloud Run cold start, no egress charge.
+- Cloud Run only receives actual API traffic. Browse-heavy usage (users scrolling listings) costs virtually nothing on the backend.
+- Cloud Run runs in a single region (`us-central1`). Without Firebase CDN in front, every page load would hit that one region from wherever the user is. Firebase makes the app feel fast worldwide without paying for multi-region Cloud Run.
+
+**Route 53 role:** Route 53 is the authoritative DNS host for `koshkikode.com` (the domain is registered/managed there). It delegates to Firebase Hosting via A records — it does not proxy traffic. All actual request handling is Firebase → Cloud Run.
 
 ---
 
