@@ -1979,13 +1979,16 @@ export async function registerRoutes(
   // === CONVERSATION ROUTES ===
 
   // Scam/link detection patterns
+  // Patterns for auto-flagging suspicious content (triggers admin review)
   const SCAM_PATTERNS = [
     /\b(?:western\s?union|moneygram|wire\s?transfer)\b/i,
     /\bpaypal\.me\b/i,
     /\bcashapp\b/i,
     /\bvenmo\b/i,
-    /\b(?:https?:\/\/|www\.)\S+/i, // any URL
+    /\bwhatsapp\b/i,
+    /\btelegram\b/i,
   ];
+  // Separate pattern for the newcomer link restriction (any URL)
   const LINK_PATTERN = /\b(?:https?:\/\/|www\.)\S+/i;
 
   // Per-user message rate limit: 20 messages per minute
@@ -2113,7 +2116,7 @@ export async function registerRoutes(
       const content = contentRaw.trim();
 
       // Newcomer link restriction: must have ≥1 completed transaction to include URLs
-      const totalCompleted = (req.user as any).totalSales ?? 0;
+      const totalCompleted = req.user!.totalSales ?? 0;
       if (totalCompleted < 1 && LINK_PATTERN.test(content))
         return res.status(400).json({ message: "You must complete at least one transaction before sharing links." });
 
