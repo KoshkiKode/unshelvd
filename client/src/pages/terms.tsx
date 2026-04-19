@@ -58,8 +58,13 @@ export default function TermsOfService() {
         <section>
           <h2 className="font-serif text-lg font-semibold text-foreground mb-2">5. Payments and Fees</h2>
           <p className="mb-2">
-            Unshelv'd charges a platform fee on each completed sale (currently 10%, subject to change).
-            Fees are deducted before the seller payout is transferred.
+            Unshelv&apos;d acts as a small middleman for transactions and charges a platform fee on each
+            completed sale (currently 10%, subject to change). Fees are deducted before the seller payout
+            is transferred.
+          </p>
+          <p className="mb-2">
+            Our public long-term target is to reduce this fee to 5% per transaction as platform volume
+            and operating efficiency improve.
           </p>
           <p>
             Payments are processed by Stripe Connect and/or PayPal. Funds are held in escrow from the

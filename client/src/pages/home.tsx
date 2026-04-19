@@ -80,6 +80,10 @@ export default function Home() {
           <p className="text-lg md:text-xl text-muted-foreground max-w-lg mb-8">
             A community marketplace for buying, selling, and trading books. Discover hidden gems from fellow readers.
           </p>
+          <p className="text-sm text-muted-foreground max-w-lg mb-6">
+            Unshelv&apos;d is run by a small middleman model: currently a 10% per-transaction fee,
+            with a long-term target to reduce to 5% as the platform scales.
+          </p>
           <form
             className="flex gap-2 mb-6 max-w-md"
             onSubmit={(e) => {
