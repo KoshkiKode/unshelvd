@@ -25,6 +25,7 @@ import {
   ToggleLeft,
   ToggleRight,
   Mail,
+  KeyRound,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -308,6 +309,80 @@ export default function AdminDashboard() {
   const [showPaypalSecret, setShowPaypalSecret] = useState(false);
   const [showEmailPass, setShowEmailPass] = useState(false);
 
+  // ── Admin account credential management ──
+  const [adminUsername, setAdminUsername] = useState(user?.username ?? "");
+  const [adminEmail, setAdminEmail] = useState(user?.email ?? "");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+
+  // Populate username/email from auth context when available
+  useEffect(() => {
+    if (user) {
+      setAdminUsername(user.username);
+      setAdminEmail(user.email);
+    }
+  }, [user]);
+
+  const updateCredentialsMutation = useMutation({
+    mutationFn: async (payload: { username?: string; email?: string }) => {
+      const res = await apiRequest("PATCH", "/api/admin/me/credentials", payload);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Failed to update credentials");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      toast({ title: "Credentials updated" });
+    },
+    onError: (err: Error) => toast({ title: "Update failed", description: err.message, variant: "destructive" }),
+  });
+
+  const changePasswordMutation = useMutation({
+    mutationFn: async (payload: { currentPassword: string; newPassword: string }) => {
+      const res = await apiRequest("POST", "/api/auth/change-password", payload);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Failed to change password");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast({ title: "Password changed" });
+    },
+    onError: (err: Error) => toast({ title: "Password change failed", description: err.message, variant: "destructive" }),
+  });
+
+  const handleSaveCredentials = () => {
+    const payload: { username?: string; email?: string } = {};
+    if (adminUsername && adminUsername !== user?.username) payload.username = adminUsername;
+    if (adminEmail && adminEmail !== user?.email) payload.email = adminEmail;
+    if (Object.keys(payload).length === 0) {
+      toast({ title: "No changes detected" });
+      return;
+    }
+    updateCredentialsMutation.mutate(payload);
+  };
+
+  const handleChangePassword = () => {
+    if (!currentPassword || !newPassword) {
+      toast({ title: "Fill in all password fields", variant: "destructive" });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({ title: "New passwords do not match", variant: "destructive" });
+      return;
+    }
+    changePasswordMutation.mutate({ currentPassword, newPassword });
+  };
+
   const saveSettingsMutation = useMutation({
     mutationFn: async (payload: Record<string, string>) => {
       const res = await apiRequest("PUT", "/api/admin/settings", payload);
@@ -401,6 +476,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="reports">Reports</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="seeder">Catalog Seeder</TabsTrigger>
+          <TabsTrigger value="account">My Account</TabsTrigger>
         </TabsList>
 
         {/* ─── OVERVIEW ─── */}
@@ -754,7 +830,7 @@ export default function AdminDashboard() {
                       className="mt-1 font-mono text-xs"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Safe to expose in the browser. Also update your deployment's <code>_STRIPE_PK</code> build arg for the baked-in fallback.
+                      Safe to expose in the browser. Saved here takes priority over any build-time setting.
                     </p>
                   </div>
                   <div>
@@ -1097,6 +1173,134 @@ export default function AdminDashboard() {
               </Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ─── MY ACCOUNT ─── */}
+        <TabsContent value="account">
+          <div className="space-y-6">
+
+            {/* ── Identity ── */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-slate-500" />
+                  <CardTitle>Admin Identity</CardTitle>
+                </div>
+                <CardDescription>
+                  Change your admin username or email address. These are your login credentials.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="admin-username" className="text-xs font-medium">Username</Label>
+                  <Input
+                    id="admin-username"
+                    value={adminUsername}
+                    onChange={(e) => setAdminUsername(e.target.value)}
+                    className="mt-1 font-mono text-sm"
+                    autoComplete="username"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="admin-email" className="text-xs font-medium">Email</Label>
+                  <Input
+                    id="admin-email"
+                    type="email"
+                    value={adminEmail}
+                    onChange={(e) => setAdminEmail(e.target.value)}
+                    className="mt-1"
+                    autoComplete="email"
+                  />
+                </div>
+                <Button
+                  onClick={handleSaveCredentials}
+                  disabled={updateCredentialsMutation.isPending}
+                >
+                  {updateCredentialsMutation.isPending
+                    ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    : <Save className="h-4 w-4 mr-2" />}
+                  Save Identity
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* ── Password ── */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <KeyRound className="h-5 w-5 text-slate-500" />
+                  <CardTitle>Change Password</CardTitle>
+                </div>
+                <CardDescription>
+                  Use a long, unique passphrase. This is the only password that protects the entire platform.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="current-pw" className="text-xs font-medium">Current Password</Label>
+                  <div className="relative mt-1">
+                    <Input
+                      id="current-pw"
+                      type={showCurrentPw ? "text" : "password"}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="pr-10"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPw((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showCurrentPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="new-pw" className="text-xs font-medium">New Password</Label>
+                  <div className="relative mt-1">
+                    <Input
+                      id="new-pw"
+                      type={showNewPw ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="pr-10"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPw((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showNewPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Must be at least 12 characters.</p>
+                </div>
+                <div>
+                  <Label htmlFor="confirm-pw" className="text-xs font-medium">Confirm New Password</Label>
+                  <Input
+                    id="confirm-pw"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="mt-1"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <Button
+                  onClick={handleChangePassword}
+                  disabled={changePasswordMutation.isPending}
+                >
+                  {changePasswordMutation.isPending
+                    ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    : <KeyRound className="h-4 w-4 mr-2" />}
+                  Change Password
+                </Button>
+              </CardContent>
+            </Card>
+
+          </div>
         </TabsContent>
       </Tabs>
 
