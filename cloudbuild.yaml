@@ -30,8 +30,8 @@
 #   _MEMORY               Cloud Run memory allocation   (default: 512Mi)
 #   _MIN_INSTANCES        Cloud Run min instances       (default: 1 — keeps one warm for WebSocket)
 #   _MAX_INSTANCES        Cloud Run max instances       (default: 3)
-#   _STRIPE_PK            Stripe publishable key        (default: "" — payments disabled)
-#   _API_URL              Optional API base URL for Vite (default: "" — same-origin)
+ #   _STRIPE_PK            Stripe publishable key        (default: "" — payments disabled)
+#   _API_URL              API base URL baked into Vite client (default: https://unshelvd.koshkikode.com)
 #   _THRIFTBOOKS_AFF_ID   ThriftBooks affiliate ID      (default: "" — affiliate links disabled)
 #   _ADSENSE_CLIENT       AdSense publisher ID          (default: "" — ads disabled)
 
@@ -47,8 +47,8 @@ substitutions:
   # Override at deploy time:  --substitutions=_STRIPE_PK=pk_live_...
   # Leave blank to run in dev/no-payment mode.
   _STRIPE_PK: ""
-  # Optional API URL override for client bundle. Leave blank for same-origin API.
-  _API_URL: ""
+  # API URL baked into client at build time.
+  _API_URL: "https://unshelvd.koshkikode.com"
   # Affiliate and ad IDs — safe to bake into the client bundle at build time.
   _THRIFTBOOKS_AFF_ID: ""
   _ADSENSE_CLIENT: ""

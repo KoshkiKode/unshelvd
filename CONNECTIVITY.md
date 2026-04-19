@@ -1,44 +1,33 @@
-# Unshelv'd — Connectivity & Deployment Guide
+# Unshelv'd — Connectivity Guide
 
-This guide ensures that your web and mobile applications connect correctly to the production backend server.
+This file is only for app connectivity behavior.
 
-## 🚀 Building for Production
+For all deployment steps, use:
 
-When building the application for production, the **VITE_API_URL** environment variable is critical. This URL is "baked into" the application bundle at build time.
+- [DEPLOY.md](./DEPLOY.md)
 
-### 1. Web Deployment (Cloud Run)
-For the web version, the API URL is typically relative because the same server hosts both the static files and the API. 
+## Production API URL
 
-However, if you're using a separate host for the API, set the URL during build:
+Use this canonical production URL in native builds:
+
 ```bash
 VITE_API_URL=https://unshelvd.koshkikode.com npm run build
 ```
 
-### 2. Android APK / iOS App
-Native apps **MUST** have an absolute URL to connect to the backend.
-
-**Build Command:**
 ```bash
-# Set your real Cloud Run URL here
 API_URL=https://unshelvd.koshkikode.com npm run cap:build:android
 ```
 
-If you forget to set this, the build will now **FAIL** early to prevent you from shipping a broken app.
+## Debugging Connectivity
 
----
+Common causes of offline mode:
 
-## 🔍 Debugging Connectivity
+1. Wrong `VITE_API_URL` baked into native build
+2. CORS origin not allowed in `server/index.ts`
+3. Backend unavailable at `https://unshelvd.koshkikode.com/api/health`
 
-We've added a **Connectivity Guard** to the application. If the app cannot reach the server, it will show a fullscreen "Offline" message with a retry button.
+Manual check:
 
-### Common Issues
-1. **CORS Blocked**: If you're using a new domain, ensure it's added to the `allowedOrigins` list in `server/index.ts`.
-2. **Missing SDK Settings**: For Android, ensure `android/app/src/main/res/xml/network_security_config.xml` allows cleartext for your local development IP if testing over Wi-Fi.
-3. **Invalid API URL**: In native apps, use the browser's Remote Inspector (Chrome: `chrome://inspect`, Safari: Develop menu) to check the Console. You should see a "Backend health check failed" message if the URL is wrong.
-
-### Verification Script
-Run the environment verification manually at any time:
 ```bash
 npm run verify:env
 ```
-Compare this with your actual server URL.
