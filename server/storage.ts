@@ -2,11 +2,13 @@ import {
   type User, type InsertUser, type Book, type InsertBook,
   type BookRequest, type InsertBookRequest, type Message, type InsertMessage,
   type Offer, type InsertOffer,
+  type Conversation, type BlockRecord, type Report, type AuditLogEntry,
   users, books, bookRequests, messages, offers,
+  conversations, blockRecords, reports, auditLog,
 } from "@shared/schema";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { eq, and, or, like, desc, asc, gte, lte, sql, ilike, inArray } from "drizzle-orm";
+import { eq, and, or, like, desc, asc, gte, lte, sql, ilike, inArray, isNull } from "drizzle-orm";
 import { sanitizeLikeInput } from "./security";
 
 // Unix socket connections (Cloud SQL) don't use SSL
@@ -63,6 +65,45 @@ export interface IStorage {
   getOffer(id: number): Promise<Offer | undefined>;
   createOffer(buyerId: number, sellerId: number, offer: InsertOffer): Promise<Offer>;
   updateOffer(id: number, userId: number, status: string, counterAmount?: number | null): Promise<Offer | undefined>;
+
+  // Conversations
+  getOrCreateConversation(bookId: number, buyerId: number, sellerId: number): Promise<Conversation>;
+  getConversation(id: number): Promise<Conversation | undefined>;
+  getUserConversations(userId: number): Promise<any[]>;
+  updateConversationStatus(id: number, status: string): Promise<void>;
+
+  // Blocks
+  createBlock(blockerId: number, blockedId: number, reason?: string | null): Promise<BlockRecord>;
+  getBlock(blockerId: number, blockedId: number): Promise<BlockRecord | undefined>;
+  deleteBlock(blockerId: number, blockedId: number): Promise<void>;
+  getUserBlocks(userId: number): Promise<BlockRecord[]>;
+  isBlocked(userId1: number, userId2: number): Promise<boolean>;
+
+  // Reports
+  createReport(data: {
+    reporterId: number;
+    reportedUserId: number;
+    messageId?: number | null;
+    conversationId?: number | null;
+    category: string;
+    description?: string | null;
+  }): Promise<Report>;
+  getReports(filters?: { outcome?: string | null; limit?: number; offset?: number }): Promise<{ reports: any[]; total: number }>;
+  getReport(id: number): Promise<any | undefined>;
+  updateReport(id: number, adminId: number, outcome: string): Promise<Report | undefined>;
+
+  // Audit log
+  appendAuditLog(entry: {
+    action: string;
+    adminId?: number | null;
+    targetUserId?: number | null;
+    details?: string | null;
+  }): Promise<void>;
+
+  // Conversation messages
+  getConversationMessages(conversationId: number): Promise<Message[]>;
+  createConversationMessage(senderId: number, conversationId: number, content: string, bookId?: number | null): Promise<{ message: Message; isFirst: boolean }>;
+  softDeleteMessage(messageId: number, senderId: number): Promise<boolean>;
 }
 
 export interface BookFilters {
@@ -430,6 +471,279 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(offers.id, id), eq(offers.status, offer.status ?? "pending")))
       .returning();
     return rows[0];
+  }
+
+  // ── Conversations ────────────────────────────────────────────────────────
+
+  async getOrCreateConversation(bookId: number, buyerId: number, sellerId: number): Promise<Conversation> {
+    // Try to find existing conversation for this listing+buyer pair
+    const existing = await db.select().from(conversations)
+      .where(and(eq(conversations.bookId, bookId), eq(conversations.buyerId, buyerId)))
+      .limit(1);
+    if (existing[0]) return existing[0];
+
+    const rows = await db.insert(conversations).values({
+      bookId,
+      buyerId,
+      sellerId,
+      status: "active",
+    }).returning();
+    return rows[0];
+  }
+
+  async getConversation(id: number): Promise<Conversation | undefined> {
+    const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
+    return rows[0];
+  }
+
+  async getUserConversations(userId: number): Promise<any[]> {
+    const convRows = await db.select().from(conversations)
+      .where(or(eq(conversations.buyerId, userId), eq(conversations.sellerId, userId)))
+      .orderBy(desc(conversations.id));
+
+    if (convRows.length === 0) return [];
+
+    const userIds = [...new Set(convRows.flatMap(c => [c.buyerId, c.sellerId]))];
+    const bookIds = [...new Set(convRows.map(c => c.bookId))];
+
+    const [userRows, bookRows] = await Promise.all([
+      db.select({ id: users.id, username: users.username, displayName: users.displayName, avatarUrl: users.avatarUrl })
+        .from(users).where(inArray(users.id, userIds)),
+      db.select({ id: books.id, title: books.title, author: books.author, coverUrl: books.coverUrl })
+        .from(books).where(inArray(books.id, bookIds)),
+    ]);
+
+    const userMap = new Map(userRows.map(u => [u.id, u]));
+    const bookMap = new Map(bookRows.map(b => [b.id, b]));
+
+    // Get last message per conversation
+    const convIds = convRows.map(c => c.id);
+    const lastMsgs = await db.select().from(messages)
+      .where(inArray(messages.conversationId, convIds))
+      .orderBy(desc(messages.id));
+
+    const lastMsgMap = new Map<number, Message>();
+    for (const msg of lastMsgs) {
+      if (msg.conversationId && !lastMsgMap.has(msg.conversationId)) {
+        lastMsgMap.set(msg.conversationId, msg);
+      }
+    }
+
+    // Unread counts per conversation for this user
+    const unreadRows = await db.select({
+      conversationId: messages.conversationId,
+      cnt: sql<number>`count(*)::int`,
+    }).from(messages)
+      .where(and(
+        inArray(messages.conversationId, convIds),
+        eq(messages.receiverId, userId),
+        eq(messages.isRead, false),
+      ))
+      .groupBy(messages.conversationId);
+    const unreadMap = new Map(unreadRows.map(r => [r.conversationId, r.cnt]));
+
+    return convRows.map(conv => {
+      const otherUserId = conv.buyerId === userId ? conv.sellerId : conv.buyerId;
+      return {
+        ...conv,
+        otherUser: userMap.get(otherUserId) ?? null,
+        book: bookMap.get(conv.bookId) ?? null,
+        lastMessage: lastMsgMap.get(conv.id) ?? null,
+        unreadCount: unreadMap.get(conv.id) ?? 0,
+      };
+    });
+  }
+
+  async updateConversationStatus(id: number, status: string): Promise<void> {
+    await db.update(conversations)
+      .set({ status, ...(status !== "active" ? { closedAt: new Date() } : {}) })
+      .where(eq(conversations.id, id));
+  }
+
+  // ── Blocks ───────────────────────────────────────────────────────────────
+
+  async createBlock(blockerId: number, blockedId: number, reason?: string | null): Promise<BlockRecord> {
+    // Upsert — if already blocked, return existing row
+    const existing = await db.select().from(blockRecords)
+      .where(and(eq(blockRecords.blockerId, blockerId), eq(blockRecords.blockedId, blockedId)))
+      .limit(1);
+    if (existing[0]) return existing[0];
+
+    const rows = await db.insert(blockRecords).values({ blockerId, blockedId, reason: reason ?? null }).returning();
+    return rows[0];
+  }
+
+  async getBlock(blockerId: number, blockedId: number): Promise<BlockRecord | undefined> {
+    const rows = await db.select().from(blockRecords)
+      .where(and(eq(blockRecords.blockerId, blockerId), eq(blockRecords.blockedId, blockedId)))
+      .limit(1);
+    return rows[0];
+  }
+
+  async deleteBlock(blockerId: number, blockedId: number): Promise<void> {
+    await db.delete(blockRecords)
+      .where(and(eq(blockRecords.blockerId, blockerId), eq(blockRecords.blockedId, blockedId)));
+  }
+
+  async getUserBlocks(userId: number): Promise<BlockRecord[]> {
+    return db.select().from(blockRecords).where(eq(blockRecords.blockerId, userId));
+  }
+
+  async isBlocked(userId1: number, userId2: number): Promise<boolean> {
+    const rows = await db.select({ id: blockRecords.id }).from(blockRecords)
+      .where(or(
+        and(eq(blockRecords.blockerId, userId1), eq(blockRecords.blockedId, userId2)),
+        and(eq(blockRecords.blockerId, userId2), eq(blockRecords.blockedId, userId1)),
+      ))
+      .limit(1);
+    return rows.length > 0;
+  }
+
+  // ── Reports ──────────────────────────────────────────────────────────────
+
+  async createReport(data: {
+    reporterId: number;
+    reportedUserId: number;
+    messageId?: number | null;
+    conversationId?: number | null;
+    category: string;
+    description?: string | null;
+  }): Promise<Report> {
+    const rows = await db.insert(reports).values({
+      reporterId: data.reporterId,
+      reportedUserId: data.reportedUserId,
+      messageId: data.messageId ?? null,
+      conversationId: data.conversationId ?? null,
+      category: data.category,
+      description: data.description ?? null,
+    }).returning();
+    return rows[0];
+  }
+
+  async getReports(filters?: { outcome?: string | null; limit?: number; offset?: number }): Promise<{ reports: any[]; total: number }> {
+    const limit = filters?.limit ?? 50;
+    const offset = filters?.offset ?? 0;
+
+    // null outcome = pending review
+    const where = filters?.outcome === undefined
+      ? isNull(reports.outcome)
+      : filters.outcome === null
+        ? isNull(reports.outcome)
+        : eq(reports.outcome, filters.outcome);
+
+    const [countResult, rows] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(reports).where(where),
+      db.select().from(reports).where(where).orderBy(desc(reports.id)).limit(limit).offset(offset),
+    ]);
+
+    if (rows.length === 0) return { reports: [], total: countResult[0]?.count ?? 0 };
+
+    const userIds = [...new Set(rows.flatMap(r => [r.reporterId, r.reportedUserId]))];
+    const userRows = await db.select({ id: users.id, username: users.username, displayName: users.displayName })
+      .from(users).where(inArray(users.id, userIds));
+    const userMap = new Map(userRows.map(u => [u.id, u]));
+
+    const enriched = rows.map(r => ({
+      ...r,
+      reporter: userMap.get(r.reporterId) ?? null,
+      reportedUser: userMap.get(r.reportedUserId) ?? null,
+    }));
+
+    return { reports: enriched, total: countResult[0]?.count ?? 0 };
+  }
+
+  async getReport(id: number): Promise<any | undefined> {
+    const rows = await db.select().from(reports).where(eq(reports.id, id)).limit(1);
+    if (!rows[0]) return undefined;
+
+    const r = rows[0];
+    const userIds = [...new Set([r.reporterId, r.reportedUserId])];
+    const userRows = await db.select({ id: users.id, username: users.username, displayName: users.displayName })
+      .from(users).where(inArray(users.id, userIds));
+    const userMap = new Map(userRows.map(u => [u.id, u]));
+
+    // Fetch conversation messages if conversationId is set (admin context)
+    let conversationMessages: Message[] = [];
+    if (r.conversationId) {
+      conversationMessages = await db.select().from(messages)
+        .where(eq(messages.conversationId, r.conversationId))
+        .orderBy(asc(messages.id));
+    }
+
+    return {
+      ...r,
+      reporter: userMap.get(r.reporterId) ?? null,
+      reportedUser: userMap.get(r.reportedUserId) ?? null,
+      conversationMessages,
+    };
+  }
+
+  async updateReport(id: number, adminId: number, outcome: string): Promise<Report | undefined> {
+    const rows = await db.update(reports)
+      .set({ outcome, reviewedByAdmin: adminId, reviewedAt: new Date() })
+      .where(eq(reports.id, id))
+      .returning();
+    return rows[0];
+  }
+
+  // ── Audit log ────────────────────────────────────────────────────────────
+
+  async appendAuditLog(entry: {
+    action: string;
+    adminId?: number | null;
+    targetUserId?: number | null;
+    details?: string | null;
+  }): Promise<void> {
+    await db.insert(auditLog).values({
+      action: entry.action,
+      adminId: entry.adminId ?? null,
+      targetUserId: entry.targetUserId ?? null,
+      details: entry.details ?? null,
+    });
+  }
+
+  // ── Conversation messages ────────────────────────────────────────────────
+
+  async getConversationMessages(conversationId: number): Promise<Message[]> {
+    return db.select().from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(asc(messages.id));
+  }
+
+  async createConversationMessage(
+    senderId: number,
+    conversationId: number,
+    content: string,
+    bookId?: number | null,
+  ): Promise<{ message: Message; isFirst: boolean }> {
+    // Check if this is the first message in the conversation
+    const [existingCount] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId));
+    const isFirst = (existingCount?.count ?? 0) === 0;
+
+    // Get conversation to find receiverId
+    const conv = await this.getConversation(conversationId);
+    if (!conv) throw new Error("Conversation not found");
+    const receiverId = conv.buyerId === senderId ? conv.sellerId : conv.buyerId;
+
+    const rows = await db.insert(messages).values({
+      senderId,
+      receiverId,
+      bookId: bookId ?? null,
+      conversationId,
+      content,
+    }).returning();
+
+    return { message: rows[0], isFirst };
+  }
+
+  async softDeleteMessage(messageId: number, senderId: number): Promise<boolean> {
+    const rows = await db.update(messages)
+      .set({ deletedBySender: true })
+      .where(and(eq(messages.id, messageId), eq(messages.senderId, senderId)))
+      .returning({ id: messages.id });
+    return rows.length > 0;
   }
 }
 

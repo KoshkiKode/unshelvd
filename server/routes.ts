@@ -9,11 +9,17 @@ import {
   insertMessageSchema,
   insertOfferSchema,
   updateOfferSchema,
+  insertConversationSchema,
+  insertBlockSchema,
+  insertReportSchema,
   books,
   bookCatalog,
   works,
   users,
   transactions,
+  messages,
+  conversations,
+  blockRecords,
   TERMINAL_TX_STATUSES,
 } from "@shared/schema";
 import { eq, and, or, ilike, desc, asc, sql, isNull, inArray, notInArray } from "drizzle-orm";
@@ -45,6 +51,7 @@ import {
 } from "./paypal";
 import { registerAdminRoutes } from "./admin";
 import { getSetting, isEnabled } from "./platform-settings";
+import { setupChatWebSocket, broadcastToConversation, broadcastConversationStatus } from "./chat";
 import { validatePassword } from "@shared/password-policy";
 import { sanitizeLikeInput, parseIntParam } from "./security";
 import {
@@ -205,22 +212,21 @@ export async function registerRoutes(
   // the custom header "X-App-CSRF: 1" on every state-changing request in production.
   // CodeQL's js/missing-token-validation alert is a false positive here — it does not
   // trace cross-module middleware chains.
-  app.use(
-    session({
-      secret: process.env.SESSION_SECRET || "unshelvd-dev-secret-change-me",
-      resave: false,
-      saveUninitialized: false,
-      store: sessionStore,
-      cookie: {
-        maxAge: SESSION_TTL_MS,
-        // For Capacitor native apps making cross-origin requests:
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-        secure: process.env.NODE_ENV === "production",
-      },
-      // Trust the first proxy (Cloud Run, nginx, etc.)
-      proxy: process.env.NODE_ENV === "production",
-    }),
-  );
+  const sessionMiddleware = session({
+    secret: process.env.SESSION_SECRET || "unshelvd-dev-secret-change-me",
+    resave: false,
+    saveUninitialized: false,
+    store: sessionStore,
+    cookie: {
+      maxAge: SESSION_TTL_MS,
+      // For Capacitor native apps making cross-origin requests:
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: process.env.NODE_ENV === "production",
+    },
+    // Trust the first proxy (Cloud Run, nginx, etc.)
+    proxy: process.env.NODE_ENV === "production",
+  });
+  app.use(sessionMiddleware);
 
   // Passport setup
   passport.use(
@@ -1970,7 +1976,315 @@ export async function registerRoutes(
     }
   });
 
-  // === OFFERS ROUTES ===
+  // === CONVERSATION ROUTES ===
+
+  // Scam/link detection patterns
+  const SCAM_PATTERNS = [
+    /\b(?:western\s?union|moneygram|wire\s?transfer)\b/i,
+    /\bpaypal\.me\b/i,
+    /\bcashapp\b/i,
+    /\bvenmo\b/i,
+    /\b(?:https?:\/\/|www\.)\S+/i, // any URL
+  ];
+  const LINK_PATTERN = /\b(?:https?:\/\/|www\.)\S+/i;
+
+  // Per-user message rate limit: 20 messages per minute
+  const { PgRateLimitStore } = await import("./security");
+  const MESSAGE_WINDOW_MS = 60 * 1000;
+  const messageRateLimitStore = process.env.DATABASE_URL
+    ? new PgRateLimitStore(pool, MESSAGE_WINDOW_MS)
+    : null;
+
+  async function checkMessageRateLimit(userId: number): Promise<boolean> {
+    if (!messageRateLimitStore) return false; // dev: no limit
+    const info = await messageRateLimitStore.increment(`msg:${userId}`);
+    return info.totalHits > 20;
+  }
+
+  // GET /api/conversations — list current user's conversations
+  app.get("/api/conversations", requireAuth, async (req, res) => {
+    try {
+      const convs = await storage.getUserConversations(req.user!.id);
+      return res.json(convs);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch conversations" });
+    }
+  });
+
+  // POST /api/conversations — create or resume a conversation for a listing
+  app.post("/api/conversations", requireAuth, async (req, res) => {
+    try {
+      const data = insertConversationSchema.parse(req.body);
+      const book = await storage.getBook(data.bookId);
+      if (!book) return res.status(404).json({ message: "Book not found" });
+      if (book.userId === req.user!.id)
+        return res.status(400).json({ message: "Cannot open a chat with yourself" });
+      if (book.chatEnabled === false)
+        return res.status(403).json({ message: "The seller has disabled chat for this listing" });
+
+      // Check if either user has blocked the other
+      if (await storage.isBlocked(req.user!.id, book.userId))
+        return res.status(403).json({ message: "This conversation is unavailable" });
+
+      const conv = await storage.getOrCreateConversation(data.bookId, req.user!.id, book.userId);
+      if (conv.status === "blocked")
+        return res.status(403).json({ message: "This conversation is unavailable" });
+
+      return res.json(conv);
+    } catch (err) {
+      if (err instanceof ZodError)
+        return res.status(400).json({ message: err.issues[0]?.message || "Validation error" });
+      return res.status(500).json({ message: "Failed to create conversation" });
+    }
+  });
+
+  // GET /api/conversations/:id — get a single conversation
+  app.get("/api/conversations/:id", requireAuth, async (req, res) => {
+    try {
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid conversation ID" });
+      const conv = await storage.getConversation(id);
+      if (!conv) return res.status(404).json({ message: "Conversation not found" });
+      if (conv.buyerId !== req.user!.id && conv.sellerId !== req.user!.id)
+        return res.status(403).json({ message: "Access denied" });
+      return res.json(conv);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch conversation" });
+    }
+  });
+
+  // GET /api/conversations/:id/messages — get messages in a conversation
+  app.get("/api/conversations/:id/messages", requireAuth, async (req, res) => {
+    try {
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid conversation ID" });
+      const conv = await storage.getConversation(id);
+      if (!conv) return res.status(404).json({ message: "Conversation not found" });
+      const userId = req.user!.id;
+      if (conv.buyerId !== userId && conv.sellerId !== userId)
+        return res.status(403).json({ message: "Access denied" });
+
+      const msgs = await storage.getConversationMessages(id);
+      // Mark incoming messages as read
+      await storage.markMessagesRead(userId, conv.buyerId === userId ? conv.sellerId : conv.buyerId);
+
+      // For the current user, hide content of messages they soft-deleted
+      const sanitized = msgs.map(m => ({
+        ...m,
+        content: (m.deletedBySender && m.senderId === userId) ? "[Message deleted]" : m.content,
+      }));
+
+      return res.json(sanitized);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  // POST /api/conversations/:id/messages — send a message in a conversation
+  app.post("/api/conversations/:id/messages", requireAuth, async (req, res) => {
+    try {
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid conversation ID" });
+
+      const conv = await storage.getConversation(id);
+      if (!conv) return res.status(404).json({ message: "Conversation not found" });
+      const userId = req.user!.id;
+      if (conv.buyerId !== userId && conv.sellerId !== userId)
+        return res.status(403).json({ message: "Access denied" });
+
+      if (conv.status !== "active")
+        return res.status(403).json({ message: "This conversation is unavailable" });
+
+      // Check for block in either direction
+      const otherUserId = conv.buyerId === userId ? conv.sellerId : conv.buyerId;
+      if (await storage.isBlocked(userId, otherUserId))
+        return res.status(403).json({ message: "This conversation is unavailable" });
+
+      // Rate limit: 20 messages/minute per user
+      const rateLimited = await checkMessageRateLimit(userId);
+      if (rateLimited)
+        return res.status(429).json({ message: "You're sending messages too quickly. Please slow down." });
+
+      const contentRaw: string = req.body?.content ?? "";
+      if (!contentRaw || typeof contentRaw !== "string" || contentRaw.trim().length === 0)
+        return res.status(400).json({ message: "Message content is required" });
+      if (contentRaw.length > 5000)
+        return res.status(400).json({ message: "Message is too long" });
+      const content = contentRaw.trim();
+
+      // Newcomer link restriction: must have ≥1 completed transaction to include URLs
+      const totalCompleted = (req.user as any).totalSales ?? 0;
+      if (totalCompleted < 1 && LINK_PATTERN.test(content))
+        return res.status(400).json({ message: "You must complete at least one transaction before sharing links." });
+
+      const { message: msg, isFirst } = await storage.createConversationMessage(userId, id, content, conv.bookId);
+
+      // Auto-flag if scam patterns detected
+      const flagged = SCAM_PATTERNS.some(p => p.test(content));
+      if (flagged) {
+        await db.update(messages).set({ flagged: true }).where(eq(messages.id, msg.id));
+        // Create an auto-report for admin review
+        await storage.createReport({
+          reporterId: userId,
+          reportedUserId: userId,
+          messageId: msg.id,
+          conversationId: id,
+          category: "scam",
+          description: "Auto-flagged: message contains potential scam pattern",
+        });
+      }
+
+      // Broadcast via WebSocket to all connected participants
+      broadcastToConversation(id, {
+        type: "message",
+        conversationId: id,
+        message: { ...msg, flagged },
+        isFirst,
+      });
+
+      // Email notification (fire-and-forget)
+      const receiver = await storage.getUser(otherUserId);
+      if (receiver) {
+        const senderName = req.user!.displayName || req.user!.username;
+        sendNewMessage(receiver.email, senderName, content).catch((err) =>
+          console.error("[email] chat message notification failed:", err),
+        );
+      }
+
+      return res.json({ message: msg, isFirst });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  // DELETE /api/conversations/:convId/messages/:msgId — soft-delete a message
+  app.delete("/api/conversations/:convId/messages/:msgId", requireAuth, async (req, res) => {
+    try {
+      const convId = parseIntParam(req.params.convId);
+      const msgId = parseIntParam(req.params.msgId);
+      if (!convId || !msgId) return res.status(400).json({ message: "Invalid ID" });
+
+      const conv = await storage.getConversation(convId);
+      if (!conv) return res.status(404).json({ message: "Conversation not found" });
+      const userId = req.user!.id;
+      if (conv.buyerId !== userId && conv.sellerId !== userId)
+        return res.status(403).json({ message: "Access denied" });
+
+      const deleted = await storage.softDeleteMessage(msgId, userId);
+      if (!deleted) return res.status(404).json({ message: "Message not found or not yours" });
+
+      broadcastToConversation(convId, { type: "message_deleted", conversationId: convId, messageId: msgId });
+      return res.json({ success: true });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to delete message" });
+    }
+  });
+
+  // === BLOCK ROUTES ===
+
+  // GET /api/blocks — list accounts the current user has blocked
+  app.get("/api/blocks", requireAuth, async (req, res) => {
+    try {
+      const blocks = await storage.getUserBlocks(req.user!.id);
+      return res.json(blocks);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch blocks" });
+    }
+  });
+
+  // POST /api/blocks — block a user (optionally also from a conversation)
+  app.post("/api/blocks", requireAuth, async (req, res) => {
+    try {
+      const data = insertBlockSchema.parse(req.body);
+      const blockerId = req.user!.id;
+
+      if (data.blockedId === blockerId)
+        return res.status(400).json({ message: "You cannot block yourself" });
+
+      const blocked = await storage.getUser(data.blockedId);
+      if (!blocked) return res.status(404).json({ message: "User not found" });
+
+      const block = await storage.createBlock(blockerId, data.blockedId, data.reason);
+
+      // Close all active conversations between these two users
+      const convs = await storage.getUserConversations(blockerId);
+      const sharedConvs = convs.filter(
+        c => (c.buyerId === data.blockedId || c.sellerId === data.blockedId) && c.status === "active",
+      );
+      for (const conv of sharedConvs) {
+        await storage.updateConversationStatus(conv.id, "blocked");
+        broadcastConversationStatus(conv.id, "blocked");
+      }
+
+      await storage.appendAuditLog({
+        action: "block_applied",
+        targetUserId: data.blockedId,
+        details: JSON.stringify({ blockerId, blockedId: data.blockedId, reason: data.reason }),
+      });
+
+      return res.json(block);
+    } catch (err) {
+      if (err instanceof ZodError)
+        return res.status(400).json({ message: err.issues[0]?.message || "Validation error" });
+      return res.status(500).json({ message: "Failed to block user" });
+    }
+  });
+
+  // DELETE /api/blocks/:userId — unblock a user
+  app.delete("/api/blocks/:userId", requireAuth, async (req, res) => {
+    try {
+      const blockedId = parseIntParam(req.params.userId);
+      if (!blockedId) return res.status(400).json({ message: "Invalid user ID" });
+      await storage.deleteBlock(req.user!.id, blockedId);
+      return res.json({ success: true });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to unblock user" });
+    }
+  });
+
+  // === REPORT ROUTES ===
+
+  // POST /api/reports — submit a report
+  app.post("/api/reports", requireAuth, async (req, res) => {
+    try {
+      const data = insertReportSchema.parse(req.body);
+      const reporterId = req.user!.id;
+
+      if (data.reportedUserId === reporterId)
+        return res.status(400).json({ message: "You cannot report yourself" });
+
+      const report = await storage.createReport({
+        reporterId,
+        reportedUserId: data.reportedUserId,
+        messageId: data.messageId ?? null,
+        conversationId: data.conversationId ?? null,
+        category: data.category,
+        description: data.description ?? null,
+      });
+
+      await storage.appendAuditLog({
+        action: "report_received",
+        targetUserId: data.reportedUserId,
+        details: JSON.stringify({ reportId: report.id, reporterId, category: data.category }),
+      });
+
+      return res.status(201).json(report);
+    } catch (err) {
+      if (err instanceof ZodError)
+        return res.status(400).json({ message: err.issues[0]?.message || "Validation error" });
+      return res.status(500).json({ message: "Failed to submit report" });
+    }
+  });
+
+  // Set up real-time WebSocket relay
+  setupChatWebSocket(
+    httpServer,
+    sessionMiddleware,
+    async (userId: number, conversationId: number) => {
+      const conv = await storage.getConversation(conversationId);
+      return !!conv && (conv.buyerId === userId || conv.sellerId === userId);
+    },
+  );
   app.get("/api/offers", requireAuth, async (req, res) => {
     try {
       const offerData = await storage.getOffers(req.user!.id);

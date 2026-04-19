@@ -12,7 +12,7 @@
 
 import type { Express, Request, Response, NextFunction } from "express";
 import { spawn } from "child_process";
-import { db } from "./storage";
+import { db, storage } from "./storage";
 import {
   users,
   books,
@@ -21,8 +21,9 @@ import {
   bookCatalog,
   works,
   messages,
+  auditLog,
 } from "@shared/schema";
-import { eq, desc, sql, and, gte, lte, count, inArray } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lte, count, inArray, isNull } from "drizzle-orm";
 import { refundPayment, adminReleaseToSeller } from "./payments";
 import {
   getAllSettings,
@@ -553,6 +554,84 @@ export function registerAdminRoutes(app: Express) {
       return res.json({ message: "Settings saved" });
     } catch (err) {
       return res.status(500).json({ message: "Failed to save settings" });
+    }
+  });
+
+  // ═══ Reports — list open reports ═══
+  app.get("/api/admin/reports", requireAdmin, async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const outcome = (req.query.outcome as string) || null; // null = open/pending
+      const result = await storage.getReports({ outcome, limit, offset });
+      return res.json(result);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch reports" });
+    }
+  });
+
+  // ═══ Reports — get single report with full conversation context ═══
+  app.get("/api/admin/reports/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid report ID" });
+      const report = await storage.getReport(id);
+      if (!report) return res.status(404).json({ message: "Report not found" });
+      return res.json(report);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch report" });
+    }
+  });
+
+  // ═══ Reports — review action ═══
+  // outcome: dismissed | warned | temp_banned | banned | escalated
+  app.put("/api/admin/reports/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = parseIntParam(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid report ID" });
+
+      const outcome: string = req.body?.outcome;
+      const validOutcomes = ["dismissed", "warned", "temp_banned", "banned", "escalated"];
+      if (!outcome || !validOutcomes.includes(outcome))
+        return res.status(400).json({ message: `outcome must be one of: ${validOutcomes.join(", ")}` });
+
+      const report = await storage.updateReport(id, req.user!.id, outcome);
+      if (!report) return res.status(404).json({ message: "Report not found" });
+
+      // Apply user-level actions
+      if (outcome === "banned") {
+        await db.update(users).set({ role: "suspended" }).where(eq(users.id, report.reportedUserId));
+      } else if (outcome === "temp_banned") {
+        // Mark suspended; a background job or manual restore handles the temp period
+        await db.update(users).set({ role: "suspended" }).where(eq(users.id, report.reportedUserId));
+      }
+
+      await storage.appendAuditLog({
+        action: `admin_review_${outcome}`,
+        adminId: req.user!.id,
+        targetUserId: report.reportedUserId,
+        details: JSON.stringify({ reportId: id, outcome }),
+      });
+
+      return res.json(report);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to update report" });
+    }
+  });
+
+  // ═══ Audit Log ═══
+  app.get("/api/admin/audit-log", requireAdmin, async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const rows = await db.select().from(auditLog)
+        .orderBy(desc(auditLog.id))
+        .limit(limit)
+        .offset(offset);
+      const [{ total }] = await db.select({ total: sql<number>`count(*)::int` }).from(auditLog);
+      return res.json({ entries: rows, total, limit, offset });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch audit log" });
     }
   });
 }
