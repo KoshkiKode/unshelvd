@@ -12,6 +12,8 @@ import { users, books, bookCatalog } from "@shared/schema";
 import { sql, eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
+const BCRYPT_SALT_ROUNDS = 14;
+
 const isUnixSocket = (process.env.DATABASE_URL || "").includes("host=/");
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -133,7 +135,7 @@ async function main() {
 
   // ── Single shared password for all demo accounts ─────────────────────────
   const sharedPassword = process.env.DEMO_PASSWORD || "DemoPass123!";
-  const passwordHash = await bcrypt.hash(sharedPassword, 10);
+  const passwordHash = await bcrypt.hash(sharedPassword, BCRYPT_SALT_ROUNDS);
 
   let totalUsersCreated = 0;
   let totalBooksCreated = 0;

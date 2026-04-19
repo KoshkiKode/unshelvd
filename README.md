@@ -201,7 +201,7 @@ unshelvd/
 - LIKE wildcards sanitized in search inputs
 - Rate limiting: 10 auth attempts/15min, 5 payments/min, 100 API/min
 - HTTP security headers (Helmet)
-- bcrypt password hashing (12 rounds)
+- bcrypt password hashing (14 rounds)
 - Unicode-aware password policy (12+ chars, upper/lower/number/symbol, no name)
 - Stripe webhook signature verification
 - CORS restricted to known origins in production

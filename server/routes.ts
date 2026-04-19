@@ -71,6 +71,8 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { uploadImage, deleteImage, isGcsConfigured } from "./gcs";
 
+const BCRYPT_SALT_ROUNDS = 14;
+
 const PgSessionStore = connectPgSimple(session);
 const MemoryStore = createMemoryStore(session);
 
@@ -328,8 +330,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Username already taken" });
       }
 
-      // Hash with bcrypt (12 rounds)
-      const hashedPassword = await bcrypt.hash(data.password, 12);
+      // Hash with bcrypt (14 rounds)
+      const hashedPassword = await bcrypt.hash(data.password, BCRYPT_SALT_ROUNDS);
 
       const user = await storage.createUser({
         ...data,
@@ -1750,7 +1752,7 @@ export async function registerRoutes(
       if (!pwResult.valid)
         return res.status(400).json({ message: pwResult.errors?.[0] || "Password does not meet requirements" });
 
-      const hashed = await bcrypt.hash(newPassword, 12);
+      const hashed = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
       await storage.updateUser(req.user!.id, { password: hashed });
       return res.json({ message: "Password updated" });
     } catch (err) {
@@ -1895,7 +1897,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: pwResult.errors?.[0] || "Password does not meet requirements" });
       }
 
-      const hashed = await bcrypt.hash(password, 12);
+      const hashed = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
       await db.update(users).set({
         password: hashed,
         passwordResetToken: null,
@@ -2206,7 +2208,7 @@ export async function registerRoutes(
         username: deletedUsername,
         displayName: "Deleted User",
         email: deletedEmail,
-        password: await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10),
+        password: await bcrypt.hash(crypto.randomBytes(32).toString("hex"), BCRYPT_SALT_ROUNDS),
         bio: null,
         avatarUrl: null,
         location: null,

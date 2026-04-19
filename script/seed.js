@@ -2,6 +2,7 @@ import pg from 'pg';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 const { Client } = pg;
+const BCRYPT_SALT_ROUNDS = 14;
 
 // Open Library cover URLs by ISBN
 const cover = (isbn) => `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
@@ -406,7 +407,7 @@ async function seed() {
       const username = configuredUsername || generateAdminUsername();
       const email = configuredEmail || `${username}@${ADMIN_EMAIL_DOMAIN}`;
       const password = configuredPassword || generateAdminPassword();
-      const adminHash = await bcrypt.hash(password, 12);
+      const adminHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 
       try {
         if (existingAdminId) {
@@ -442,7 +443,7 @@ async function seed() {
       console.log('Seeding users and books...');
 
       const demoPassword = process.env.DEMO_PASSWORD || crypto.randomBytes(10).toString('base64url').slice(0, 14) + '!D1';
-      const demoHash = await bcrypt.hash(demoPassword, 12);
+      const demoHash = await bcrypt.hash(demoPassword, BCRYPT_SALT_ROUNDS);
 
       const janeRes = await client.query(
         'INSERT INTO users (username, display_name, email, password, bio, location) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
