@@ -120,13 +120,19 @@ export async function sendEmail(
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  await ctx.transport.sendMail({
-    from: ctx.from,
-    to,
-    subject,
-    html,
-    text: textBody,
-  });
+  try {
+    await ctx.transport.sendMail({
+      from: ctx.from,
+      to,
+      subject,
+      html,
+      text: textBody,
+    });
+  } catch (err) {
+    // Log the error but don't rethrow — a failed email must never crash a
+    // business-logic operation (payment, offer, registration, etc.).
+    console.error(`[email] Failed to send to ${to}: ${subject}`, err);
+  }
 }
 
 // ── HTML template helpers ──────────────────────────────────────────────────
@@ -201,7 +207,14 @@ function esc(s: string | null | undefined): string {
 
 // ── Typed send helpers ─────────────────────────────────────────────────────
 
-const APP_URL = "https://unshelvd.koshkikode.com";
+// Base URL used in email CTAs.  Set PUBLIC_APP_URL (or APP_URL / WEB_BASE_URL)
+// in production so that links point to the correct domain.
+const APP_URL = (
+  process.env.PUBLIC_APP_URL ||
+  process.env.APP_URL ||
+  process.env.WEB_BASE_URL ||
+  "https://unshelvd.koshkikode.com"
+).replace(/\/+$/, ""); // strip any trailing slash
 
 /** Email address verification — sent after account creation. */
 export async function sendEmailVerification(
