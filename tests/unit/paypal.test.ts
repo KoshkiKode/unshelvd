@@ -244,7 +244,7 @@ describe("createPayPalOrder", () => {
     await createPayPalOrder(params);
     // Verify that the order create call hit the sandbox URL
     const orderCall = fetchMock.mock.calls.find((c) =>
-      (c[0] as string).includes("sandbox"),
+      /^https:\/\/api-m\.sandbox\.paypal\.com\//.test(c[0] as string),
     );
     expect(orderCall).toBeDefined();
   });
@@ -259,8 +259,9 @@ describe("createPayPalOrder", () => {
     });
     const { createPayPalOrder } = await importPaypal();
     await createPayPalOrder(params);
+    // Verify the order-create call hit the live URL (not sandbox)
     const liveCall = fetchMock.mock.calls.find(
-      (c) => (c[0] as string).includes("api-m.paypal.com") && !(c[0] as string).includes("sandbox"),
+      (c) => /^https:\/\/api-m\.paypal\.com\//.test(c[0] as string),
     );
     expect(liveCall).toBeDefined();
   });
@@ -522,7 +523,7 @@ describe("OAuth token caching", () => {
     // Should be 3 total calls: 1 token + 2 API calls
     expect(fetchMock).toHaveBeenCalledTimes(3);
     const tokenCalls = fetchMock.mock.calls.filter((c) =>
-      (c[0] as string).includes("oauth2/token"),
+      /\/v1\/oauth2\/token$/.test(c[0] as string),
     );
     expect(tokenCalls).toHaveLength(1);
   });
