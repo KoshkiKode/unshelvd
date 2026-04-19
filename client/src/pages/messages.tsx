@@ -7,7 +7,6 @@ import { useSearch, Redirect, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import ReportDialog from "@/components/report-dialog";
 import BlockDialog from "@/components/block-dialog";
