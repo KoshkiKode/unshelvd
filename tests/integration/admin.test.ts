@@ -105,6 +105,7 @@ vi.mock("../../server/platform-settings", () => ({
     "stripe_secret_key",
     "stripe_webhook_secret",
     "paypal_client_secret",
+    "email_smtp_pass",
   ]),
   maskSecret: vi.fn((v: string | null) =>
     v && v.length > 4 ? `${"•".repeat(Math.min(v.length - 4, 12))}${v.slice(-4)}` : v ? "••••" : null,
@@ -994,5 +995,181 @@ describe("POST /api/admin/seed", () => {
     // Endpoint always returns 202 (background process, non-blocking)
     expect(res.status).toBe(202);
     expect(res.body.message).toMatch(/started/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// PATCH /api/admin/me/credentials
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("PATCH /api/admin/me/credentials", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    app = await buildApp();
+  });
+
+  // ── Access control ──────────────────────────────────────────────────────
+
+  it("returns 401 for unauthenticated requests", async () => {
+    const res = await request(app)
+      .patch("/api/admin/me/credentials")
+      .send({ username: "newname" });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for non-admin users", async () => {
+    const agent = await loginAs(app, regularUser);
+    mockStorage.getUser.mockResolvedValueOnce(regularUser);
+
+    const res = await agent
+      .patch("/api/admin/me/credentials")
+      .send({ username: "newname" });
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/admin access required/i);
+  });
+
+  // ── Validation ──────────────────────────────────────────────────────────
+
+  it("returns 400 when neither username nor email is provided", async () => {
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent.patch("/api/admin/me/credentials").send({});
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/provide at least one field/i);
+  });
+
+  it("returns 400 when username is too short (< 3 chars)", async () => {
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent
+      .patch("/api/admin/me/credentials")
+      .send({ username: "ab" });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when username contains invalid characters", async () => {
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent
+      .patch("/api/admin/me/credentials")
+      .send({ username: "bad name!" });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/letters, numbers/i);
+  });
+
+  it("returns 400 when email is invalid", async () => {
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent
+      .patch("/api/admin/me/credentials")
+      .send({ email: "not-an-email" });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/invalid email/i);
+  });
+
+  // ── Uniqueness conflicts ─────────────────────────────────────────────────
+
+  it("returns 400 when the new username is already taken by another user", async () => {
+    // db returns another user with the same username
+    pushDbResults([{ id: 99 }]); // username conflict
+    // update would be: pushDbResults([]) — but we never reach it
+
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent
+      .patch("/api/admin/me/credentials")
+      .send({ username: "takenname" });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/username already taken/i);
+  });
+
+  it("returns 400 when the new email is already registered by another user", async () => {
+    // db returns another user with the same email
+    pushDbResults([{ id: 99 }]); // email conflict
+    // update would be: pushDbResults([]) — but we never reach it
+
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent
+      .patch("/api/admin/me/credentials")
+      .send({ email: "taken@example.com" });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/email already registered/i);
+  });
+
+  // ── Success paths ────────────────────────────────────────────────────────
+
+  it("updates username when no conflict and returns success", async () => {
+    // username uniqueness check returns no conflict
+    pushDbResults([]); // no conflict
+    // db.update().set().where() resolves to [] (queue empty — that's fine)
+
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent
+      .patch("/api/admin/me/credentials")
+      .send({ username: "newadmin" });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/credentials updated/i);
+  });
+
+  it("updates email when no conflict and returns success", async () => {
+    // email uniqueness check returns no conflict
+    pushDbResults([]); // no conflict
+    // db.update().set().where() resolves via empty queue
+
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent
+      .patch("/api/admin/me/credentials")
+      .send({ email: "newemail@example.com" });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/credentials updated/i);
+  });
+
+  it("updates both username and email when both are provided and unique", async () => {
+    // 1. username uniqueness check  2. email uniqueness check
+    pushDbResults([], []); // neither has a conflict
+    // db.update() resolves via empty queue
+
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent
+      .patch("/api/admin/me/credentials")
+      .send({ username: "adminv2", email: "adminv2@example.com" });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/credentials updated/i);
+  });
+
+  // ── Error path ───────────────────────────────────────────────────────────
+
+  it("returns 500 when the db update throws", async () => {
+    // username uniqueness check passes
+    pushDbResults([]); // no conflict
+    // then the update itself throws
+    vi.spyOn(db as any, "update").mockImplementationOnce(() => {
+      throw new Error("db write error");
+    });
+
+    const agent = await loginAs(app, adminUser);
+    mockStorage.getUser.mockResolvedValueOnce(adminUser);
+
+    const res = await agent
+      .patch("/api/admin/me/credentials")
+      .send({ username: "crashtest" });
+    expect(res.status).toBe(500);
+    expect(res.body.message).toMatch(/failed to update credentials/i);
   });
 });

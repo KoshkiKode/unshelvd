@@ -105,8 +105,21 @@ steps:
       - "--execute-now"
       - "--wait"
 
-  # 4. Seed Job — inserts 126 works + 156 catalog entries if the tables are empty.
-  #    Completely idempotent: skips if data already exists (no data loss on re-deploy).
+  # 4. Seed Job — inserts 126 works + 156 catalog entries if the tables are empty,
+  #    and creates the admin account on the very first deploy.
+  #
+  #    Completely idempotent on all subsequent deploys:
+  #    • Catalog/works data: skipped if already present (no data loss).
+  #    • Admin credentials: NOT rotated on redeploy.  Credentials are printed
+  #      once to the job log on first deploy only.  To rotate credentials after
+  #      you have lost access, create an ADMIN_FORCE_ROTATE secret (value "true")
+  #      in Secret Manager, add it to --set-secrets below, run one deploy, then
+  #      delete the secret and remove it from --set-secrets.
+  #
+  #    Optional admin credential overrides (only needed to pin specific values
+  #    instead of using auto-generated ones):
+  #    ADMIN_EMAIL / ADMIN_USERNAME / ADMIN_PASSWORD — create in Secret Manager
+  #    BEFORE adding them here or the job deploy will fail.
   - name: "gcr.io/cloud-builders/gcloud"
     args:
       - "run"
@@ -120,10 +133,8 @@ steps:
       - "--vpc-connector=${_VPC_CONNECTOR}"
       - "--vpc-egress=private-ranges-only"
       # Only DATABASE_URL and SESSION_SECRET are required here.
-      # ADMIN_EMAIL / ADMIN_USERNAME / ADMIN_PASSWORD are optional overrides — the
-      # seed script auto-generates fresh credentials and prints them to the job log
-      # if these are not set.  Do NOT add them to --set-secrets unless you have
-      # created those secrets in Secret Manager first, or the job deploy will fail.
+      # Admin credentials are NOT rotated here after the first deploy.
+      # See the step comment above for how to rotate if needed.
       - "--set-secrets=DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest"
       - "--set-env-vars=NODE_ENV=production"
       - "--max-retries=1"

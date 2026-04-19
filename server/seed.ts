@@ -392,7 +392,14 @@ async function seed() {
   }
 
   // ═══════════════════════════════════════
-  // ADMIN USER — always rotate credentials, keep same account when present
+  // ADMIN USER
+  //
+  // Behaviour:
+  //   • First deploy (no admin row):    create admin, print credentials to logs.
+  //   • Subsequent deploys:             do nothing — credentials are unchanged.
+  //   • ADMIN_FORCE_ROTATE=true:        rotate credentials and print new ones.
+  //     Set this env var in Secret Manager only when you need to recover access
+  //     (e.g. lost password).  Remove it again after recovering.
   // ═══════════════════════════════════════
   const adminRows = await db
     .select({ id: users.id })
@@ -401,57 +408,66 @@ async function seed() {
     .orderBy(users.id)
     .limit(1);
   const existingAdminId = adminRows[0]?.id;
-  const adminAction: "created" | "rotated" = existingAdminId ? "rotated" : "created";
+  const forceRotate = process.env.ADMIN_FORCE_ROTATE === "true";
 
-  const configuredUsername = process.env.ADMIN_USERNAME || "";
-  const configuredEmail = process.env.ADMIN_EMAIL || "";
-  const configuredPassword = process.env.ADMIN_PASSWORD || "";
+  if (existingAdminId && !forceRotate) {
+    // Admin exists and rotation is not requested — leave credentials alone.
+    // This is the normal case on every redeploy after the first.
+    console.log("Admin account already exists — credentials unchanged.");
+    console.log("To rotate credentials, set ADMIN_FORCE_ROTATE=true in Secret Manager and redeploy once, then remove it.");
+  } else {
+    const adminAction: "created" | "rotated" = existingAdminId ? "rotated" : "created";
 
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const username = configuredUsername || generateAdminUsername();
-    const email = configuredEmail || `${username}@${ADMIN_EMAIL_DOMAIN}`;
-    const password = configuredPassword || generateAdminPassword();
-    const adminHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+    const configuredUsername = process.env.ADMIN_USERNAME || "";
+    const configuredEmail = process.env.ADMIN_EMAIL || "";
+    const configuredPassword = process.env.ADMIN_PASSWORD || "";
 
-    try {
-      if (existingAdminId) {
-        await db
-          .update(users)
-          .set({
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const username = configuredUsername || generateAdminUsername();
+      const email = configuredEmail || `${username}@${ADMIN_EMAIL_DOMAIN}`;
+      const password = configuredPassword || generateAdminPassword();
+      const adminHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+
+      try {
+        if (existingAdminId) {
+          await db
+            .update(users)
+            .set({
+              username,
+              displayName: ADMIN_DISPLAY_NAME,
+              email,
+              password: adminHash,
+              role: "admin",
+            })
+            .where(eq(users.id, existingAdminId));
+        } else {
+          await db.insert(users).values({
             username,
             displayName: ADMIN_DISPLAY_NAME,
             email,
             password: adminHash,
+            bio: "Platform administrator.",
+            location: "Battle Creek, MI",
             role: "admin",
-          })
-          .where(eq(users.id, existingAdminId));
-      } else {
-        await db.insert(users).values({
-          username,
-          displayName: ADMIN_DISPLAY_NAME,
-          email,
-          password: adminHash,
-          bio: "Platform administrator.",
-          location: "Battle Creek, MI",
-          role: "admin",
-        });
-      }
+          });
+        }
 
-      printAdminCredentials(username, email, password, adminAction);
-      break;
-    } catch (err: any) {
-      const isUniqueViolation = err?.code === "23505";
-      const usingExplicitEnv =
-        Boolean(process.env.ADMIN_USERNAME) ||
-        Boolean(process.env.ADMIN_EMAIL) ||
-        Boolean(process.env.ADMIN_PASSWORD);
-      if (!isUniqueViolation || usingExplicitEnv || attempt === 9) {
-        throw err;
+        printAdminCredentials(username, email, password, adminAction);
+        break;
+      } catch (err: any) {
+        const isUniqueViolation = err?.code === "23505";
+        const usingExplicitEnv =
+          Boolean(process.env.ADMIN_USERNAME) ||
+          Boolean(process.env.ADMIN_EMAIL) ||
+          Boolean(process.env.ADMIN_PASSWORD);
+        if (!isUniqueViolation || usingExplicitEnv || attempt === 9) {
+          throw err;
+        }
       }
     }
   }
 
-  // For existing installs we're done after credential rotation.
+  // For existing installs we're done after the admin check.
   if (skipUsers) {
     await pool.end();
     return;
@@ -546,7 +562,7 @@ async function seed() {
     { userId: mirko.id, title: "We", author: "Yevgeny Zamyatin", description: "Looking for an original Russian edition (Мы). Any Soviet-era print.", maxPrice: 100, language: "Russian", countryOfOrigin: "USSR / Soviet Union" },
   ]);
 
-  console.log("Seed complete: 1 admin + 3 demo users, 20 books, 5 requests, 126 works, 156 catalog entries.");
+  console.log("Seed complete: 3 demo users, 20 books, 5 requests, 126 works, 156 catalog entries.");
   await pool.end();
 }
 
