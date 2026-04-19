@@ -210,3 +210,12 @@ unshelvd/
 ## License
 
 MIT
+
+## Platform Legal Terms (Website/App)
+
+- Terms of Service: `/#/terms`
+- Privacy Policy: `/#/privacy`
+- End User License Agreement (EULA): `/#/eula`
+- Platform License Agreement: `/#/license-agreement`
+
+Unshelv'd uses a small middleman marketplace model with a current 10% per-transaction fee, with a public target to reduce to 5% as the platform scales.

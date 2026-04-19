@@ -75,7 +75,8 @@ export default function About() {
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Right now, Unshelv'd charges a <strong className="text-foreground">10% platform fee</strong> on
-                each sale. I know that's not nothing, and I want to be upfront about why and where it's going.
+                each sale. I&apos;m the small middleman running this marketplace, and I want to be upfront
+                about why that fee exists and where it&apos;s going.
               </p>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 I'm one person building and running this entire platform — the app, the servers, the database

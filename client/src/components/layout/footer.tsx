@@ -28,6 +28,12 @@ export default function Footer() {
             <Link href="/terms" className="hover:text-foreground transition-colors">
               Terms of Service
             </Link>
+            <Link href="/eula" className="hover:text-foreground transition-colors">
+              EULA
+            </Link>
+            <Link href="/license-agreement" className="hover:text-foreground transition-colors">
+              License Agreement
+            </Link>
           </nav>
 
           {/* Copyright + attribution */}

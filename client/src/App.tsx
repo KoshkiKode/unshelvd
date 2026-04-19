@@ -39,6 +39,8 @@ const PayPalReturn = lazy(() => import("@/pages/paypal-return"));
 const PayPalCancel = lazy(() => import("@/pages/paypal-cancel"));
 const PrivacyPolicy = lazy(() => import("@/pages/privacy"));
 const TermsOfService = lazy(() => import("@/pages/terms"));
+const Eula = lazy(() => import("@/pages/eula"));
+const LicenseAgreement = lazy(() => import("@/pages/license-agreement"));
 
 // Auth pages share one chunk since they're usually visited together
 const LoginPage = lazy(() =>
@@ -69,6 +71,8 @@ function AppRouter() {
             <Route path="/about" component={About} />
             <Route path="/privacy" component={PrivacyPolicy} />
             <Route path="/terms" component={TermsOfService} />
+            <Route path="/eula" component={Eula} />
+            <Route path="/license-agreement" component={LicenseAgreement} />
             <Route path="/user/:id" component={UserProfile} />
             <Route path="/requests" component={Requests} />
             <Route path="/dashboard" component={Dashboard} />
