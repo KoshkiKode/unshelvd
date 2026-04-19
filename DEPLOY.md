@@ -26,17 +26,25 @@ Run each command exactly as shown.
 node --version
 ```
 
+Expected: Node.js 20+
+
 ```bash
 npm --version
 ```
+
+Expected: npm 10+
 
 ```bash
 gcloud --version
 ```
 
+Expected: current Google Cloud CLI (latest stable)
+
 ```bash
 docker --version
 ```
+
+Expected: Docker Engine 24+
 
 ---
 
@@ -227,6 +235,8 @@ for SECRET in DATABASE_URL SESSION_SECRET STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRE
 ## 8) Deploy (copy/paste command)
 
 This command builds, migrates, seeds, and deploys.
+
+Use the Stripe **Publishable key** from **Section 6.2** (`pk_live_...`) for `_STRIPE_PK`.
 
 ```bash
 gcloud builds submit --config=cloudbuild.yaml --substitutions=_REGION="$REGION",_SERVICE_NAME="$SERVICE_NAME",_REPO="$REPO_NAME",_SQL_INSTANCE="$SQL_INSTANCE",_STRIPE_PK='PASTE_STRIPE_PUBLISHABLE_KEY_pk_live',_API_URL='https://unshelvd.koshkikode.com',_GCS_BUCKET=''
