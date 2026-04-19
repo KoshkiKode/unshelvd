@@ -5,6 +5,8 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { sql, eq } from "drizzle-orm";
 
+const BCRYPT_SALT_ROUNDS = 14;
+
 // Open Library cover URLs by ISBN
 const cover = (isbn: string) => `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
 // Open Library cover URLs by cover ID
@@ -409,7 +411,7 @@ async function seed() {
     const username = configuredUsername || generateAdminUsername();
     const email = configuredEmail || `${username}@${ADMIN_EMAIL_DOMAIN}`;
     const password = configuredPassword || generateAdminPassword();
-    const adminHash = await bcrypt.hash(password, 12);
+    const adminHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 
     try {
       if (existingAdminId) {
@@ -459,7 +461,7 @@ async function seed() {
   // DEMO USERS
   // ═══════════════════════════════════════
   const demoPassword = process.env.DEMO_PASSWORD || crypto.randomBytes(10).toString("base64url").slice(0, 14) + "!D1";
-  const demoHash = await bcrypt.hash(demoPassword, 12);
+  const demoHash = await bcrypt.hash(demoPassword, BCRYPT_SALT_ROUNDS);
 
   const [jane] = await db.insert(users).values({
     username: "bookworm",

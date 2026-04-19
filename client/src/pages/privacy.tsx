@@ -110,7 +110,7 @@ export default function PrivacyPolicy() {
         <section>
           <h2 className="font-serif text-lg font-semibold text-foreground mb-2">9. Security</h2>
           <p>
-            Passwords are hashed with bcrypt (12 rounds). All data in transit is encrypted via TLS.
+            Passwords are hashed with bcrypt (14 rounds). All data in transit is encrypted via TLS.
             We use rate limiting, input validation, and HTTP security headers. No security system is
             perfect — please use a strong, unique password.
           </p>
