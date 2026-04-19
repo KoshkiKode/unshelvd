@@ -32,9 +32,7 @@ https://unshelvd.koshkikode.com/
 Route 53 → Firebase Hosting (unshelvd.koshkikode.com)
               │
               ├── /          → SPA static files (CDN cache)
-              ├── /api/**    → Cloud Run (rewrite proxy — HTTP only)
-              └── /ws        → ⚠️  NOT proxied (see §11 — WebSocket)
-                                   Use Cloud Run URL directly for WebSocket
+              └── /api/**    → Cloud Run (rewrite proxy)
 ```
 
 ---
@@ -209,9 +207,8 @@ Create `firebase.json` in the project root (copy/paste exactly):
 }
 ```
 
-> **Note — WebSocket:** Firebase Hosting does not proxy WebSocket upgrade requests.
-> The `/ws` endpoint must connect directly to the Cloud Run URL.
-> See §11 for the full WebSocket setup.
+> **Note — Firebase Hosting rewrites HTTP only.** The `/api/**` rewrite proxy handles
+> all REST API calls. This is sufficient for the current app which uses standard HTTP.
 
 Initialize Firebase Hosting (answer prompts: use existing project, public dir = `dist/public`, SPA = yes, no GitHub action overwrite):
 
@@ -255,11 +252,17 @@ gcloud services vpc-peerings connect \
 ### 7.2 Create the AlloyDB cluster
 
 ```bash
+# Use a strong random password. Store it securely (e.g., in a password manager)
+# then use it again when creating the DATABASE_URL secret in §9.
 gcloud alloydb clusters create "$ALLOYDB_CLUSTER" \
   --region="$REGION" \
   --network=default \
-  --password='CHANGE_ME_ALLOYDB_ADMIN_PASSWORD'
+  --password="$(openssl rand -base64 24 | tr -d '=+/')"
 ```
+
+> **Tip:** The command above generates a random admin password. Record it somewhere
+> safe — you will not need it at runtime (the app connects as the `unshelvd` user),
+> but you will need it if you ever connect manually as `postgres`.
 
 ### 7.3 Create the primary instance (takes ~5 minutes)
 
@@ -455,61 +458,15 @@ gcloud storage buckets add-iam-policy-binding "gs://${PROJECT_ID}-unshelvd-uploa
 
 ---
 
-## 11. WebSocket — direct Cloud Run URL
+## 11. `cloudbuild.yaml` — AlloyDB VPC connector + Firebase Hosting
 
-Firebase Hosting does not proxy WebSocket upgrade requests (`101 Switching Protocols`).
-The `/ws` endpoint on this app must connect directly to the Cloud Run service.
+`cloudbuild.yaml` in this repository is already configured for AlloyDB and Firebase Hosting:
 
-**After your first deploy (§13)**, get the Cloud Run URL:
+- All three steps (migrate job, seed job, Cloud Run service deploy) use `--vpc-connector=${_VPC_CONNECTOR}` and `--vpc-egress=private-ranges-only` so that Cloud Run reaches AlloyDB's private IP through the Serverless VPC Access connector created in §7.5.
+- `DATABASE_URL` in Secret Manager must be the AlloyDB TCP connection string (`postgresql://user:pass@PRIVATE_IP:5432/db`), not a Cloud SQL socket path.
+- The Vite frontend is built into `dist/public` and deployed to Firebase Hosting separately (§14). Firebase Hosting rewrites `/api/**` to the Cloud Run service — so the web app and native apps both use `https://unshelvd.koshkikode.com` as their single endpoint.
 
-```bash
-gcloud run services describe "$SERVICE_NAME" \
-  --region="$REGION" \
-  --format='value(status.url)'
-```
-
-Pass it as `_WS_URL` in all deploy commands.
-The client uses `VITE_WS_URL` to connect WebSocket directly to the Cloud Run URL.
-
-> **Alternative — dedicated API subdomain:**
-> Map `api.unshelvd.koshkikode.com` directly to Cloud Run (§15 variant),
-> and have Firebase Hosting `/api/**` rewrite point to that subdomain instead.
-> This gives WebSocket a stable clean URL (`wss://api.unshelvd.koshkikode.com/ws`).
-
----
-
-## 12. Update `cloudbuild.yaml` for AlloyDB + Firebase Hosting
-
-The existing `cloudbuild.yaml` targets Cloud SQL. For AlloyDB + Firebase Hosting it needs three changes:
-
-1. **Replace** `--set-cloudsql-instances` with `--set-env-vars=NODE_ENV=production,GCS_BUCKET_NAME=...` and add `--vpc-connector` flag in the Cloud Run deploy step.
-2. **Add** `--vpc-connector="${VPC_CONNECTOR}"` to the migrate and seed jobs.
-3. **Add** a Firebase Hosting deploy step after the Cloud Run deploy:
-
-```yaml
-  # 6. Build frontend and deploy to Firebase Hosting
-  - name: 'node:20-alpine'
-    entrypoint: 'sh'
-    env:
-      - 'VITE_API_URL=${_API_URL}'
-      - 'VITE_WS_URL=${_WS_URL}'
-      - 'VITE_STRIPE_PUBLISHABLE_KEY=${_STRIPE_PK}'
-      - 'VITE_THRIFTBOOKS_AFF_ID=${_THRIFTBOOKS_AFF_ID}'
-      - 'VITE_ADSENSE_CLIENT=${_ADSENSE_CLIENT}'
-    args:
-      - '-c'
-      - 'npm ci && SKIP_ENV_VERIFY=true npm run build'
-
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        npm install -g firebase-tools
-        firebase deploy --only hosting --project=$PROJECT_ID --token "$(gcloud auth print-access-token)"
-```
-
-> Add `_WS_URL` to the substitutions block with the Cloud Run URL after first deploy.
+No manual edits to `cloudbuild.yaml` are needed before the first deploy.
 
 ---
 
@@ -518,24 +475,10 @@ The existing `cloudbuild.yaml` targets Cloud SQL. For AlloyDB + Firebase Hosting
 This command builds, migrates, seeds, and deploys the backend to Cloud Run.
 Run it before §14 (Firebase Hosting deploy) on first setup.
 
-Replace `_WS_URL` with your Cloud Run URL after you know it (leave blank on first run).
-
 ```bash
 gcloud builds submit \
   --config=cloudbuild.yaml \
-  --substitutions=_REGION="$REGION",_SERVICE_NAME="$SERVICE_NAME",_REPO="$REPO_NAME",_SQL_INSTANCE="$ALLOYDB_CLUSTER",_STRIPE_PK='PASTE_pk_live_PUBLISHABLE_KEY',_API_URL='https://unshelvd.koshkikode.com',_WS_URL='',_GCS_BUCKET="${PROJECT_ID}-unshelvd-uploads"
-```
-
-After the deploy, get the Cloud Run URL and run again with `_WS_URL` set:
-
-```bash
-export CLOUDRUN_URL="$(gcloud run services describe "$SERVICE_NAME" --region="$REGION" --format='value(status.url)')"
-```
-
-```bash
-gcloud builds submit \
-  --config=cloudbuild.yaml \
-  --substitutions=_REGION="$REGION",_SERVICE_NAME="$SERVICE_NAME",_REPO="$REPO_NAME",_SQL_INSTANCE="$ALLOYDB_CLUSTER",_STRIPE_PK='PASTE_pk_live_PUBLISHABLE_KEY',_API_URL='https://unshelvd.koshkikode.com',_WS_URL="$CLOUDRUN_URL",_GCS_BUCKET="${PROJECT_ID}-unshelvd-uploads"
+  --substitutions=_REGION="$REGION",_SERVICE_NAME="$SERVICE_NAME",_REPO="$REPO_NAME",_VPC_CONNECTOR="$VPC_CONNECTOR",_STRIPE_PK='PASTE_pk_live_PUBLISHABLE_KEY',_API_URL='https://unshelvd.koshkikode.com',_GCS_BUCKET="${PROJECT_ID}-unshelvd-uploads"
 ```
 
 ---
@@ -545,7 +488,7 @@ gcloud builds submit \
 Build the frontend and deploy:
 
 ```bash
-VITE_API_URL=https://unshelvd.koshkikode.com VITE_WS_URL="$CLOUDRUN_URL" SKIP_ENV_VERIFY=true npm run build
+VITE_API_URL=https://unshelvd.koshkikode.com SKIP_ENV_VERIFY=true npm run build
 ```
 
 ```bash
@@ -587,7 +530,7 @@ gcloud builds triggers create github \
   --repo-owner=KoshkiKode \
   --branch-pattern='^main$' \
   --build-config=cloudbuild.yaml \
-  --substitutions=_REGION="${REGION}",_SERVICE_NAME="${SERVICE_NAME}",_REPO="${REPO_NAME}",_SQL_INSTANCE="${ALLOYDB_CLUSTER}",_STRIPE_PK='PASTE_pk_live_PUBLISHABLE_KEY',_API_URL='https://unshelvd.koshkikode.com',_WS_URL="${CLOUDRUN_URL}",_GCS_BUCKET="${PROJECT_ID}-unshelvd-uploads" \
+  --substitutions=_REGION="${REGION}",_SERVICE_NAME="${SERVICE_NAME}",_REPO="${REPO_NAME}",_VPC_CONNECTOR="${VPC_CONNECTOR}",_STRIPE_PK='PASTE_pk_live_PUBLISHABLE_KEY',_API_URL='https://unshelvd.koshkikode.com',_GCS_BUCKET="${PROJECT_ID}-unshelvd-uploads" \
   --name=deploy-on-push-to-main
 ```
 
@@ -659,7 +602,7 @@ Confirm all of these:
 Always build native apps pointing to the production server:
 
 ```bash
-VITE_API_URL=https://unshelvd.koshkikode.com VITE_WS_URL="$CLOUDRUN_URL" npm run build
+VITE_API_URL=https://unshelvd.koshkikode.com npm run build
 ```
 
 ```bash
@@ -679,13 +622,13 @@ API_URL=https://unshelvd.koshkikode.com npm run cap:build:ios
 ```bash
 gcloud builds submit \
   --config=cloudbuild.yaml \
-  --substitutions=_REGION="$REGION",_SERVICE_NAME="$SERVICE_NAME",_REPO="$REPO_NAME",_SQL_INSTANCE="$ALLOYDB_CLUSTER",_STRIPE_PK='PASTE_pk_live_PUBLISHABLE_KEY',_API_URL='https://unshelvd.koshkikode.com',_WS_URL="$CLOUDRUN_URL",_GCS_BUCKET="${PROJECT_ID}-unshelvd-uploads"
+  --substitutions=_REGION="$REGION",_SERVICE_NAME="$SERVICE_NAME",_REPO="$REPO_NAME",_VPC_CONNECTOR="$VPC_CONNECTOR",_STRIPE_PK='PASTE_pk_live_PUBLISHABLE_KEY',_API_URL='https://unshelvd.koshkikode.com',_GCS_BUCKET="${PROJECT_ID}-unshelvd-uploads"
 ```
 
 ### Frontend only (Firebase Hosting)
 
 ```bash
-VITE_API_URL=https://unshelvd.koshkikode.com VITE_WS_URL="$CLOUDRUN_URL" SKIP_ENV_VERIFY=true npm run build
+VITE_API_URL=https://unshelvd.koshkikode.com SKIP_ENV_VERIFY=true npm run build
 ```
 
 ```bash

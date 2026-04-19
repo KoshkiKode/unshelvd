@@ -41,7 +41,7 @@ DATABASE_URL=postgresql://unshelvd:unshelvd_dev@localhost:5432/unshelvd
 
 ```bash
 chmod +x database/setup.sh
-./database/setup.sh --host "YOUR-DB-HOST" --username "unshelvd" --password "CHANGE_ME_PASSWORD" --database "unshelvd"
+./database/setup.sh --host "YOUR-DB-HOST" --username "unshelvd" --password "<YOUR_DB_PASSWORD>" --database "unshelvd"
 ```
 
 ---
@@ -94,9 +94,7 @@ For production deployment, follow the full walkthrough in [DEPLOY.md](../DEPLOY.
 
 The production `DATABASE_URL` connects via the AlloyDB private IP (accessed through a Serverless VPC Access connector):
 
-```
-postgresql://unshelvd:CHANGE_ME_PASSWORD@ALLOYDB_PRIVATE_IP:5432/unshelvd
-```
+```postgresql://unshelvd:<YOUR_DB_PASSWORD>@ALLOYDB_PRIVATE_IP:5432/unshelvd```
 
 This connection string is stored in Google Secret Manager as `DATABASE_URL`.
 

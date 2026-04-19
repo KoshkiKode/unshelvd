@@ -10,7 +10,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  *   - Android emulator → http://10.0.2.2:5000
  *   - iOS simulator    → http://localhost:5000
  *
- * See client/src/lib/queryClient.ts → getApiBase() for the full resolution logic.
+ * See client/src/lib/api-base.ts → getApiBase() for the full resolution logic.
  */
 const config: CapacitorConfig = {
   appId: "com.unshelvd.app",
@@ -54,7 +54,10 @@ const config: CapacitorConfig = {
 
   // Android-specific
   android: {
-    allowMixedContent: true,
+    // Disallow mixed HTTP/HTTPS content — the backend is served over HTTPS,
+    // so there is no legitimate reason for the WebView to load plain HTTP
+    // resources.  Keeping this false prevents accidental unencrypted traffic.
+    allowMixedContent: false,
     captureInput: true,
     webContentsDebuggingEnabled: false,
     // Edge-to-edge: WebView draws behind system bars
