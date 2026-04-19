@@ -142,7 +142,7 @@ By default for native local dev, the app API target is:
 Set a reachable backend before building/syncing:
 
 ```bash
-VITE_API_URL=https://your-api-domain npm run build
+VITE_API_URL=https://unshelvd.koshkikode.com npm run build
 npx cap sync
 ```
 
@@ -150,7 +150,7 @@ Then sign in with your production admin account and open the admin screen from t
 
 ## Deploy to Production
 
-See [README-SETUP.md](./README-SETUP.md) for step-by-step instructions (Google Cloud Run, AWS ECS Fargate, or full GCP).
+See [DEPLOY.md](./DEPLOY.md) for the full step-by-step production deployment guide.
 
 ## Project Structure
 
@@ -171,7 +171,7 @@ unshelvd/
 │   ├── storage.ts         # Database queries (Drizzle)
 │   ├── payments.ts        # Stripe Connect (charges, transfers, onboarding)
 │   ├── paypal.ts          # PayPal orders + webhooks
-│   ├── email.ts           # Transactional email (Nodemailer / SES)
+│   ├── email.ts           # Transactional email (Nodemailer / SMTP)
 │   ├── jobs.ts            # Background jobs (auto-complete, expire offers)
 │   ├── work-resolver.ts   # Auto-links books to works via Open Library
 │   ├── admin.ts           # Admin dashboard API

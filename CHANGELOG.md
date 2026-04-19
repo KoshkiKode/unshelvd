@@ -17,7 +17,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **Book requests** — post what you are looking for; sellers are notified when a matching listing appears
 - **Stripe Connect escrow payments** — buyer pays upfront; funds released to seller only after delivery is confirmed; automatic platform fee
 - **PayPal payments** — optional PayPal checkout flow (authorization + capture model) as an alternative to Stripe
-- **Transactional email** — password resets, offer notifications, shipping updates, delivery confirmations via Nodemailer / AWS SES
+- **Transactional email** — password resets, offer notifications, shipping updates, delivery confirmations via Nodemailer / SMTP
 - **35 UI languages** — top global languages with native labels and RTL support where needed
 - **Admin dashboard** — user management, dispute resolution, platform settings (fees, maintenance mode, payment toggles), catalog seeding
 - **Rating system** — buyers and sellers can rate each other after each completed transaction

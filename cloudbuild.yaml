@@ -1,11 +1,11 @@
 # Google Cloud Build config
-# Builds the Docker image and deploys to Cloud Run + Cloud SQL.
+# Builds the Docker image and deploys to Cloud Run + AlloyDB.
 #
 # One-command deploy:
 #   gcloud builds submit --config=cloudbuild.yaml [--substitutions=...]
 #
 # Required secrets in Secret Manager (create once — see DEPLOY.md § "Secrets"):
-#   DATABASE_URL          — Cloud SQL Unix-socket connection string
+#   DATABASE_URL          — AlloyDB TCP connection string (postgresql://user:pass@PRIVATE_IP:5432/db)
 #   SESSION_SECRET        — random 32-byte hex string
 #
 # Secrets for Stripe payments (see DEPLOY.md § "Stripe Payments"):
@@ -26,12 +26,12 @@
 #   _REGION               GCP region                   (default: us-central1)
 #   _SERVICE_NAME         Cloud Run service name        (default: unshelvd)
 #   _REPO                 Artifact Registry repo name   (default: unshelvd)
-#   _SQL_INSTANCE         Cloud SQL instance name       (default: unshelvd-db)
+#   _VPC_CONNECTOR        Serverless VPC Access connector for AlloyDB (default: unshelvd-connector)
 #   _MEMORY               Cloud Run memory allocation   (default: 512Mi)
-#   _MIN_INSTANCES        Cloud Run min instances       (default: 1 — keeps one warm for WebSocket)
+#   _MIN_INSTANCES        Cloud Run min instances       (default: 1)
 #   _MAX_INSTANCES        Cloud Run max instances       (default: 3)
 #   _STRIPE_PK            Stripe publishable key        (default: "" — payments disabled)
-#   _API_URL              Optional API base URL for Vite (default: "" — same-origin)
+#   _API_URL              API base URL baked into Vite client (default: https://unshelvd.koshkikode.com)
 #   _THRIFTBOOKS_AFF_ID   ThriftBooks affiliate ID      (default: "" — affiliate links disabled)
 #   _ADSENSE_CLIENT       AdSense publisher ID          (default: "" — ads disabled)
 
@@ -39,7 +39,11 @@ substitutions:
   _REGION: us-central1
   _SERVICE_NAME: unshelvd
   _REPO: unshelvd
-  _SQL_INSTANCE: unshelvd-db
+  # Serverless VPC Access connector name — required for Cloud Run to reach
+  # AlloyDB's private IP.  Create once with:
+  #   gcloud compute networks vpc-access connectors create unshelvd-connector \
+  #     --region=us-central1 --network=default --range=10.8.0.0/28
+  _VPC_CONNECTOR: unshelvd-connector
   _MEMORY: 512Mi
   _MIN_INSTANCES: "1"
   _MAX_INSTANCES: "3"
@@ -47,8 +51,10 @@ substitutions:
   # Override at deploy time:  --substitutions=_STRIPE_PK=pk_live_...
   # Leave blank to run in dev/no-payment mode.
   _STRIPE_PK: ""
-  # Optional API URL override for client bundle. Leave blank for same-origin API.
-  _API_URL: ""
+  # API URL baked into client at build time.
+  # Override for staging or other environments:
+  #   --substitutions=_API_URL=https://staging.koshkikode.com
+  _API_URL: "https://unshelvd.koshkikode.com"
   # Affiliate and ad IDs — safe to bake into the client bundle at build time.
   _THRIFTBOOKS_AFF_ID: ""
   _ADSENSE_CLIENT: ""
@@ -91,7 +97,8 @@ steps:
       - "--command=node"
       - "--args=script/migrate.js"
       - "--region=${_REGION}"
-      - "--set-cloudsql-instances=${PROJECT_ID}:${_REGION}:${_SQL_INSTANCE}"
+      - "--vpc-connector=${_VPC_CONNECTOR}"
+      - "--vpc-egress=private-ranges-only"
       - "--set-secrets=DATABASE_URL=DATABASE_URL:latest"
       - "--max-retries=1"
       - "--task-timeout=300s"
@@ -110,7 +117,8 @@ steps:
       - "--command=node"
       - "--args=script/seed.js"
       - "--region=${_REGION}"
-      - "--set-cloudsql-instances=${PROJECT_ID}:${_REGION}:${_SQL_INSTANCE}"
+      - "--vpc-connector=${_VPC_CONNECTOR}"
+      - "--vpc-egress=private-ranges-only"
       # Only DATABASE_URL and SESSION_SECRET are required here.
       # ADMIN_EMAIL / ADMIN_USERNAME / ADMIN_PASSWORD are optional overrides — the
       # seed script auto-generates fresh credentials and prints them to the job log
@@ -165,7 +173,11 @@ steps:
       - "--min-instances=${_MIN_INSTANCES}"
       - "--max-instances=${_MAX_INSTANCES}"
       - "--startup-cpu-boost"
-      - "--set-cloudsql-instances=${PROJECT_ID}:${_REGION}:${_SQL_INSTANCE}"
+      # Route traffic through the VPC connector so Cloud Run can reach
+      # AlloyDB's private IP.  private-ranges-only avoids routing all
+      # egress through the VPC (keeps Cloud Run → internet traffic direct).
+      - "--vpc-connector=${_VPC_CONNECTOR}"
+      - "--vpc-egress=private-ranges-only"
       # Only the two required secrets by default. Add Stripe secrets here once
       # you have created STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET in Secret
       # Manager (see comment above).

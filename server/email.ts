@@ -1,14 +1,14 @@
 /**
  * Unshelv'd — Email Service
  *
- * Sends transactional emails via SMTP (Amazon SES or any provider).
+ * Sends transactional emails via SMTP (any provider).
  *
  * Configuration (platform_settings DB values override env vars):
  *   email_enabled        — "true" | "false"  (default true when SMTP is configured)
- *   email_smtp_host      — e.g. "email-smtp.us-east-1.amazonaws.com"
+ *   email_smtp_host      — SMTP server hostname, e.g. "smtp.example.com"
  *   email_smtp_port      — e.g. "587"
- *   email_smtp_user      — SES SMTP username (AKIA...)
- *   email_smtp_pass      — SES SMTP password  ⚠️ secret
+ *   email_smtp_user      — SMTP username
+ *   email_smtp_pass      — SMTP password  ⚠️ secret
  *   email_from           — e.g. "Unshelv'd <noreply@koshkikode.com>"
  *
  * Environment variable equivalents (used when DB settings are absent):
@@ -16,13 +16,11 @@
  *
  * In development (no SMTP configured), emails are printed to the console.
  *
- * Amazon SES setup for koshkikode.com:
- *   1. AWS Console → SES → Verified Identities → Create Identity → Domain → koshkikode.com
- *      (AWS detects Route 53 and adds DKIM/SPF records automatically)
- *   2. SES → SMTP Settings → Create SMTP Credentials  →  save user + password
- *   3. Request production access (move out of sandbox) so you can email any address
- *   4. Set SMTP_HOST=email-smtp.us-east-1.amazonaws.com, SMTP_PORT=587,
- *      SMTP_USER=<access-key-id>, SMTP_PASS=<smtp-password>, EMAIL_FROM=noreply@koshkikode.com
+ * SMTP setup for koshkikode.com:
+ *   Configure SMTP credentials from your email provider, then set:
+ *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM=noreply@koshkikode.com
+ *   If your DNS is in Route 53, add your SMTP provider's SPF/DKIM records there.
+ *   Alternatively, configure email at runtime via the admin panel (Settings → Email).
  */
 
 import nodemailer from "nodemailer";
@@ -122,13 +120,19 @@ export async function sendEmail(
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  await ctx.transport.sendMail({
-    from: ctx.from,
-    to,
-    subject,
-    html,
-    text: textBody,
-  });
+  try {
+    await ctx.transport.sendMail({
+      from: ctx.from,
+      to,
+      subject,
+      html,
+      text: textBody,
+    });
+  } catch (err) {
+    // Log the error but don't rethrow — a failed email must never crash a
+    // business-logic operation (payment, offer, registration, etc.).
+    console.error(`[email] Failed to send to ${to}: ${subject}`, err);
+  }
 }
 
 // ── HTML template helpers ──────────────────────────────────────────────────
@@ -203,7 +207,14 @@ function esc(s: string | null | undefined): string {
 
 // ── Typed send helpers ─────────────────────────────────────────────────────
 
-const APP_URL = "https://unshelvd.koshkikode.com";
+// Base URL used in email CTAs.  Set PUBLIC_APP_URL (or APP_URL / WEB_BASE_URL)
+// in production so that links point to the correct domain.
+const APP_URL = (
+  process.env.PUBLIC_APP_URL ||
+  process.env.APP_URL ||
+  process.env.WEB_BASE_URL ||
+  "https://unshelvd.koshkikode.com"
+).replace(/\/+$/, ""); // strip any trailing slash
 
 /** Email address verification — sent after account creation. */
 export async function sendEmailVerification(

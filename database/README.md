@@ -1,8 +1,9 @@
-# Unshelv'd — Database Setup (PostgreSQL / Amazon Aurora / Google Cloud SQL)
+# Unshelv'd — Database Setup (PostgreSQL / AlloyDB)
 
-All the files you need to create and restore the Unshelv'd database on any
-**PostgreSQL-compatible database** (Amazon Aurora, RDS, Google Cloud SQL, or
-standard PostgreSQL) are in this folder.
+All the files you need to create and restore the Unshelv'd database are in this folder.
+
+The production database runs on **AlloyDB for PostgreSQL** (Google Cloud).
+Local development uses **Docker** (see `docker-compose.yml`).
 
 ---
 
@@ -20,63 +21,35 @@ standard PostgreSQL) are in this folder.
 
 ---
 
-## Storage cost: GitHub vs cloud storage
+## Local development (Docker)
 
-The SQL seed files in this folder are the most important asset to keep backed up.  
-Here's a quick cost comparison at today's sizes:
-
-| Storage tier | Current size | Monthly cost |
-|---|---|---|
-| **GitHub (this repo)** | ~60 KB of SQL | **Free** — GitHub free tier allows repos up to 1 GB, with no charge for the files themselves |
-| **AWS S3 (Standard)** | ~60 KB | ~$0.000001/month (essentially free at this size) |
-| **Amazon Aurora (running DB)** | Minimum ~10 GB allocated | **~$0.10/GB/month** for Aurora I/O-Optimized storage = ~$1/month minimum |
-| **Amazon Aurora Serverless v2** | Scales to 0 ACUs when idle | ~$0.12/ACU-hour + storage; idle cost ≈ $0–$5/month |
-| **Google Cloud SQL (Cloud Run)** | Minimum ~10 GB | ~$0.17/GB/month = ~$1.70/month minimum |
-
-**Recommendation:**
-- Keep the schema + seed SQL files **in this GitHub repo** — it's free and zero-maintenance.
-- The Aurora/Cloud SQL instance is the *live* database. When it gets deleted or reset, re-run the setup script to restore structure and catalog data.
-- User-generated content (listings, messages, offers) cannot be stored in static SQL files. For that, set up **automated Aurora snapshots** (daily, 7-day retention) which cost ~$0.021/GB/month on AWS.
-
----
-
-## Prerequisites
-
-1. **Node.js** installed → [nodejs.org](https://nodejs.org)
-2. An **Amazon Aurora PostgreSQL** cluster (or regular RDS/Cloud SQL PostgreSQL) with:
-   - A database named `unshelvd` (or your choice)
-   - A user with full privileges on that database
-   - Security group / firewall inbound rule allowing port **5432** from your IP
-
-> **Aurora endpoint format:**  
-> `your-cluster.cluster-abc123.us-east-1.rds.amazonaws.com`  
-> Found in the AWS Console → RDS → Clusters → your cluster → **Writer endpoint**.
-
----
-
-## Option A — Bash script (Linux / macOS — recommended)
+Start a local PostgreSQL instance via Docker Compose:
 
 ```bash
-chmod +x database/setup.sh
-./database/setup.sh \
-  --host     "your-cluster.cluster-abc123.us-east-1.rds.amazonaws.com" \
-  --username "unshelvd" \
-  --password "YourSecurePassword" \
-  --database "unshelvd"
+docker-compose up -d db
+```
+
+Set your `.env`:
+
+```
+DATABASE_URL=postgresql://unshelvd:unshelvd_dev@localhost:5432/unshelvd
 ```
 
 ---
 
-## Option B — PowerShell script (Windows — recommended)
+## Option A — Bash script (Linux / macOS)
 
-Open PowerShell in the root of this repo:
+```bash
+chmod +x database/setup.sh
+./database/setup.sh --host "YOUR-DB-HOST" --username "unshelvd" --password "<YOUR_DB_PASSWORD>" --database "unshelvd"
+```
+
+---
+
+## Option B — PowerShell script (Windows)
 
 ```powershell
-.\database\setup.ps1 `
-  -Host     "your-cluster.cluster-abc123.us-east-1.rds.amazonaws.com" `
-  -Username "unshelvd" `
-  -Password "YourSecurePassword" `
-  -Database "unshelvd"
+.\database\setup.ps1 -Host "YOUR-DB-HOST" -Username "unshelvd" -Password "YourSecurePassword" -Database "unshelvd"
 ```
 
 Both scripts will:
@@ -86,22 +59,18 @@ Both scripts will:
 
 ---
 
-## Option C — Run the Node.js scripts manually
+## Option C — Run Node.js scripts manually
 
 ```bash
-# Set your connection string
-export DATABASE_URL="postgresql://USER:PASSWORD@YOUR-AURORA-ENDPOINT:5432/unshelvd"
-
-# 1. Create tables
+export DATABASE_URL="postgresql://USER:PASSWORD@YOUR-DB-HOST:5432/unshelvd"
 node script/migrate.js
-
-# 2. Seed data
 node script/seed.js
 ```
 
 On Windows (PowerShell):
+
 ```powershell
-$env:DATABASE_URL = "postgresql://USER:PASSWORD@YOUR-AURORA-ENDPOINT:5432/unshelvd"
+$env:DATABASE_URL = "postgresql://USER:PASSWORD@YOUR-DB-HOST:5432/unshelvd"
 node script\migrate.js
 node script\seed.js
 ```
@@ -110,83 +79,59 @@ node script\seed.js
 
 ## Option D — Plain SQL files (pgAdmin / DBeaver / psql)
 
-If you prefer a GUI tool or already have `psql` installed, connect to Aurora and run:
-
 ```bash
-# Create tables
-psql "postgresql://USER:PASSWORD@YOUR-ENDPOINT:5432/unshelvd" -f database/schema.sql
-
-# Seed initial catalog data
-psql "postgresql://USER:PASSWORD@YOUR-ENDPOINT:5432/unshelvd" -f database/seed-catalog.sql
+psql "postgresql://USER:PASSWORD@YOUR-DB-HOST:5432/unshelvd" -f database/schema.sql
+psql "postgresql://USER:PASSWORD@YOUR-DB-HOST:5432/unshelvd" -f database/seed-catalog.sql
 ```
 
 Both files are safe to re-run (`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`).
 
 ---
 
-## Aurora compatibility notes
+## Production (AlloyDB)
 
-The SQL in this folder is 100% compatible with:
-- **Amazon Aurora PostgreSQL** (all versions)
-- **Amazon RDS PostgreSQL**
-- **Google Cloud SQL for PostgreSQL**
-- **Standard PostgreSQL 13+**
+For production deployment, follow the full walkthrough in [DEPLOY.md](../DEPLOY.md).
 
-Key compatibility choices made:
-- Uses `serial` (not `IDENTITY`) for auto-increment — supported by Aurora PostgreSQL
-- Uses `real` (not `float4`) for numeric columns — portable
-- Uses `timestamp` (not `timestamptz`) — matches the Drizzle ORM schema
-- `ON CONFLICT DO NOTHING` — standard ANSI SQL, supported everywhere
-- No Aurora-specific syntax (no `aurora_*` functions, no MySQL dialect)
-- Non-ASCII characters (Cyrillic, Japanese, Hebrew, etc.) are stored as UTF-8; Aurora PostgreSQL uses UTF-8 by default
+The production `DATABASE_URL` connects via the AlloyDB private IP (accessed through a Serverless VPC Access connector):
 
----
+```postgresql://unshelvd:<YOUR_DB_PASSWORD>@ALLOYDB_PRIVATE_IP:5432/unshelvd```
 
-## Setting up Amazon Aurora (quick steps)
-
-1. **AWS Console → RDS → Create database**
-   - Engine: Aurora (PostgreSQL-compatible) or PostgreSQL
-   - Template: Free tier / Dev/Test
-   - DB cluster identifier: `unshelvd-db`
-   - Master username: `unshelvd`
-   - Master password: (choose a strong one)
-   - Initial database name: `unshelvd`
-
-2. **Security Group** — add an inbound rule:
-   - Type: PostgreSQL
-   - Port: 5432
-   - Source: My IP (or your office/VPC CIDR)
-
-3. **Copy the endpoint** from the cluster details page (Writer endpoint).
-
-4. **Run the setup script** with that endpoint.
-
----
-
-## Your `.env` file
-
-After setup, create `.env` in the project root (copy from `.env.example`):
-
-```
-DATABASE_URL=postgresql://unshelvd:YourPassword@your-cluster.cluster-abc123.us-east-1.rds.amazonaws.com:5432/unshelvd
-SESSION_SECRET=change-me-to-a-random-string
-PORT=8080
-```
+This connection string is stored in Google Secret Manager as `DATABASE_URL`.
 
 ---
 
 ## Keeping the database backed up
 
-Because the catalog data lives in `database/seed-catalog.sql` **in this repo**, it is always backed up as long as code is pushed to GitHub.
+The catalog data lives in `database/seed-catalog.sql` **in this repo** — always backed up as long as code is pushed to GitHub.
 
-For **user-generated data** (listings, messages, offers, transactions), set up:
-- **AWS RDS Automated Backups** — enabled by default, keeps snapshots for 7 days
-- **Manual snapshot** before destructive operations: AWS Console → RDS → Clusters → Actions → Take snapshot
+For **user-generated data** (listings, messages, offers, transactions), use AlloyDB automated backups:
 
-To export the live database to a SQL file (for archiving):
+```bash
+gcloud alloydb backups create unshelvd-backup-$(date +%Y%m%d) --cluster=unshelvd-db --region=us-central1
+```
+
+To export a manual backup:
+
 ```bash
 pg_dump "$DATABASE_URL" --no-owner --no-acl -f database/backup-$(date +%Y%m%d).sql
 ```
+
+---
+
+## Compatibility
+
+The SQL in this folder is compatible with:
+
+- **AlloyDB for PostgreSQL** (production target)
+- **Standard PostgreSQL 13+** (local dev)
+
+Key choices:
+- Uses `serial` for auto-increment (portable)
+- Uses `real` for numeric columns (portable)
+- Uses `timestamp` (matches Drizzle ORM schema)
+- `ON CONFLICT DO NOTHING` (standard ANSI SQL)
+- No proprietary syntax
+- Non-ASCII characters (Cyrillic, Japanese, Hebrew, etc.) stored as UTF-8
 
 ---
 
@@ -194,9 +139,9 @@ pg_dump "$DATABASE_URL" --no-owner --no-acl -f database/backup-$(date +%Y%m%d).s
 
 | Problem | Fix |
 |---------|-----|
-| `connection refused` | Check Security Group inbound rule allows port 5432 from your IP |
-| `password authentication failed` | Double-check username/password in Aurora |
-| `database "unshelvd" does not exist` | Create it: `CREATE DATABASE unshelvd;` in pgAdmin |
-| `ENOTFOUND` / hostname not found | Paste the full endpoint URL, not just the cluster name |
-| `SSL SYSCALL error` | The scripts use `rejectUnauthorized: false` — Aurora SSL should work automatically |
-| Non-ASCII characters garbled | Ensure your Aurora cluster uses UTF-8 encoding (default for new clusters) |
+| `connection refused` | Check firewall/security settings allow port 5432 from your IP |
+| `password authentication failed` | Double-check username/password |
+| `database "unshelvd" does not exist` | Create it: `CREATE DATABASE unshelvd;` |
+| `ENOTFOUND` / hostname not found | Paste the full endpoint URL, not just the hostname |
+| `SSL SYSCALL error` | The scripts use `rejectUnauthorized: false` — Cloud SQL SSL should work automatically |
+| Non-ASCII characters garbled | Ensure your PostgreSQL cluster uses UTF-8 encoding (default) |
