@@ -31,7 +31,7 @@
 #   _MIN_INSTANCES        Cloud Run min instances       (default: 1)
 #   _MAX_INSTANCES        Cloud Run max instances       (default: 3)
 #   _STRIPE_PK            Stripe publishable key        (default: "" — payments disabled)
-#   _API_URL              API base URL baked into Vite client (default: https://unshelvd.koshkikode.com)
+#   _API_URL              API base URL baked into Vite client (default: empty => same-origin)
 #   _THRIFTBOOKS_AFF_ID   ThriftBooks affiliate ID      (default: "" — affiliate links disabled)
 #   _ADSENSE_CLIENT       AdSense publisher ID          (default: "" — ads disabled)
 
@@ -52,9 +52,9 @@ substitutions:
   # Leave blank to run in dev/no-payment mode.
   _STRIPE_PK: ""
   # API URL baked into client at build time.
-  # Override for staging or other environments:
-  #   --substitutions=_API_URL=https://staging.koshkikode.com
-  _API_URL: "https://unshelvd.koshkikode.com"
+  # Default is empty so web requests are same-origin (Cloud Run URL/domain).
+  # Override only if you intentionally want a different API host.
+  _API_URL: ""
   # Affiliate and ad IDs — safe to bake into the client bundle at build time.
   _THRIFTBOOKS_AFF_ID: ""
   _ADSENSE_CLIENT: ""

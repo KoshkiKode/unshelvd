@@ -22,7 +22,7 @@ A peer-to-peer book marketplace for every language, every country, every era. Bu
 | Database | PostgreSQL + Drizzle ORM |
 | Desktop | Tauri v2 (optional — see [DESKTOP.md](./DESKTOP.md)) |
 | Mobile | Capacitor (Android + iOS) |
-| Hosting | Google Cloud Run + Cloud SQL |
+| Hosting | Google Cloud Run + AlloyDB |
 | Catalog | Open Library API + proprietary database |
 
 ## Complete Local Setup (Web + API + Database + Admin + Mobile)
