@@ -482,6 +482,8 @@ gcloud storage buckets add-iam-policy-binding "gs://${PROJECT_ID}-unshelvd-uploa
 - `DATABASE_URL` in Secret Manager must be the AlloyDB TCP connection string (`postgresql://user:pass@PRIVATE_IP:5432/db`), not a Cloud SQL socket path.
 - The Vite frontend is built into `dist/public` and deployed to Firebase Hosting separately (§14). Firebase Hosting rewrites `/api/**` to the Cloud Run service — so the web app and native apps both use `https://unshelvd.koshkikode.com` as their single endpoint.
 
+**Admin account is created automatically on the first deploy.** The seed job prints the generated username, email, and password to Cloud Logging once. On every subsequent deploy the seed job is a no-op for admin credentials — it does not rotate them.
+
 No manual edits to `cloudbuild.yaml` are needed before the first deploy.
 
 ---
@@ -494,8 +496,38 @@ Run it before §14 (Firebase Hosting deploy) on first setup.
 ```bash
 gcloud builds submit \
   --config=cloudbuild.yaml \
-  --substitutions=_REGION="$REGION",_SERVICE_NAME="$SERVICE_NAME",_REPO="$REPO_NAME",_VPC_CONNECTOR="$VPC_CONNECTOR",_STRIPE_PK='PASTE_pk_live_PUBLISHABLE_KEY',_API_URL='https://unshelvd.koshkikode.com',_GCS_BUCKET="${PROJECT_ID}-unshelvd-uploads"
+  --substitutions=_REGION="$REGION",_SERVICE_NAME="$SERVICE_NAME",_REPO="$REPO_NAME",_VPC_CONNECTOR="$VPC_CONNECTOR",_API_URL='https://unshelvd.koshkikode.com',_GCS_BUCKET="${PROJECT_ID}-unshelvd-uploads"
 ```
+
+> **`_STRIPE_PK` is not needed here.** The admin dashboard (**Admin → Integrations → Stripe**) accepts the publishable key at runtime without a redeploy. Set it there after the first deploy.
+
+### 13.1 Find your admin credentials (first-deploy only)
+
+After the build completes, read the admin credentials from the seed job log:
+
+```bash
+gcloud logging read \
+  "resource.type=cloud_run_job AND resource.labels.job_name=${SERVICE_NAME}-seed" \
+  --limit=50 \
+  --format='value(textPayload)' \
+  --project="$PROJECT_ID" | grep -A 5 "ADMIN CREDENTIALS"
+```
+
+> **Save the printed username, email, and password somewhere secure (password manager).** They will never be printed again unless you explicitly request a rotation (see §20 — Credential recovery).
+
+### 13.2 Post-deploy admin dashboard setup (no redeploy needed)
+
+Log in at `https://unshelvd.koshkikode.com/#/admin` and configure the following from the dashboard:
+
+| Dashboard section | What to configure |
+|---|---|
+| **Admin → My Account** | Change username, email, and password to your preferred values |
+| **Admin → Integrations → Stripe** | Paste Stripe publishable key, secret key, webhook secret; enable Stripe |
+| **Admin → Integrations → PayPal** | Paste PayPal client ID, secret, webhook ID (if using PayPal) |
+| **Admin → Integrations → Email** | Configure SMTP host, port, credentials, from address |
+| **Admin → Integrations → Platform Settings** | Set platform fee %, toggle maintenance mode, registrations |
+
+Everything above takes effect immediately — no redeploy required.
 
 ---
 
@@ -546,7 +578,7 @@ gcloud builds triggers create github \
   --repo-owner=KoshkiKode \
   --branch-pattern='^main$' \
   --build-config=cloudbuild.yaml \
-  --substitutions=_REGION="${REGION}",_SERVICE_NAME="${SERVICE_NAME}",_REPO="${REPO_NAME}",_VPC_CONNECTOR="${VPC_CONNECTOR}",_STRIPE_PK='PASTE_pk_live_PUBLISHABLE_KEY',_API_URL='https://unshelvd.koshkikode.com',_GCS_BUCKET="${PROJECT_ID}-unshelvd-uploads" \
+  --substitutions=_REGION="${REGION}",_SERVICE_NAME="${SERVICE_NAME}",_REPO="${REPO_NAME}",_VPC_CONNECTOR="${VPC_CONNECTOR}",_API_URL='https://unshelvd.koshkikode.com',_GCS_BUCKET="${PROJECT_ID}-unshelvd-uploads" \
   --name=deploy-on-push-to-main
 ```
 
@@ -638,8 +670,10 @@ API_URL=https://unshelvd.koshkikode.com npm run cap:build:ios
 ```bash
 gcloud builds submit \
   --config=cloudbuild.yaml \
-  --substitutions=_REGION="$REGION",_SERVICE_NAME="$SERVICE_NAME",_REPO="$REPO_NAME",_VPC_CONNECTOR="$VPC_CONNECTOR",_STRIPE_PK='PASTE_pk_live_PUBLISHABLE_KEY',_API_URL='https://unshelvd.koshkikode.com',_GCS_BUCKET="${PROJECT_ID}-unshelvd-uploads"
+  --substitutions=_REGION="$REGION",_SERVICE_NAME="$SERVICE_NAME",_REPO="$REPO_NAME",_VPC_CONNECTOR="$VPC_CONNECTOR",_API_URL='https://unshelvd.koshkikode.com',_GCS_BUCKET="${PROJECT_ID}-unshelvd-uploads"
 ```
+
+> Admin credentials are **not** changed by a redeploy. All API keys and settings survive redeployment — they are stored in AlloyDB, not in the image.
 
 ### Frontend only (Firebase Hosting)
 
@@ -651,7 +685,7 @@ VITE_API_URL=https://unshelvd.koshkikode.com SKIP_ENV_VERIFY=true npm run build
 firebase deploy --only hosting
 ```
 
-### Rotate secrets
+### Rotate Secret Manager secrets
 
 ```bash
 echo -n 'PASTE_NEW_sk_live' | gcloud secrets versions add STRIPE_SECRET_KEY --data-file=-
@@ -665,18 +699,46 @@ echo -n 'PASTE_NEW_whsec' | gcloud secrets versions add STRIPE_WEBHOOK_SECRET --
 openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add SESSION_SECRET --data-file=-
 ```
 
+> **Stripe and PayPal keys can also be rotated from the admin dashboard** (Admin → Integrations) without touching Secret Manager or redeploying.
+
+### Credential recovery (lost admin password)
+
+If you can no longer log in to the admin account:
+
+1. Create a secret in Secret Manager:
+   ```bash
+   echo -n "true" | gcloud secrets create ADMIN_FORCE_ROTATE --replication-policy=automatic --data-file=-
+   ```
+2. Grant Cloud Build access:
+   ```bash
+   gcloud secrets add-iam-policy-binding ADMIN_FORCE_ROTATE \
+     --member="serviceAccount:${CLOUDBUILD_SA}" \
+     --role="roles/secretmanager.secretAccessor"
+   ```
+3. Add `ADMIN_FORCE_ROTATE=ADMIN_FORCE_ROTATE:latest` to the `--set-secrets` line of the seed step in `cloudbuild.yaml`, then run a deploy.
+4. Read the new credentials from Cloud Logging (same command as §13.1).
+5. **Remove the `ADMIN_FORCE_ROTATE` secret and the `--set-secrets` entry.** Leaving it in would rotate credentials on every future deploy.
+
 ---
 
-## 21. Runtime admin overrides (Stripe, PayPal, Email)
+## 21. Runtime admin management (no redeploy needed)
 
-The admin panel provides runtime overrides without a redeploy:
+The admin dashboard at `https://unshelvd.koshkikode.com/#/admin` is the single place to manage the platform after the first deploy.
 
-- Open `https://unshelvd.koshkikode.com/#/admin`
-- **Settings → Payments** — override Stripe and PayPal keys
-- **Settings → Email** — configure SMTP host, port, user, password
+| Tab | What you can do |
+|-----|-----------------|
+| **Overview** | Live stats — users, listings, revenue, pending payouts, disputes |
+| **Transactions** | View all transactions; filter by status; issue refunds; resolve disputes |
+| **Users** | Browse all accounts; suspend / unsuspend users |
+| **Revenue** | Monthly revenue breakdown; platform fees earned; pending seller payouts |
+| **Integrations → Stripe** | Enable/disable; set publishable key, secret key, webhook secret |
+| **Integrations → PayPal** | Enable/disable; set client ID, client secret, webhook ID, sandbox/live mode |
+| **Integrations → Email** | Enable/disable; configure SMTP host, port, credentials, from address |
+| **Integrations → Platform Settings** | Platform fee %; enable/disable new registrations; toggle maintenance mode |
+| **Catalog Seeder** | Import books from Open Library by query |
+| **My Account** | Change admin username, email, and password |
 
-> Keep canonical production values in Secret Manager.
-> Use admin panel overrides only for rotation or temporary changes.
+> Keep canonical production Stripe/PayPal keys in Secret Manager as a backup reference. Use the admin dashboard for routine rotation and changes.
 
 ---
 

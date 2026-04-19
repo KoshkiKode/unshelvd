@@ -12,6 +12,7 @@
 
 import type { Express, Request, Response, NextFunction } from "express";
 import { spawn } from "child_process";
+import { z } from "zod";
 import { db } from "./storage";
 import {
   users,
@@ -22,7 +23,7 @@ import {
   works,
   messages,
 } from "@shared/schema";
-import { eq, desc, sql, and, gte, lte, count, inArray } from "drizzle-orm";
+import { eq, desc, sql, and, ne, gte, lte, count, inArray } from "drizzle-orm";
 import { refundPayment, adminReleaseToSeller } from "./payments";
 import {
   getAllSettings,
@@ -553,6 +554,72 @@ export function registerAdminRoutes(app: Express) {
       return res.json({ message: "Settings saved" });
     } catch (err) {
       return res.status(500).json({ message: "Failed to save settings" });
+    }
+  });
+
+  // ═══ Admin self-service credential management ═══
+
+  /**
+   * PATCH /api/admin/me/credentials
+   * Allows the admin to change their own username and/or email address.
+   * Password changes use the shared /api/auth/change-password endpoint.
+   * Body: { username?: string, email?: string }
+   */
+  app.patch("/api/admin/me/credentials", requireAdmin, async (req, res) => {
+    try {
+      const schema = z.object({
+        username: z
+          .string()
+          .min(3)
+          .max(30)
+          .trim()
+          .regex(
+            /^[\p{L}\p{N}_.-]+$/u,
+            "Username can only contain letters, numbers, underscores, dots, and hyphens",
+          )
+          .optional(),
+        email: z.string().email("Invalid email address").optional(),
+      });
+
+      const data = schema.parse(req.body);
+      if (!data.username && !data.email) {
+        return res.status(400).json({ message: "Provide at least one field to update (username or email)" });
+      }
+
+      const adminId = req.user!.id;
+
+      // Check uniqueness before updating
+      if (data.username) {
+        const [existing] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.username, data.username), ne(users.id, adminId)));
+        if (existing) {
+          return res.status(400).json({ message: "Username already taken" });
+        }
+      }
+      if (data.email) {
+        const [existing] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.email, data.email), ne(users.id, adminId)));
+        if (existing) {
+          return res.status(400).json({ message: "Email already registered" });
+        }
+      }
+
+      const updateFields: Record<string, string> = {};
+      if (data.username) updateFields.username = data.username;
+      if (data.email) updateFields.email = data.email;
+
+      await db.update(users).set(updateFields).where(eq(users.id, adminId));
+
+      return res.json({ message: "Credentials updated" });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.issues[0]?.message || "Validation error" });
+      }
+      return res.status(500).json({ message: "Failed to update credentials" });
     }
   });
 }
