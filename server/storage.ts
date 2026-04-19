@@ -8,7 +8,7 @@ import {
 } from "@shared/schema";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { eq, and, or, like, desc, asc, gte, lte, sql, ilike, inArray, isNull } from "drizzle-orm";
+import { eq, and, or, desc, asc, gte, lte, sql, ilike, inArray, isNull } from "drizzle-orm";
 import { sanitizeLikeInput } from "./security";
 
 // Unix socket connections (Cloud SQL) don't use SSL
