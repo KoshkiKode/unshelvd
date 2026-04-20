@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "831335988481",
+    "project_id": "unshelvd",
+    "storage_bucket": "unshelvd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:831335988481:android:50b6d8fe23f41155ac2f00",
+        "android_client_info": {
+          "package_name": "com.koshkikode.unshelvd"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAE6i8kz1cx5mvAHVBiQI1_mipaVgnNYfI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
