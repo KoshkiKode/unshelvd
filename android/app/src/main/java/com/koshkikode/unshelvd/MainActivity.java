@@ -1,4 +1,4 @@
-package com.unshelvd.app;
+package com.koshkikode.unshelvd;
 
 import com.getcapacitor.BridgeActivity;
 
