@@ -219,6 +219,34 @@ export default function AdminDashboard() {
     enabled: user?.role === "admin",
   });
 
+  // ── Reports ──
+  interface AdminReport {
+    id: number;
+    category: string;
+    description: string | null;
+    createdAt: string | null;
+    outcome: string | null;
+    reporter: { id: number; username: string; displayName: string } | null;
+    reportedUser: { id: number; username: string; displayName: string } | null;
+  }
+  const [reportPage, setReportPage] = useState(0);
+  const REPORT_LIMIT = 25;
+  const { data: reportsData, isLoading: reportsLoading } = useQuery<{ reports: AdminReport[]; total: number }>({
+    queryKey: [`/api/admin/reports?limit=${REPORT_LIMIT}&offset=${reportPage * REPORT_LIMIT}`],
+    enabled: user?.role === "admin",
+  });
+  const reviewReportMutation = useMutation({
+    mutationFn: async ({ id, outcome }: { id: number; outcome: string }) => {
+      const res = await apiRequest("PUT", `/api/admin/reports/${id}`, { outcome });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/reports"] });
+      toast({ title: "Report updated" });
+    },
+    onError: (err: Error) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
+  });
+
   // ── Seeder ──
   const [seedQueries, setSeedQueries] = useState("");
   const [seeding, setSeeding] = useState(false);
@@ -445,6 +473,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="revenue">Revenue</TabsTrigger>
+          <TabsTrigger value="reports">Reports</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="seeder">Catalog Seeder</TabsTrigger>
           <TabsTrigger value="account">My Account</TabsTrigger>
@@ -684,6 +713,79 @@ export default function AdminDashboard() {
           ) : (
             <p className="text-muted-foreground">Could not load revenue data.</p>
           )}
+        </TabsContent>
+
+        {/* ─── REPORTS ─── */}
+        <TabsContent value="reports">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Open Reports</h2>
+              {reportsData && <span className="text-sm text-muted-foreground">{reportsData.total} total</span>}
+            </div>
+            {reportsLoading ? (
+              <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20" />)}</div>
+            ) : reportsData && reportsData.reports.length > 0 ? (
+              <>
+                <div className="space-y-3">
+                  {reportsData.reports.map((r) => (
+                    <Card key={r.id}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <Badge variant="outline" className="capitalize text-xs">{r.category}</Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {r.reporter?.displayName ?? "Unknown"} → {r.reportedUser?.displayName ?? "Unknown"}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ""}
+                              </span>
+                            </div>
+                            {r.description && (
+                              <p className="text-sm text-muted-foreground mb-2">{r.description}</p>
+                            )}
+                          </div>
+                          <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end">
+                            {[
+                              { value: "dismissed", label: "Dismiss" },
+                              { value: "warned", label: "Warn" },
+                              { value: "temp_banned", label: "Temp ban" },
+                              { value: "banned", label: "Ban" },
+                            ].map(action => (
+                              <Button
+                                key={action.value}
+                                size="sm"
+                                variant={action.value === "banned" ? "destructive" : "outline"}
+                                className="text-xs h-7"
+                                onClick={() => reviewReportMutation.mutate({ id: r.id, outcome: action.value })}
+                                disabled={reviewReportMutation.isPending}
+                              >
+                                {action.label}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+                {/* Pagination */}
+                <div className="flex items-center justify-between">
+                  <Button variant="outline" size="sm" disabled={reportPage === 0} onClick={() => setReportPage(p => p - 1)}>
+                    <ChevronLeft className="h-4 w-4 mr-1" /> Prev
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {reportPage + 1} of {Math.ceil((reportsData.total || 1) / REPORT_LIMIT)}
+                  </span>
+                  <Button variant="outline" size="sm" disabled={(reportPage + 1) * REPORT_LIMIT >= (reportsData.total || 0)} onClick={() => setReportPage(p => p + 1)}>
+                    Next <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <p className="text-muted-foreground text-sm">No open reports. 🎉</p>
+            )}
+          </div>
         </TabsContent>
 
         {/* ─── INTEGRATIONS ─── */}

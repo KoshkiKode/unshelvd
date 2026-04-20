@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -40,11 +40,10 @@ export default function BookDetail() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [offerAmount, setOfferAmount] = useState("");
   const [offerMessage, setOfferMessage] = useState("");
   const [offerOpen, setOfferOpen] = useState(false);
-  const [messageContent, setMessageContent] = useState("");
-  const [messageOpen, setMessageOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   const { data: book, isLoading } = useQuery<Book & { seller: SellerPreview | null }>({
@@ -70,18 +69,13 @@ export default function BookDetail() {
     },
   });
 
-  const messageMutation = useMutation({
+  const chatMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/messages", {
-        receiverId: book!.seller!.id,
-        bookId: parseInt(id!),
-        content: messageContent,
-      });
+      const res = await apiRequest("POST", "/api/conversations", { bookId: parseInt(id!) });
+      return res.json();
     },
-    onSuccess: () => {
-      toast({ title: "Message sent!" });
-      setMessageOpen(false);
-      setMessageContent("");
+    onSuccess: (conv) => {
+      setLocation(`/dashboard/messages?conversation=${conv.id}`);
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -298,36 +292,17 @@ export default function BookDetail() {
                 </Dialog>
               )}
 
-              <Dialog open={messageOpen} onOpenChange={setMessageOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" data-testid="message-seller-btn">
-                    <MessageSquare className="h-4 w-4 mr-1.5" />
-                    Message Seller
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle className="font-serif">Message Seller</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 mt-2">
-                    <Textarea
-                      placeholder={`Ask ${book.seller.displayName} about "${book.title}"...`}
-                      value={messageContent}
-                      onChange={(e) => setMessageContent(e.target.value)}
-                      rows={4}
-                      data-testid="message-content"
-                    />
-                    <Button
-                      className="w-full"
-                      onClick={() => messageMutation.mutate()}
-                      disabled={!messageContent || messageMutation.isPending}
-                      data-testid="send-message"
-                    >
-                      {messageMutation.isPending ? "Sending..." : "Send Message"}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              {book.chatEnabled !== false && (
+                <Button
+                  variant="outline"
+                  onClick={() => chatMutation.mutate()}
+                  disabled={chatMutation.isPending}
+                  data-testid="chat-seller-btn"
+                >
+                  <MessageSquare className="h-4 w-4 mr-1.5" />
+                  {chatMutation.isPending ? "Opening chat..." : "Chat with Seller"}
+                </Button>
+              )}
             </div>
           )}
 

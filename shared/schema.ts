@@ -97,6 +97,8 @@ export const books = pgTable("books", {
   textDirection: text("text_direction"),  // "ltr" or "rtl"
   catalogId: integer("catalog_id").references(() => bookCatalog.id, { onDelete: "set null" }), // link to canonical book_catalog entry
   workId: integer("work_id").references(() => works.id, { onDelete: "set null" }),             // link to the abstract work
+  // seller opt-out: set false to disable chat for this specific listing
+  chatEnabled: boolean("chat_enabled").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("books_user_id_idx").on(table.userId),
@@ -181,18 +183,102 @@ export const bookRequests = pgTable("book_requests", {
   index("book_requests_status_idx").on(table.status),
 ]);
 
+// ═══════════════════════════════════════════════════════════════
+// CONVERSATIONS — one per (listing, buyer) pair
+// ═══════════════════════════════════════════════════════════════
+
+export const conversations = pgTable("conversations", {
+  id: serial("id").primaryKey(),
+  bookId: integer("book_id").notNull().references(() => books.id, { onDelete: "restrict" }),
+  buyerId: integer("buyer_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  sellerId: integer("seller_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  // active | closed | blocked
+  status: text("status").default("active").notNull(),
+  initiatedAt: timestamp("initiated_at").defaultNow(),
+  closedAt: timestamp("closed_at"),
+}, (table) => [
+  index("conversations_buyer_id_idx").on(table.buyerId),
+  index("conversations_seller_id_idx").on(table.sellerId),
+  index("conversations_book_id_idx").on(table.bookId),
+  index("conversations_status_idx").on(table.status),
+]);
+
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
   senderId: integer("sender_id").notNull().references(() => users.id, { onDelete: "restrict" }),
   receiverId: integer("receiver_id").notNull().references(() => users.id, { onDelete: "restrict" }),
   bookId: integer("book_id").references(() => books.id, { onDelete: "set null" }),
+  // links to the conversation (nullable for legacy messages predating this feature)
+  conversationId: integer("conversation_id").references(() => conversations.id, { onDelete: "set null" }),
   content: text("content").notNull(),
   isRead: boolean("is_read").default(false),
+  // soft-delete: sender marks their own message as deleted; server always retains the content
+  deletedBySender: boolean("deleted_by_sender").default(false),
+  // flagged by auto-scam detection or admin for review
+  flagged: boolean("flagged").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("messages_sender_id_idx").on(table.senderId),
   index("messages_receiver_id_idx").on(table.receiverId),
   index("messages_is_read_idx").on(table.isRead),
+  index("messages_conversation_id_idx").on(table.conversationId),
+]);
+
+// ═══════════════════════════════════════════════════════════════
+// BLOCK RECORDS — permanent even after account deletion
+// ═══════════════════════════════════════════════════════════════
+
+export const blockRecords = pgTable("block_records", {
+  id: serial("id").primaryKey(),
+  blockerId: integer("blocker_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  blockedId: integer("blocked_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("block_records_blocker_id_idx").on(table.blockerId),
+  index("block_records_blocked_id_idx").on(table.blockedId),
+]);
+
+// ═══════════════════════════════════════════════════════════════
+// REPORTS — flagging messages/users for admin review
+// ═══════════════════════════════════════════════════════════════
+
+export const reports = pgTable("reports", {
+  id: serial("id").primaryKey(),
+  reporterId: integer("reporter_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  reportedUserId: integer("reported_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  messageId: integer("message_id").references(() => messages.id, { onDelete: "set null" }),
+  conversationId: integer("conversation_id").references(() => conversations.id, { onDelete: "set null" }),
+  // spam | harassment | scam | other
+  category: text("category").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  reviewedByAdmin: integer("reviewed_by_admin").references(() => users.id, { onDelete: "set null" }),
+  reviewedAt: timestamp("reviewed_at"),
+  // dismissed | warned | temp_banned | banned | escalated
+  outcome: text("outcome"),
+}, (table) => [
+  index("reports_reporter_id_idx").on(table.reporterId),
+  index("reports_reported_user_id_idx").on(table.reportedUserId),
+  index("reports_outcome_idx").on(table.outcome),
+]);
+
+// ═══════════════════════════════════════════════════════════════
+// AUDIT LOG — append-only; no row is ever updated or deleted
+// ═══════════════════════════════════════════════════════════════
+
+export const auditLog = pgTable("audit_log", {
+  id: serial("id").primaryKey(),
+  action: text("action").notNull(),
+  adminId: integer("admin_id").references(() => users.id, { onDelete: "set null" }),
+  targetUserId: integer("target_user_id").references(() => users.id, { onDelete: "set null" }),
+  // JSON-stringified context (conversationId, messageId, reportId, etc.)
+  details: text("details"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("audit_log_action_idx").on(table.action),
+  index("audit_log_admin_id_idx").on(table.adminId),
+  index("audit_log_target_user_id_idx").on(table.targetUserId),
 ]);
 
 export const offers = pgTable("offers", {
@@ -381,6 +467,27 @@ export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Offer = typeof offers.$inferSelect;
 export type InsertOffer = z.infer<typeof insertOfferSchema>;
+export type Conversation = typeof conversations.$inferSelect;
+export type BlockRecord = typeof blockRecords.$inferSelect;
+export type Report = typeof reports.$inferSelect;
+export type AuditLogEntry = typeof auditLog.$inferSelect;
+
+export const insertConversationSchema = z.object({
+  bookId: z.number().int().positive(),
+});
+
+export const insertBlockSchema = z.object({
+  blockedId: z.number().int().positive(),
+  reason: z.string().max(500).nullable().optional(),
+});
+
+export const insertReportSchema = z.object({
+  reportedUserId: z.number().int().positive(),
+  messageId: z.number().int().positive().nullable().optional(),
+  conversationId: z.number().int().positive().nullable().optional(),
+  category: z.enum(["spam", "harassment", "scam", "other"]),
+  description: z.string().max(2000).nullable().optional(),
+});
 
 /** Transaction statuses that represent a terminal (finished) state — no further action needed. */
 export const TERMINAL_TX_STATUSES: string[] = ["completed", "refunded", "failed", "cancelled"];
