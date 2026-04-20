@@ -184,6 +184,27 @@ describe("advisory lock — skip when not acquired", () => {
   });
 });
 
+describe("advisory lock — error handling", () => {
+  it("logs advisory lock errors when lock queries fail", async () => {
+    clientMock.query.mockImplementation(async (sql: string) => {
+      if (sql.includes("pg_try_advisory_lock")) {
+        throw new Error("Lock query failed");
+      }
+      return { rows: [] };
+    });
+
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    startJobs();
+    await flushPromises();
+
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Advisory lock error"),
+      expect.any(Error),
+    );
+    errSpy.mockRestore();
+  });
+});
+
 // ──────────────────────────────────────────────────────────────────────────
 // autoCompleteTransactions — lock 8301
 // ──────────────────────────────────────────────────────────────────────────
@@ -246,6 +267,46 @@ describe("autoCompleteTransactions", () => {
     expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("[jobs]"), expect.any(Error));
     errSpy.mockRestore();
   });
+
+  it("logs buyer/seller email delivery errors without crashing", async () => {
+    acquireOnlyLock(8301);
+    const buyerErr = new Error("buyer email failed");
+    const sellerErr = new Error("seller email failed");
+    vi.mocked(sendAutoCompleted)
+      .mockRejectedValueOnce(buyerErr)
+      .mockRejectedValueOnce(sellerErr);
+
+    dbResults.push(
+      [{ id: 17, buyerId: 10, sellerId: 20, bookId: 3, sellerPayout: 11.0 }],
+      [{ title: "Hyperion" }],
+      [{ email: "buyer@x.com" }],
+      [{ email: "seller@x.com" }],
+    );
+
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    startJobs();
+    await flushPromises();
+    await flushPromises();
+
+    expect(errSpy).toHaveBeenCalledWith("[jobs] email error (buyer auto-complete):", buyerErr);
+    expect(errSpy).toHaveBeenCalledWith("[jobs] email error (seller auto-complete):", sellerErr);
+    errSpy.mockRestore();
+  });
+});
+
+describe("expireOffers", () => {
+  it("logs expired stale-offer counts when rows are updated", async () => {
+    acquireOnlyLock(8302);
+    vi.mocked(db).execute.mockResolvedValueOnce({ rowCount: 2 } as any);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    startJobs();
+    await flushPromises();
+
+    expect(vi.mocked(db).execute).toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith("[jobs] Expired 2 stale offer(s)");
+    logSpy.mockRestore();
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -285,6 +346,49 @@ describe("expireAbandonedTransactions", () => {
 
     expect(vi.mocked(db).update).not.toHaveBeenCalled();
     expect(vi.mocked(sendOrderCancelled)).not.toHaveBeenCalled();
+  });
+
+  it("logs buyer email send errors for abandoned transaction notifications", async () => {
+    acquireOnlyLock(8303);
+    const emailErr = new Error("mail server down");
+    vi.mocked(sendOrderCancelled).mockRejectedValueOnce(emailErr);
+
+    dbResults.push(
+      [{ id: 88, buyerId: 4, bookId: 9 }],
+      [],
+      [],
+      [{ email: "buyer@abandoned.com" }],
+      [{ title: "Snow Crash" }],
+    );
+
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    startJobs();
+    await flushPromises();
+    await flushPromises();
+
+    expect(errSpy).toHaveBeenCalledWith("[jobs] email error (abandoned tx expiry):", emailErr);
+    errSpy.mockRestore();
+  });
+
+  it("logs and continues when expiring a stale pending transaction throws", async () => {
+    acquireOnlyLock(8303);
+    const updateErr = new Error("update failed");
+
+    dbResults.push(
+      [{ id: 99, buyerId: 4, bookId: 9 }],
+      Promise.reject(updateErr),
+    );
+
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    startJobs();
+    await flushPromises();
+
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to expire transaction 99"),
+      updateErr,
+    );
+    expect(vi.mocked(sendOrderCancelled)).not.toHaveBeenCalled();
+    errSpy.mockRestore();
   });
 });
 
