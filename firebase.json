@@ -1,7 +1,11 @@
 {
   "hosting": {
     "public": "dist/public",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
     "rewrites": [
       {
         "_comment": "serviceId must match _SERVICE_NAME and region must match _REGION in cloudbuild.yaml",
@@ -27,5 +31,13 @@
         ]
       }
     ]
+  },
+  "emulators": {
+    "dataconnect": {
+      "dataDir": "dataconnect/.dataconnect/pgliteData"
+    }
+  },
+  "dataconnect": {
+    "source": "dataconnect"
   }
 }
