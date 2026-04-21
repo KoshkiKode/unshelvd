@@ -1,0 +1,22 @@
+I0421 17:18:10.608480    8768 load.go:31] Reloading schema and connectors...
+I0421 17:18:10.638945    8768 control.go:100] [projects/emulator/locations/emulator/services/unshelvd 833a] UpdateResources(): done
+Main schema: sources: schema\schema.gql [1992B] 
+Connector "example": sources: example\mutations.gql [1243B] example\queries.gql [1801B] 
+I0421 17:18:10.660250    8768 codegen.go:101] [connector "example" javascriptSdk] Generating sources into "C:\\Users\\Dylan\\unshelvd\\src\\dataconnect-generated"
+I0421 17:18:10.689715    8768 codegen.go:101] [connector "example" kotlinSdk] Generating sources into "C:\\Users\\Dylan\\unshelvd\\android\\capacitor-cordova-android-plugins\\src\\main\\kotlin\\com\\google\\firebase\\dataconnect\\generated"
+I0421 17:18:10.696068    8768 codegen.go:101] [connector "example" kotlinSdk] Generating sources into "C:\\Users\\Dylan\\unshelvd\\android\\app\\src\\main\\kotlin\\com\\google\\firebase\\dataconnect\\generated"
+I0421 17:18:10.701127    8768 codegen.go:101] [connector "example" swiftSdk] Generating sources into "C:\\Users\\Dylan\\unshelvd\\ios\\FirebaseDataConnectGenerated\\DataConnectGenerated"
+I0421 17:18:10.708621    8768 collector.go:107] schema extensions wrote into "C:\\Users\\Dylan\\unshelvd\\dataconnect\\.dataconnect\\schema"
+Generated sources: main\query.gql [5099B] main\mutation.gql [13679B] main\implicit.gql [1261B] main\input.gql [28927B] prelude.gql [82799B] main\relation.gql [14318B] 
+I0421 17:18:10.712153    8768 collector.go:107] connector "example" javascriptSdk wrote into "C:\\Users\\Dylan\\unshelvd\\src\\dataconnect-generated"
+Generated sources: react\index.d.ts [3961B] react\README.md [48299B] .guides/config.json [236B] index.d.ts [8426B] index.cjs.js [5810B] react\index.cjs.js [3439B] .guides/usage.md [3489B] esm\index.esm.js [5266B] esm\package.json [17B] react\package.json [460B] react\esm\package.json [17B] react\esm\index.esm.js [3269B] README.md [41235B] .guides/setup.md [1682B] package.json [853B] 
+I0421 17:18:10.713842    8768 installsdk.go:55] Package @dataconnect/generated is already installed. Skipping installation
+I0421 17:18:10.719895    8768 collector.go:107] connector "example" kotlinSdk wrote into "C:\\Users\\Dylan\\unshelvd\\android\\capacitor-cordova-android-plugins\\src\\main\\kotlin\\com\\google\\firebase\\dataconnect\\generated"
+Generated sources: GetMovieByIdQuery.kt [3355B] ListMoviesQuery.kt [2191B] ListUsersQuery.kt [2014B] SearchMovieQuery.kt [4311B] UpsertUserMutation.kt [1659B] ExampleConnectorKeys.kt [907B] README.md [8629B] ExampleConnector.kt [13215B] AddReviewMutation.kt [1962B] DeleteReviewMutation.kt [1813B] ListUserReviewsQuery.kt [2615B] ExampleConnectorEnums.kt [309B] CreateMovieMutation.kt [1822B] 
+I0421 17:18:10.724504    8768 collector.go:107] connector "example" kotlinSdk wrote into "C:\\Users\\Dylan\\unshelvd\\android\\app\\src\\main\\kotlin\\com\\google\\firebase\\dataconnect\\generated"
+Generated sources: DeleteReviewMutation.kt [1813B] GetMovieByIdQuery.kt [3355B] ListMoviesQuery.kt [2191B] ListUsersQuery.kt [2014B] SearchMovieQuery.kt [4311B] ExampleConnectorKeys.kt [907B] ExampleConnectorEnums.kt [309B] ExampleConnector.kt [13215B] AddReviewMutation.kt [1962B] ListUserReviewsQuery.kt [2615B] UpsertUserMutation.kt [1659B] README.md [8629B] CreateMovieMutation.kt [1822B] 
+I0421 17:18:10.726522    8768 collector.go:107] connector "example" swiftSdk wrote into "C:\\Users\\Dylan\\unshelvd\\ios\\FirebaseDataConnectGenerated\\DataConnectGenerated"
+Generated sources: Package.swift [831B] Sources/ExampleClient.swift [2088B] Sources/ExampleKeys.swift [4734B] Sources/ExampleOperations.swift [30062B] README.md [4495B] 
+I0421 17:18:10.726522    8768 load.go:109] Finished reloading
+I0421 17:18:10.729515    8768 dev.go:104] Listening on address (HTTP + gRPC): 127.0.0.1:9399
+I0421 17:18:10.729515    8768 dev.go:104] Listening on address (HTTP + gRPC): [::1]:9399

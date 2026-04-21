@@ -1,0 +1,589 @@
+[debug] [2026-04-21T20:57:21.476Z] [Firebase Plugin] Activating Firebase extension.
+[info] [Firebase Plugin] Checked firebase-tools, is up to date!
+[debug] [2026-04-21T20:57:24.163Z] [Firebase Plugin] requireAuthWrapper
+[debug] [2026-04-21T20:57:24.165Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-21T20:57:24.166Z] > authorizing via signed-in user (mango.jacq@koshkikode.com)
+[debug] [2026-04-21T20:57:24.170Z] Checked if tokens are valid: true, expires at: 1776807270672
+[debug] [2026-04-21T20:57:24.171Z] Checked if tokens are valid: true, expires at: 1776807270672
+[debug] [2026-04-21T20:57:24.171Z] [Firebase Plugin] User found:  mango.jacq@koshkikode.com
+[info] [Firebase Plugin] (Core:Project) New user detected, fetching projects
+[debug] [2026-04-21T20:57:24.173Z] Checked if tokens are valid: true, expires at: 1776807270672
+[debug] [2026-04-21T20:57:24.174Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=1000
+[debug] [2026-04-21T20:57:24.184Z] [Firebase Plugin] VSCode notification server listening on port 40001
+[debug] [2026-04-21T20:57:25.035Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2026-04-21T20:57:25.035Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T20:57:25.036Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T20:57:25.037Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"glob"}
+[debug] [2026-04-21T20:57:25.037Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2026-04-21T20:57:25.038Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2026-04-21T20:57:25.038Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T20:57:25.039Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T20:57:25.039Z] Object "/hosting/rewrites/0" in "firebase.json" has unknown property: {"additionalProperty":"_comment"}
+[debug] [2026-04-21T20:57:25.039Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2026-04-21T20:57:25.040Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2026-04-21T20:57:25.041Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T20:57:25.041Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T20:57:25.041Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"regex"}
+[debug] [2026-04-21T20:57:25.042Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2026-04-21T20:57:25.043Z] Field "/hosting/rewrites/0" in "firebase.json" is possibly invalid: must match a schema in anyOf
+[debug] [2026-04-21T20:57:25.043Z] Field "/hosting" in "firebase.json" is possibly invalid: must be array
+[debug] [2026-04-21T20:57:25.044Z] Field "/hosting" in "firebase.json" is possibly invalid: must match a schema in anyOf
+[info] [Firebase Plugin] Starting SQL Connect toolkit (version 3.4.5) on port 50001
+[debug] [2026-04-21T20:57:25.872Z] 'fdc build' failed with error: Unable to build your SQL Connect schema and connectors (exit code 1): E0421 16:57:25.868046   17452 cmd.go:43] Error loading data connect config: could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"'fdc build' failed with error: Unable to build your SQL Connect schema and connectors (exit code 1): E0421 16:57:25.868046   17452 cmd.go:43] Error loading data connect config: could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T20:57:25.874Z] Ignoring unsupported arg: auto_download {"metadata":{"emulator":{"name":"dataconnect"},"message":"Ignoring unsupported arg: auto_download"}}
+[debug] [2026-04-21T20:57:25.874Z] Ignoring unsupported arg: port {"metadata":{"emulator":{"name":"dataconnect"},"message":"Ignoring unsupported arg: port"}}
+[debug] [2026-04-21T20:57:25.875Z] Starting SQL Connect Emulator with command {"binary":"C:\\Users\\Dylan\\.cache\\firebase\\emulators\\dataconnect-emulator-3.4.5.exe","args":["--logtostderr","-v=2","dev","--listen=localhost:50001","--config_dir=c:\\Users\\Dylan\\unshelvd\\dataconnect","--enable_output_schema_extensions=true","--enable_output_generated_sdk=true"],"optionalArgs":["listen","config_dir","enable_output_schema_extensions","enable_output_generated_sdk"],"joinArgs":true,"shell":false,"port":9399} {"metadata":{"emulator":{"name":"dataconnect"},"message":"Starting SQL Connect Emulator with command {\"binary\":\"C:\\\\Users\\\\Dylan\\\\.cache\\\\firebase\\\\emulators\\\\dataconnect-emulator-3.4.5.exe\",\"args\":[\"--logtostderr\",\"-v=2\",\"dev\",\"--listen=localhost:50001\",\"--config_dir=c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\",\"--enable_output_schema_extensions=true\",\"--enable_output_generated_sdk=true\"],\"optionalArgs\":[\"listen\",\"config_dir\",\"enable_output_schema_extensions\",\"enable_output_generated_sdk\"],\"joinArgs\":true,\"shell\":false,\"port\":9399}"}}
+[info] i  dataconnect: SQL Connect Emulator logging to dataconnect-debug.log {"metadata":{"emulator":{"name":"dataconnect"},"message":"SQL Connect Emulator logging to \u001b[1mdataconnect-debug.log\u001b[22m"}}
+[debug] [2026-04-21T20:57:25.924Z] E0421 16:57:25.921344   11108 dev.go:83] Failed to load initial config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+E0421 16:57:25.923422   11108 watch.go:116] watchAllDir unable to walk dir `c:\Users\Dylan\unshelvd\dataconnect`: GetFileAttributesEx c:\Users\Dylan\unshelvd\dataconnect: The system cannot find the file specified.
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 16:57:25.921344   11108 dev.go:83] Failed to load initial config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\nE0421 16:57:25.923422   11108 watch.go:116] watchAllDir unable to walk dir `c:\\Users\\Dylan\\unshelvd\\dataconnect`: GetFileAttributesEx c:\\Users\\Dylan\\unshelvd\\dataconnect: The system cannot find the file specified.\n"}}
+[debug] [2026-04-21T20:57:25.927Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2026-04-21T20:57:25.927Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[debug] [2026-04-21T20:57:25.936Z] I0421 16:57:25.936648   11108 dev.go:104] Listening on address (HTTP + gRPC): 127.0.0.1:50001
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 16:57:25.936648   11108 dev.go:104] Listening on address (HTTP + gRPC): 127.0.0.1:50001\n"}}
+[error] [Firebase Plugin] error:  {}
+[debug] [2026-04-21T20:57:29.728Z] [Firebase Plugin] Value of process.env.MONOSPACE_ENV: undefined
+[debug] [2026-04-21T20:57:29.728Z] [Firebase Plugin] requireAuthWrapper
+[debug] [2026-04-21T20:57:29.730Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-21T20:57:29.730Z] > authorizing via signed-in user (mango.jacq@koshkikode.com)
+[debug] [2026-04-21T20:57:29.730Z] Checked if tokens are valid: true, expires at: 1776807270672
+[debug] [2026-04-21T20:57:29.730Z] [Firebase Plugin] User found:  mango.jacq@koshkikode.com
+[info] [Firebase Plugin] (Core:Project) New user detected, fetching projects
+[debug] [2026-04-21T20:57:29.732Z] Checked if tokens are valid: true, expires at: 1776807270672
+[debug] [2026-04-21T20:57:29.732Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=1000
+[debug] [2026-04-21T20:57:29.735Z] [Firebase Plugin] Value of process.env.MONOSPACE_ENV: undefined
+[debug] [2026-04-21T20:57:29.735Z] [Firebase Plugin] requireAuthWrapper
+[debug] [2026-04-21T20:57:29.735Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-21T20:57:29.736Z] > authorizing via signed-in user (mango.jacq@koshkikode.com)
+[debug] [2026-04-21T20:57:29.736Z] Checked if tokens are valid: true, expires at: 1776807270672
+[debug] [2026-04-21T20:57:29.736Z] [Firebase Plugin] User found:  mango.jacq@koshkikode.com
+[info] [Firebase Plugin] (Core:Project) New user detected, fetching projects
+[debug] [2026-04-21T20:57:29.737Z] Checked if tokens are valid: true, expires at: 1776807270672
+[debug] [2026-04-21T20:57:29.738Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=1000
+[debug] [2026-04-21T20:57:29.943Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2026-04-21T20:57:29.943Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[debug] [2026-04-21T20:57:29.982Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2026-04-21T20:57:29.983Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[debug] [2026-04-21T20:57:35.924Z] E0421 16:57:35.925332   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 16:57:35.925332   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T20:57:45.924Z] E0421 16:57:45.924282   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 16:57:45.924282   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T20:57:55.925Z] E0421 16:57:55.924575   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 16:57:55.924575   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T20:58:05.924Z] E0421 16:58:05.924389   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 16:58:05.924389   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T20:58:15.925Z] E0421 16:58:15.924460   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 16:58:15.924460   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T20:58:25.925Z] E0421 16:58:25.924941   11108 watch.go:116] watchAllDir unable to walk dir `c:\Users\Dylan\unshelvd\dataconnect`: GetFileAttributesEx c:\Users\Dylan\unshelvd\dataconnect: The system cannot find the file specified.
+E0421 16:58:25.925252   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 16:58:25.924941   11108 watch.go:116] watchAllDir unable to walk dir `c:\\Users\\Dylan\\unshelvd\\dataconnect`: GetFileAttributesEx c:\\Users\\Dylan\\unshelvd\\dataconnect: The system cannot find the file specified.\nE0421 16:58:25.925252   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T20:58:35.925Z] E0421 16:58:35.924369   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 16:58:35.924369   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T20:58:45.925Z] E0421 16:58:45.924979   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 16:58:45.924979   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T20:58:55.925Z] E0421 16:58:55.925787   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 16:58:55.925787   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T20:59:05.924Z] E0421 16:59:05.924640   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 16:59:05.924640   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T20:59:15.925Z] E0421 16:59:15.925172   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 16:59:15.925172   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T20:59:25.924Z] E0421 16:59:25.925024   11108 watch.go:116] watchAllDir unable to walk dir `c:\Users\Dylan\unshelvd\dataconnect`: GetFileAttributesEx c:\Users\Dylan\unshelvd\dataconnect: The system cannot find the file specified.
+E0421 16:59:25.925024   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 16:59:25.925024   11108 watch.go:116] watchAllDir unable to walk dir `c:\\Users\\Dylan\\unshelvd\\dataconnect`: GetFileAttributesEx c:\\Users\\Dylan\\unshelvd\\dataconnect: The system cannot find the file specified.\nE0421 16:59:25.925024   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T20:59:35.933Z] E0421 16:59:35.933910   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 16:59:35.933910   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T20:59:45.924Z] E0421 16:59:45.924703   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 16:59:45.924703   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T20:59:55.925Z] E0421 16:59:55.924345   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 16:59:55.924345   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:00:05.925Z] E0421 17:00:05.925558   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:00:05.925558   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:00:15.925Z] E0421 17:00:15.924604   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:00:15.924604   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:00:25.924Z] E0421 17:00:25.924503   11108 watch.go:116] watchAllDir unable to walk dir `c:\Users\Dylan\unshelvd\dataconnect`: GetFileAttributesEx c:\Users\Dylan\unshelvd\dataconnect: The system cannot find the file specified.
+E0421 17:00:25.924503   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:00:25.924503   11108 watch.go:116] watchAllDir unable to walk dir `c:\\Users\\Dylan\\unshelvd\\dataconnect`: GetFileAttributesEx c:\\Users\\Dylan\\unshelvd\\dataconnect: The system cannot find the file specified.\nE0421 17:00:25.924503   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:00:35.925Z] E0421 17:00:35.924644   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:00:35.924644   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:00:45.925Z] E0421 17:00:45.924757   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:00:45.924757   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:00:55.925Z] E0421 17:00:55.924918   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:00:55.924918   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:01:05.925Z] E0421 17:01:05.924774   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:01:05.924774   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:01:15.924Z] E0421 17:01:15.924547   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:01:15.924547   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:01:25.924Z] E0421 17:01:25.924825   11108 watch.go:116] watchAllDir unable to walk dir `c:\Users\Dylan\unshelvd\dataconnect`: GetFileAttributesEx c:\Users\Dylan\unshelvd\dataconnect: The system cannot find the file specified.
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:01:25.924825   11108 watch.go:116] watchAllDir unable to walk dir `c:\\Users\\Dylan\\unshelvd\\dataconnect`: GetFileAttributesEx c:\\Users\\Dylan\\unshelvd\\dataconnect: The system cannot find the file specified.\n"}}
+[debug] [2026-04-21T21:01:25.925Z] E0421 17:01:25.925237   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:01:25.925237   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:01:35.924Z] E0421 17:01:35.924673   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:01:35.924673   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:01:45.925Z] E0421 17:01:45.925451   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:01:45.925451   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:01:55.924Z] E0421 17:01:55.924598   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:01:55.924598   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:02:05.924Z] E0421 17:02:05.924871   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:02:05.924871   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:02:15.924Z] E0421 17:02:15.924577   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:02:15.924577   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:02:25.924Z] E0421 17:02:25.924608   11108 watch.go:116] watchAllDir unable to walk dir `c:\Users\Dylan\unshelvd\dataconnect`: GetFileAttributesEx c:\Users\Dylan\unshelvd\dataconnect: The system cannot find the file specified.
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:02:25.924608   11108 watch.go:116] watchAllDir unable to walk dir `c:\\Users\\Dylan\\unshelvd\\dataconnect`: GetFileAttributesEx c:\\Users\\Dylan\\unshelvd\\dataconnect: The system cannot find the file specified.\n"}}
+[debug] [2026-04-21T21:02:25.925Z] E0421 17:02:25.924916   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:02:25.924916   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:02:35.924Z] E0421 17:02:35.924749   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:02:35.924749   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:02:45.924Z] E0421 17:02:45.924508   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:02:45.924508   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:02:55.924Z] E0421 17:02:55.924934   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:02:55.924934   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:03:05.924Z] E0421 17:03:05.924915   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:03:05.924915   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:03:15.924Z] E0421 17:03:15.924338   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:03:15.924338   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:03:25.924Z] E0421 17:03:25.924554   11108 watch.go:116] watchAllDir unable to walk dir `c:\Users\Dylan\unshelvd\dataconnect`: GetFileAttributesEx c:\Users\Dylan\unshelvd\dataconnect: The system cannot find the file specified.
+E0421 17:03:25.924554   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:03:25.924554   11108 watch.go:116] watchAllDir unable to walk dir `c:\\Users\\Dylan\\unshelvd\\dataconnect`: GetFileAttributesEx c:\\Users\\Dylan\\unshelvd\\dataconnect: The system cannot find the file specified.\nE0421 17:03:25.924554   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:03:35.925Z] E0421 17:03:35.925120   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:03:35.925120   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:03:45.924Z] E0421 17:03:45.924459   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:03:45.924459   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:03:55.929Z] E0421 17:03:55.925210   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:03:55.925210   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:04:05.924Z] E0421 17:04:05.925211   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:04:05.925211   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:04:09.073Z] >>> [apiv2][query] GET https://accounts.google.com/o/oauth2/revoke token=1%2F%2F04DlnYg2YO89ICgYIARAAGAQSNwF-L9IrPY5Z5KFni3MV5Sh3aMTRBbwUuGd_snr4VfoQ8gsw8f0ZwGJS8GUbHDq88gbx1pfdIJI
+[debug] [2026-04-21T21:04:09.274Z] <<< [apiv2][status] GET https://accounts.google.com/o/oauth2/revoke 200
+[debug] [2026-04-21T21:04:09.274Z] <<< [apiv2][body] GET https://accounts.google.com/o/oauth2/revoke {}
+[info] +  Logged out from mango.jacq@koshkikode.com 
+[debug] [2026-04-21T21:04:15.924Z] E0421 17:04:15.924308   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:04:15.924308   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:04:25.924Z] E0421 17:04:25.924181   11108 watch.go:116] watchAllDir unable to walk dir `c:\Users\Dylan\unshelvd\dataconnect`: GetFileAttributesEx c:\Users\Dylan\unshelvd\dataconnect: The system cannot find the file specified.
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:04:25.924181   11108 watch.go:116] watchAllDir unable to walk dir `c:\\Users\\Dylan\\unshelvd\\dataconnect`: GetFileAttributesEx c:\\Users\\Dylan\\unshelvd\\dataconnect: The system cannot find the file specified.\n"}}
+[debug] [2026-04-21T21:04:25.925Z] E0421 17:04:25.924866   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:04:25.924866   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[info] 
+[info] Visit this URL on this device to log in:
+[info] https://accounts.google.com/o/oauth2/auth?client_id=563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com&scope=email%20openid%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudplatformprojects.readonly%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Ffirebase%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform&response_type=code&state=436188728&redirect_uri=http%3A%2F%2Flocalhost%3A9005
+[info] 
+[info] Waiting for authentication...
+[debug] [2026-04-21T21:04:35.924Z] E0421 17:04:35.925128   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:04:35.925128   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:04:39.909Z] >>> [apiv2][query] POST https://accounts.google.com/o/oauth2/token [none]
+[debug] [2026-04-21T21:04:39.909Z] >>> [apiv2][body] POST https://accounts.google.com/o/oauth2/token [omitted]
+[debug] [2026-04-21T21:04:40.112Z] <<< [apiv2][status] POST https://accounts.google.com/o/oauth2/token 200
+[debug] [2026-04-21T21:04:40.113Z] <<< [apiv2][body] POST https://accounts.google.com/o/oauth2/token [omitted]
+[info] [Firebase Plugin] (Core:Project) New user detected, fetching projects
+[debug] [2026-04-21T21:04:40.184Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:04:40.185Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=1000
+[debug] [2026-04-21T21:04:40.425Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 401
+[debug] [2026-04-21T21:04:40.426Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[debug] [2026-04-21T21:04:40.426Z] Got a 401 Unauthenticated error for a call that required authentication. Refreshing tokens.
+[debug] [2026-04-21T21:04:40.427Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:04:40.427Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:04:40.429Z] Request to https://firebase.googleapis.com/v1beta1/projects?pageSize=1000 had HTTP Error: 401, Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+[debug] [2026-04-21T21:04:45.924Z] E0421 17:04:45.924746   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:04:45.924746   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:04:55.924Z] E0421 17:04:55.924805   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:04:55.924805   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:05:05.924Z] E0421 17:05:05.924977   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:05:05.924977   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:05:15.924Z] E0421 17:05:15.924609   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:05:15.924609   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:05:25.924Z] E0421 17:05:25.925157   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+E0421 17:05:25.925157   11108 watch.go:116] watchAllDir unable to walk dir `c:\Users\Dylan\unshelvd\dataconnect`: GetFileAttributesEx c:\Users\Dylan\unshelvd\dataconnect: The system cannot find the file specified.
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:05:25.925157   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\nE0421 17:05:25.925157   11108 watch.go:116] watchAllDir unable to walk dir `c:\\Users\\Dylan\\unshelvd\\dataconnect`: GetFileAttributesEx c:\\Users\\Dylan\\unshelvd\\dataconnect: The system cannot find the file specified.\n"}}
+[debug] [2026-04-21T21:05:35.924Z] E0421 17:05:35.924573   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:05:35.924573   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:05:45.924Z] E0421 17:05:45.925221   11108 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:05:45.925221   11108 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[info] [Firebase Plugin] Stopping SQL Connect toolkit
+[warn] !  SQL Connect Emulator has exited upon receiving signal: SIGINT 
+[debug] [2026-04-21T21:05:56.608Z] [Firebase Plugin] Activating Firebase extension.
+[info] [Firebase Plugin] Checked firebase-tools, is up to date!
+[debug] [2026-04-21T21:05:59.997Z] [Firebase Plugin] requireAuthWrapper
+[debug] [2026-04-21T21:05:59.998Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-21T21:05:59.999Z] > authorizing via signed-in user (mango.jacq@koshkikode.com)
+[debug] [2026-04-21T21:06:00.002Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:06:00.002Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:06:00.003Z] [Firebase Plugin] User found:  mango.jacq@koshkikode.com
+[info] [Firebase Plugin] (Core:Project) New user detected, fetching projects
+[debug] [2026-04-21T21:06:00.004Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:06:00.005Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=1000
+[debug] [2026-04-21T21:06:00.015Z] [Firebase Plugin] VSCode notification server listening on port 40001
+[debug] [2026-04-21T21:06:00.415Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2026-04-21T21:06:00.416Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:06:00.416Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:06:00.416Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"glob"}
+[debug] [2026-04-21T21:06:00.416Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2026-04-21T21:06:00.416Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2026-04-21T21:06:00.416Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:06:00.416Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:06:00.416Z] Object "/hosting/rewrites/0" in "firebase.json" has unknown property: {"additionalProperty":"_comment"}
+[debug] [2026-04-21T21:06:00.416Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2026-04-21T21:06:00.416Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2026-04-21T21:06:00.416Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:06:00.416Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:06:00.417Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"regex"}
+[debug] [2026-04-21T21:06:00.417Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2026-04-21T21:06:00.417Z] Field "/hosting/rewrites/0" in "firebase.json" is possibly invalid: must match a schema in anyOf
+[debug] [2026-04-21T21:06:00.417Z] Field "/hosting" in "firebase.json" is possibly invalid: must be array
+[debug] [2026-04-21T21:06:00.417Z] Field "/hosting" in "firebase.json" is possibly invalid: must match a schema in anyOf
+[info] [Firebase Plugin] Starting SQL Connect toolkit (version 3.4.5) on port 50001
+[debug] [2026-04-21T21:06:00.486Z] 'fdc build' failed with error: Unable to build your SQL Connect schema and connectors (exit code 1): E0421 17:06:00.482589   26696 cmd.go:43] Error loading data connect config: could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"'fdc build' failed with error: Unable to build your SQL Connect schema and connectors (exit code 1): E0421 17:06:00.482589   26696 cmd.go:43] Error loading data connect config: could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:06:00.487Z] Ignoring unsupported arg: auto_download {"metadata":{"emulator":{"name":"dataconnect"},"message":"Ignoring unsupported arg: auto_download"}}
+[debug] [2026-04-21T21:06:00.487Z] Ignoring unsupported arg: port {"metadata":{"emulator":{"name":"dataconnect"},"message":"Ignoring unsupported arg: port"}}
+[debug] [2026-04-21T21:06:00.487Z] Starting SQL Connect Emulator with command {"binary":"C:\\Users\\Dylan\\.cache\\firebase\\emulators\\dataconnect-emulator-3.4.5.exe","args":["--logtostderr","-v=2","dev","--listen=localhost:50001","--config_dir=c:\\Users\\Dylan\\unshelvd\\dataconnect","--enable_output_schema_extensions=true","--enable_output_generated_sdk=true"],"optionalArgs":["listen","config_dir","enable_output_schema_extensions","enable_output_generated_sdk"],"joinArgs":true,"shell":false,"port":9399} {"metadata":{"emulator":{"name":"dataconnect"},"message":"Starting SQL Connect Emulator with command {\"binary\":\"C:\\\\Users\\\\Dylan\\\\.cache\\\\firebase\\\\emulators\\\\dataconnect-emulator-3.4.5.exe\",\"args\":[\"--logtostderr\",\"-v=2\",\"dev\",\"--listen=localhost:50001\",\"--config_dir=c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\",\"--enable_output_schema_extensions=true\",\"--enable_output_generated_sdk=true\"],\"optionalArgs\":[\"listen\",\"config_dir\",\"enable_output_schema_extensions\",\"enable_output_generated_sdk\"],\"joinArgs\":true,\"shell\":false,\"port\":9399}"}}
+[info] i  dataconnect: SQL Connect Emulator logging to dataconnect-debug.log {"metadata":{"emulator":{"name":"dataconnect"},"message":"SQL Connect Emulator logging to \u001b[1mdataconnect-debug.log\u001b[22m"}}
+[debug] [2026-04-21T21:06:00.549Z] E0421 17:06:00.533926    9656 dev.go:83] Failed to load initial config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+E0421 17:06:00.535044    9656 watch.go:116] watchAllDir unable to walk dir `c:\Users\Dylan\unshelvd\dataconnect`: GetFileAttributesEx c:\Users\Dylan\unshelvd\dataconnect: The system cannot find the file specified.
+I0421 17:06:00.548131    9656 dev.go:104] Listening on address (HTTP + gRPC): 127.0.0.1:50001
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:06:00.533926    9656 dev.go:83] Failed to load initial config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\nE0421 17:06:00.535044    9656 watch.go:116] watchAllDir unable to walk dir `c:\\Users\\Dylan\\unshelvd\\dataconnect`: GetFileAttributesEx c:\\Users\\Dylan\\unshelvd\\dataconnect: The system cannot find the file specified.\nI0421 17:06:00.548131    9656 dev.go:104] Listening on address (HTTP + gRPC): 127.0.0.1:50001\n"}}
+[error] [Firebase Plugin] error:  {}
+[debug] [2026-04-21T21:06:02.138Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2026-04-21T21:06:02.138Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[info] [Firebase Plugin] Stopping SQL Connect toolkit
+[warn] !  SQL Connect Emulator has exited upon receiving signal: SIGINT 
+[debug] [2026-04-21T21:06:11.005Z] [Firebase Plugin] Activating Firebase extension.
+[info] [Firebase Plugin] Checked firebase-tools, is up to date!
+[debug] [2026-04-21T21:06:15.394Z] [Firebase Plugin] requireAuthWrapper
+[debug] [2026-04-21T21:06:15.395Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-21T21:06:15.396Z] > authorizing via signed-in user (mango.jacq@koshkikode.com)
+[debug] [2026-04-21T21:06:15.400Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:06:15.400Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:06:15.400Z] [Firebase Plugin] User found:  mango.jacq@koshkikode.com
+[info] [Firebase Plugin] (Core:Project) New user detected, fetching projects
+[debug] [2026-04-21T21:06:15.402Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:06:15.404Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=1000
+[debug] [2026-04-21T21:06:15.412Z] [Firebase Plugin] VSCode notification server listening on port 40001
+[debug] [2026-04-21T21:06:15.657Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2026-04-21T21:06:15.658Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:06:15.658Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:06:15.658Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"glob"}
+[debug] [2026-04-21T21:06:15.658Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2026-04-21T21:06:15.658Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2026-04-21T21:06:15.658Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:06:15.658Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:06:15.658Z] Object "/hosting/rewrites/0" in "firebase.json" has unknown property: {"additionalProperty":"_comment"}
+[debug] [2026-04-21T21:06:15.658Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2026-04-21T21:06:15.658Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2026-04-21T21:06:15.659Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:06:15.659Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:06:15.659Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"regex"}
+[debug] [2026-04-21T21:06:15.659Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2026-04-21T21:06:15.659Z] Field "/hosting/rewrites/0" in "firebase.json" is possibly invalid: must match a schema in anyOf
+[debug] [2026-04-21T21:06:15.659Z] Field "/hosting" in "firebase.json" is possibly invalid: must be array
+[debug] [2026-04-21T21:06:15.659Z] Field "/hosting" in "firebase.json" is possibly invalid: must match a schema in anyOf
+[info] [Firebase Plugin] Starting Data Connect toolkit (version 3.3.1) on port 50001
+[info] i  dataconnect: downloading dataconnect-emulator-3.3.1.exe... {"metadata":{"emulator":{"name":"dataconnect"},"message":"downloading dataconnect-emulator-3.3.1.exe..."}}
+[debug] [2026-04-21T21:06:15.666Z] >>> [apiv2][query] GET https://storage.googleapis.com/firemat-preview-drop/emulator/dataconnect-emulator-windows-amd64-v3.3.1 
+[debug] [2026-04-21T21:06:16.033Z] <<< [apiv2][status] GET https://storage.googleapis.com/firemat-preview-drop/emulator/dataconnect-emulator-windows-amd64-v3.3.1 200
+[debug] [2026-04-21T21:06:16.033Z] <<< [apiv2][body] GET https://storage.googleapis.com/firemat-preview-drop/emulator/dataconnect-emulator-windows-amd64-v3.3.1 [stream]
+[debug] [2026-04-21T21:06:17.364Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2026-04-21T21:06:17.364Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[debug] [2026-04-21T21:06:20.469Z] [Firebase Plugin] Value of process.env.MONOSPACE_ENV: undefined
+[debug] [2026-04-21T21:06:20.470Z] [Firebase Plugin] requireAuthWrapper
+[debug] [2026-04-21T21:06:20.471Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-21T21:06:20.471Z] > authorizing via signed-in user (mango.jacq@koshkikode.com)
+[debug] [2026-04-21T21:06:20.471Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:06:20.471Z] [Firebase Plugin] User found:  mango.jacq@koshkikode.com
+[info] [Firebase Plugin] (Core:Project) New user detected, fetching projects
+[debug] [2026-04-21T21:06:20.472Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:06:20.472Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=1000
+[debug] [2026-04-21T21:06:20.476Z] [Firebase Plugin] Value of process.env.MONOSPACE_ENV: undefined
+[debug] [2026-04-21T21:06:20.477Z] [Firebase Plugin] requireAuthWrapper
+[debug] [2026-04-21T21:06:20.477Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-21T21:06:20.477Z] > authorizing via signed-in user (mango.jacq@koshkikode.com)
+[debug] [2026-04-21T21:06:20.478Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:06:20.478Z] [Firebase Plugin] User found:  mango.jacq@koshkikode.com
+[info] [Firebase Plugin] (Core:Project) New user detected, fetching projects
+[debug] [2026-04-21T21:06:20.478Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:06:20.479Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=1000
+[debug] [2026-04-21T21:06:20.753Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2026-04-21T21:06:20.753Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[debug] [2026-04-21T21:06:20.780Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2026-04-21T21:06:20.781Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[info] i  dataconnect: Removing outdated emulator files: dataconnect-emulator-3.4.5.exe {"metadata":{"emulator":{"name":"dataconnect"},"message":"Removing outdated emulator files: dataconnect-emulator-3.4.5.exe"}}
+[debug] [2026-04-21T21:06:22.551Z] 'fdc build' failed with error: Unable to build your Data Connect schema and connectors (exit code 1): E0421 17:06:22.547225   24760 cmd.go:43] Error loading data connect config: could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"'fdc build' failed with error: Unable to build your Data Connect schema and connectors (exit code 1): E0421 17:06:22.547225   24760 cmd.go:43] Error loading data connect config: could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:06:22.552Z] Ignoring unsupported arg: auto_download {"metadata":{"emulator":{"name":"dataconnect"},"message":"Ignoring unsupported arg: auto_download"}}
+[debug] [2026-04-21T21:06:22.552Z] Ignoring unsupported arg: port {"metadata":{"emulator":{"name":"dataconnect"},"message":"Ignoring unsupported arg: port"}}
+[debug] [2026-04-21T21:06:22.553Z] Starting Data Connect Emulator with command {"binary":"C:\\Users\\Dylan\\.cache\\firebase\\emulators\\dataconnect-emulator-3.3.1.exe","args":["--logtostderr","-v=2","dev","--listen=localhost:50001","--config_dir=c:\\Users\\Dylan\\unshelvd\\dataconnect","--enable_output_schema_extensions=true","--enable_output_generated_sdk=true"],"optionalArgs":["listen","config_dir","enable_output_schema_extensions","enable_output_generated_sdk"],"joinArgs":true,"shell":false,"port":9399} {"metadata":{"emulator":{"name":"dataconnect"},"message":"Starting Data Connect Emulator with command {\"binary\":\"C:\\\\Users\\\\Dylan\\\\.cache\\\\firebase\\\\emulators\\\\dataconnect-emulator-3.3.1.exe\",\"args\":[\"--logtostderr\",\"-v=2\",\"dev\",\"--listen=localhost:50001\",\"--config_dir=c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\",\"--enable_output_schema_extensions=true\",\"--enable_output_generated_sdk=true\"],\"optionalArgs\":[\"listen\",\"config_dir\",\"enable_output_schema_extensions\",\"enable_output_generated_sdk\"],\"joinArgs\":true,\"shell\":false,\"port\":9399}"}}
+[info] i  dataconnect: Data Connect Emulator logging to dataconnect-debug.log {"metadata":{"emulator":{"name":"dataconnect"},"message":"Data Connect Emulator logging to \u001b[1mdataconnect-debug.log\u001b[22m"}}
+[debug] [2026-04-21T21:06:22.775Z] E0421 17:06:22.586596   12964 dev.go:83] Failed to load initial config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+E0421 17:06:22.587673   12964 watch.go:116] watchAllDir unable to walk dir `c:\Users\Dylan\unshelvd\dataconnect`: GetFileAttributesEx c:\Users\Dylan\unshelvd\dataconnect: The system cannot find the file specified.
+I0421 17:06:22.595054   12964 dev.go:104] Listening on address (HTTP + gRPC): 127.0.0.1:50001
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:06:22.586596   12964 dev.go:83] Failed to load initial config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\nE0421 17:06:22.587673   12964 watch.go:116] watchAllDir unable to walk dir `c:\\Users\\Dylan\\unshelvd\\dataconnect`: GetFileAttributesEx c:\\Users\\Dylan\\unshelvd\\dataconnect: The system cannot find the file specified.\nI0421 17:06:22.595054   12964 dev.go:104] Listening on address (HTTP + gRPC): 127.0.0.1:50001\n"}}
+[error] [Firebase Plugin] error:  {}
+[info] [Firebase Plugin] Stopping Data Connect toolkit
+[warn] !  Data Connect Emulator has exited upon receiving signal: SIGINT 
+[debug] [2026-04-21T21:12:44.283Z] [Firebase Plugin] Activating Firebase extension.
+[info] [Firebase Plugin] Checked firebase-tools, is up to date!
+[debug] [2026-04-21T21:12:47.852Z] [Firebase Plugin] requireAuthWrapper
+[debug] [2026-04-21T21:12:47.855Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-21T21:12:47.855Z] > authorizing via signed-in user (mango.jacq@koshkikode.com)
+[debug] [2026-04-21T21:12:47.858Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:12:47.858Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:12:47.858Z] [Firebase Plugin] User found:  mango.jacq@koshkikode.com
+[info] [Firebase Plugin] (Core:Project) New user detected, fetching projects
+[debug] [2026-04-21T21:12:47.860Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:12:47.861Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=1000
+[debug] [2026-04-21T21:12:47.870Z] [Firebase Plugin] VSCode notification server listening on port 40001
+[debug] [2026-04-21T21:12:48.178Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2026-04-21T21:12:48.179Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:12:48.179Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:12:48.179Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"glob"}
+[debug] [2026-04-21T21:12:48.179Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2026-04-21T21:12:48.179Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2026-04-21T21:12:48.179Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:12:48.179Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:12:48.179Z] Object "/hosting/rewrites/0" in "firebase.json" has unknown property: {"additionalProperty":"_comment"}
+[debug] [2026-04-21T21:12:48.179Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2026-04-21T21:12:48.179Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2026-04-21T21:12:48.180Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:12:48.180Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:12:48.180Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"regex"}
+[debug] [2026-04-21T21:12:48.180Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2026-04-21T21:12:48.180Z] Field "/hosting/rewrites/0" in "firebase.json" is possibly invalid: must match a schema in anyOf
+[debug] [2026-04-21T21:12:48.180Z] Field "/hosting" in "firebase.json" is possibly invalid: must be array
+[debug] [2026-04-21T21:12:48.180Z] Field "/hosting" in "firebase.json" is possibly invalid: must match a schema in anyOf
+[info] [Firebase Plugin] Starting Data Connect toolkit (version 3.3.1) on port 50001
+[debug] [2026-04-21T21:12:48.260Z] 'fdc build' failed with error: Unable to build your Data Connect schema and connectors (exit code 1): E0421 17:12:48.255527   25660 cmd.go:43] Error loading data connect config: could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"'fdc build' failed with error: Unable to build your Data Connect schema and connectors (exit code 1): E0421 17:12:48.255527   25660 cmd.go:43] Error loading data connect config: could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:12:48.261Z] Ignoring unsupported arg: auto_download {"metadata":{"emulator":{"name":"dataconnect"},"message":"Ignoring unsupported arg: auto_download"}}
+[debug] [2026-04-21T21:12:48.261Z] Ignoring unsupported arg: port {"metadata":{"emulator":{"name":"dataconnect"},"message":"Ignoring unsupported arg: port"}}
+[debug] [2026-04-21T21:12:48.261Z] Starting Data Connect Emulator with command {"binary":"C:\\Users\\Dylan\\.cache\\firebase\\emulators\\dataconnect-emulator-3.3.1.exe","args":["--logtostderr","-v=2","dev","--listen=localhost:50001","--config_dir=c:\\Users\\Dylan\\unshelvd\\dataconnect","--enable_output_schema_extensions=true","--enable_output_generated_sdk=true"],"optionalArgs":["listen","config_dir","enable_output_schema_extensions","enable_output_generated_sdk"],"joinArgs":true,"shell":false,"port":9399} {"metadata":{"emulator":{"name":"dataconnect"},"message":"Starting Data Connect Emulator with command {\"binary\":\"C:\\\\Users\\\\Dylan\\\\.cache\\\\firebase\\\\emulators\\\\dataconnect-emulator-3.3.1.exe\",\"args\":[\"--logtostderr\",\"-v=2\",\"dev\",\"--listen=localhost:50001\",\"--config_dir=c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\",\"--enable_output_schema_extensions=true\",\"--enable_output_generated_sdk=true\"],\"optionalArgs\":[\"listen\",\"config_dir\",\"enable_output_schema_extensions\",\"enable_output_generated_sdk\"],\"joinArgs\":true,\"shell\":false,\"port\":9399}"}}
+[info] i  dataconnect: Data Connect Emulator logging to dataconnect-debug.log {"metadata":{"emulator":{"name":"dataconnect"},"message":"Data Connect Emulator logging to \u001b[1mdataconnect-debug.log\u001b[22m"}}
+[debug] [2026-04-21T21:12:48.276Z] [Firebase Plugin] Value of process.env.MONOSPACE_ENV: undefined
+[debug] [2026-04-21T21:12:48.277Z] [Firebase Plugin] requireAuthWrapper
+[debug] [2026-04-21T21:12:48.277Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-21T21:12:48.278Z] > authorizing via signed-in user (mango.jacq@koshkikode.com)
+[debug] [2026-04-21T21:12:48.278Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:12:48.278Z] [Firebase Plugin] User found:  mango.jacq@koshkikode.com
+[info] [Firebase Plugin] (Core:Project) New user detected, fetching projects
+[debug] [2026-04-21T21:12:48.279Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:12:48.279Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=1000
+[debug] [2026-04-21T21:12:48.288Z] [Firebase Plugin] Value of process.env.MONOSPACE_ENV: undefined
+[debug] [2026-04-21T21:12:48.289Z] [Firebase Plugin] requireAuthWrapper
+[debug] [2026-04-21T21:12:48.290Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-21T21:12:48.290Z] > authorizing via signed-in user (mango.jacq@koshkikode.com)
+[debug] [2026-04-21T21:12:48.291Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:12:48.291Z] [Firebase Plugin] User found:  mango.jacq@koshkikode.com
+[info] [Firebase Plugin] (Core:Project) New user detected, fetching projects
+[debug] [2026-04-21T21:12:48.292Z] Checked if tokens are valid: true, expires at: 1776809079113
+[debug] [2026-04-21T21:12:48.292Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=1000
+[debug] [2026-04-21T21:12:48.325Z] E0421 17:12:48.312685   24792 dev.go:83] Failed to load initial config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+E0421 17:12:48.314698   24792 watch.go:116] watchAllDir unable to walk dir `c:\Users\Dylan\unshelvd\dataconnect`: GetFileAttributesEx c:\Users\Dylan\unshelvd\dataconnect: The system cannot find the file specified.
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:12:48.312685   24792 dev.go:83] Failed to load initial config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\nE0421 17:12:48.314698   24792 watch.go:116] watchAllDir unable to walk dir `c:\\Users\\Dylan\\unshelvd\\dataconnect`: GetFileAttributesEx c:\\Users\\Dylan\\unshelvd\\dataconnect: The system cannot find the file specified.\n"}}
+[debug] [2026-04-21T21:12:48.337Z] I0421 17:12:48.332009   24792 dev.go:104] Listening on address (HTTP + gRPC): 127.0.0.1:50001
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:12:48.332009   24792 dev.go:104] Listening on address (HTTP + gRPC): 127.0.0.1:50001\n"}}
+[debug] [2026-04-21T21:12:48.737Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2026-04-21T21:12:48.737Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[error] [Firebase Plugin] error:  {}
+[debug] [2026-04-21T21:12:49.293Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2026-04-21T21:12:49.294Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[debug] [2026-04-21T21:12:49.295Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2026-04-21T21:12:49.295Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[debug] [2026-04-21T21:12:59.040Z] E0421 17:12:58.314896   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:12:58.314896   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:13:08.315Z] E0421 17:13:08.315176   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:13:08.315176   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:13:18.337Z] E0421 17:13:18.315675   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:13:18.315675   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:13:28.315Z] E0421 17:13:28.315012   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:13:28.315012   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:13:38.315Z] E0421 17:13:38.315310   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:13:38.315310   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:13:48.875Z] E0421 17:13:48.314878   24792 watch.go:116] watchAllDir unable to walk dir `c:\Users\Dylan\unshelvd\dataconnect`: GetFileAttributesEx c:\Users\Dylan\unshelvd\dataconnect: The system cannot find the file specified.
+E0421 17:13:48.314878   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:13:48.314878   24792 watch.go:116] watchAllDir unable to walk dir `c:\\Users\\Dylan\\unshelvd\\dataconnect`: GetFileAttributesEx c:\\Users\\Dylan\\unshelvd\\dataconnect: The system cannot find the file specified.\nE0421 17:13:48.314878   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:13:58.316Z] E0421 17:13:58.315280   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:13:58.315280   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:14:08.316Z] E0421 17:14:08.315200   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:14:08.315200   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:14:18.315Z] E0421 17:14:18.315027   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:14:18.315027   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:14:28.315Z] E0421 17:14:28.315128   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:14:28.315128   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:14:38.315Z] E0421 17:14:38.315020   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:14:38.315020   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:14:48.316Z] E0421 17:14:48.315423   24792 watch.go:116] watchAllDir unable to walk dir `c:\Users\Dylan\unshelvd\dataconnect`: GetFileAttributesEx c:\Users\Dylan\unshelvd\dataconnect: The system cannot find the file specified.
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:14:48.315423   24792 watch.go:116] watchAllDir unable to walk dir `c:\\Users\\Dylan\\unshelvd\\dataconnect`: GetFileAttributesEx c:\\Users\\Dylan\\unshelvd\\dataconnect: The system cannot find the file specified.\n"}}
+[debug] [2026-04-21T21:14:48.326Z] E0421 17:14:48.324511   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:14:48.324511   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:14:58.316Z] E0421 17:14:58.315862   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:14:58.315862   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:15:08.316Z] E0421 17:15:08.315604   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:15:08.315604   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:15:18.316Z] E0421 17:15:18.315534   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:15:18.315534   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:15:28.315Z] E0421 17:15:28.315676   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:15:28.315676   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:15:38.315Z] E0421 17:15:38.315606   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:15:38.315606   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:15:48.314Z] E0421 17:15:48.315179   24792 watch.go:116] watchAllDir unable to walk dir `c:\Users\Dylan\unshelvd\dataconnect`: GetFileAttributesEx c:\Users\Dylan\unshelvd\dataconnect: The system cannot find the file specified.
+E0421 17:15:48.315179   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:15:48.315179   24792 watch.go:116] watchAllDir unable to walk dir `c:\\Users\\Dylan\\unshelvd\\dataconnect`: GetFileAttributesEx c:\\Users\\Dylan\\unshelvd\\dataconnect: The system cannot find the file specified.\nE0421 17:15:48.315179   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:15:58.315Z] E0421 17:15:58.315263   24792 watch.go:40] Failed to load config from "c:\\Users\\Dylan\\unshelvd\\dataconnect": could not find dataconnect.yaml in `c:\Users\Dylan\unshelvd\dataconnect`
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"E0421 17:15:58.315263   24792 watch.go:40] Failed to load config from \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\": could not find dataconnect.yaml in `c:\\Users\\Dylan\\unshelvd\\dataconnect`\n"}}
+[debug] [2026-04-21T21:16:08.320Z] I0421 17:16:08.320863   24792 load.go:31] Reloading schema and connectors...
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:16:08.320863   24792 load.go:31] Reloading schema and connectors...\n"}}
+[debug] [2026-04-21T21:16:08.338Z] I0421 17:16:08.338852   24792 control.go:100] [projects/emulator/locations/emulator/services/unshelvd 086f] UpdateResources(): done
+Main schema: sources: schema\schema.gql [1992B] 
+Connector "example": sources: example\mutations.gql [1243B] example\queries.gql [1801B] 
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:16:08.338852   24792 control.go:100] [projects/emulator/locations/emulator/services/unshelvd 086f] UpdateResources(): done\nMain schema: sources: schema\\schema.gql [1992B] \nConnector \"example\": sources: example\\mutations.gql [1243B] example\\queries.gql [1801B] \n"}}
+[debug] [2026-04-21T21:16:08.355Z] I0421 17:16:08.355810   24792 codegen.go:101] [connector "example" javascriptSdk] Generating sources into "c:\\Users\\Dylan\\unshelvd\\src\\dataconnect-generated"
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:16:08.355810   24792 codegen.go:101] [connector \"example\" javascriptSdk] Generating sources into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\src\\\\dataconnect-generated\"\n"}}
+[debug] [2026-04-21T21:16:08.365Z] I0421 17:16:08.366213   24792 codegen.go:101] [connector "example" kotlinSdk] Generating sources into "c:\\Users\\Dylan\\unshelvd\\android\\capacitor-cordova-android-plugins\\src\\main\\kotlin\\com\\google\\firebase\\dataconnect\\generated"
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:16:08.366213   24792 codegen.go:101] [connector \"example\" kotlinSdk] Generating sources into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\android\\\\capacitor-cordova-android-plugins\\\\src\\\\main\\\\kotlin\\\\com\\\\google\\\\firebase\\\\dataconnect\\\\generated\"\n"}}
+[debug] [2026-04-21T21:16:08.369Z] I0421 17:16:08.369308   24792 codegen.go:101] [connector "example" kotlinSdk] Generating sources into "c:\\Users\\Dylan\\unshelvd\\android\\app\\src\\main\\kotlin\\com\\google\\firebase\\dataconnect\\generated"
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:16:08.369308   24792 codegen.go:101] [connector \"example\" kotlinSdk] Generating sources into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\android\\\\app\\\\src\\\\main\\\\kotlin\\\\com\\\\google\\\\firebase\\\\dataconnect\\\\generated\"\n"}}
+[debug] [2026-04-21T21:16:08.371Z] I0421 17:16:08.371969   24792 codegen.go:101] [connector "example" swiftSdk] Generating sources into "c:\\Users\\Dylan\\unshelvd\\ios\\FirebaseDataConnectGenerated\\DataConnectGenerated"
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:16:08.371969   24792 codegen.go:101] [connector \"example\" swiftSdk] Generating sources into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\ios\\\\FirebaseDataConnectGenerated\\\\DataConnectGenerated\"\n"}}
+[debug] [2026-04-21T21:16:08.391Z] I0421 17:16:08.391307   24792 collector.go:107] schema extensions wrote into "c:\\Users\\Dylan\\unshelvd\\dataconnect\\.dataconnect\\schema"
+Generated sources: prelude.gql [80888B] main\implicit.gql [1261B] main\input.gql [28927B] main\relation.gql [14318B] main\query.gql [5099B] main\mutation.gql [13679B] 
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:16:08.391307   24792 collector.go:107] schema extensions wrote into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\\\\.dataconnect\\\\schema\"\nGenerated sources: prelude.gql [80888B] main\\implicit.gql [1261B] main\\input.gql [28927B] main\\relation.gql [14318B] main\\query.gql [5099B] main\\mutation.gql [13679B] \n"}}
+[debug] [2026-04-21T21:16:08.405Z] I0421 17:16:08.405699   24792 collector.go:107] connector "example" javascriptSdk wrote into "c:\\Users\\Dylan\\unshelvd\\src\\dataconnect-generated"
+Generated sources: esm\package.json [17B] react\esm\index.esm.js [3269B] react\README.md [48299B] .guides/config.json [236B] index.d.ts [8426B] README.md [41235B] react\index.d.ts [3961B] react\esm\package.json [17B] react\index.cjs.js [3439B] .guides/setup.md [1682B] esm\index.esm.js [5266B] index.cjs.js [5810B] package.json [853B] react\package.json [460B] .guides/usage.md [3489B] 
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:16:08.405699   24792 collector.go:107] connector \"example\" javascriptSdk wrote into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\src\\\\dataconnect-generated\"\nGenerated sources: esm\\package.json [17B] react\\esm\\index.esm.js [3269B] react\\README.md [48299B] .guides/config.json [236B] index.d.ts [8426B] README.md [41235B] react\\index.d.ts [3961B] react\\esm\\package.json [17B] react\\index.cjs.js [3439B] .guides/setup.md [1682B] esm\\index.esm.js [5266B] index.cjs.js [5810B] package.json [853B] react\\package.json [460B] .guides/usage.md [3489B] \n"}}
+[debug] [2026-04-21T21:16:08.409Z] I0421 17:16:08.409233   24792 installsdk.go:86] Running command: C:\Program Files\nodejs\npm.cmd install file:src\dataconnect-generated
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:16:08.409233   24792 installsdk.go:86] Running command: C:\\Program Files\\nodejs\\npm.cmd install file:src\\dataconnect-generated\n"}}
+[debug] [2026-04-21T21:16:13.613Z] I0421 17:16:13.614060   24792 collector.go:107] connector "example" kotlinSdk wrote into "c:\\Users\\Dylan\\unshelvd\\android\\capacitor-cordova-android-plugins\\src\\main\\kotlin\\com\\google\\firebase\\dataconnect\\generated"
+Generated sources: SearchMovieQuery.kt [4303B] UpsertUserMutation.kt [1651B] README.md [8629B] ExampleConnector.kt [13215B] CreateMovieMutation.kt [1814B] ListUserReviewsQuery.kt [2608B] ListUsersQuery.kt [2007B] ExampleConnectorKeys.kt [907B] ExampleConnectorEnums.kt [309B] AddReviewMutation.kt [1954B] DeleteReviewMutation.kt [1805B] GetMovieByIdQuery.kt [3347B] ListMoviesQuery.kt [2184B] 
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:16:13.614060   24792 collector.go:107] connector \"example\" kotlinSdk wrote into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\android\\\\capacitor-cordova-android-plugins\\\\src\\\\main\\\\kotlin\\\\com\\\\google\\\\firebase\\\\dataconnect\\\\generated\"\nGenerated sources: SearchMovieQuery.kt [4303B] UpsertUserMutation.kt [1651B] README.md [8629B] ExampleConnector.kt [13215B] CreateMovieMutation.kt [1814B] ListUserReviewsQuery.kt [2608B] ListUsersQuery.kt [2007B] ExampleConnectorKeys.kt [907B] ExampleConnectorEnums.kt [309B] AddReviewMutation.kt [1954B] DeleteReviewMutation.kt [1805B] GetMovieByIdQuery.kt [3347B] ListMoviesQuery.kt [2184B] \n"}}
+[debug] [2026-04-21T21:16:13.646Z] I0421 17:16:13.646740   24792 collector.go:107] connector "example" kotlinSdk wrote into "c:\\Users\\Dylan\\unshelvd\\android\\app\\src\\main\\kotlin\\com\\google\\firebase\\dataconnect\\generated"
+Generated sources: ListUsersQuery.kt [2007B] ExampleConnectorKeys.kt [907B] ExampleConnector.kt [13215B] CreateMovieMutation.kt [1814B] ListMoviesQuery.kt [2184B] SearchMovieQuery.kt [4303B] UpsertUserMutation.kt [1651B] ExampleConnectorEnums.kt [309B] README.md [8629B] AddReviewMutation.kt [1954B] DeleteReviewMutation.kt [1805B] GetMovieByIdQuery.kt [3347B] ListUserReviewsQuery.kt [2608B] 
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:16:13.646740   24792 collector.go:107] connector \"example\" kotlinSdk wrote into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\android\\\\app\\\\src\\\\main\\\\kotlin\\\\com\\\\google\\\\firebase\\\\dataconnect\\\\generated\"\nGenerated sources: ListUsersQuery.kt [2007B] ExampleConnectorKeys.kt [907B] ExampleConnector.kt [13215B] CreateMovieMutation.kt [1814B] ListMoviesQuery.kt [2184B] SearchMovieQuery.kt [4303B] UpsertUserMutation.kt [1651B] ExampleConnectorEnums.kt [309B] README.md [8629B] AddReviewMutation.kt [1954B] DeleteReviewMutation.kt [1805B] GetMovieByIdQuery.kt [3347B] ListUserReviewsQuery.kt [2608B] \n"}}
+[debug] [2026-04-21T21:16:13.657Z] I0421 17:16:13.657251   24792 collector.go:107] connector "example" swiftSdk wrote into "c:\\Users\\Dylan\\unshelvd\\ios\\FirebaseDataConnectGenerated\\DataConnectGenerated"
+Generated sources: Package.swift [831B] Sources/ExampleClient.swift [2088B] Sources/ExampleKeys.swift [4734B] Sources/ExampleOperations.swift [30062B] README.md [4495B] 
+I0421 17:16:13.657802   24792 load.go:109] Finished reloading
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:16:13.657251   24792 collector.go:107] connector \"example\" swiftSdk wrote into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\ios\\\\FirebaseDataConnectGenerated\\\\DataConnectGenerated\"\nGenerated sources: Package.swift [831B] Sources/ExampleClient.swift [2088B] Sources/ExampleKeys.swift [4734B] Sources/ExampleOperations.swift [30062B] README.md [4495B] \nI0421 17:16:13.657802   24792 load.go:109] Finished reloading\n"}}
+[debug] [2026-04-21T21:16:27.490Z] >>> [apiv2][query] GET https://accounts.google.com/o/oauth2/revoke token=1%2F%2F04Wug-3vvkxLMCgYIARAAGAQSNwF-L9IrZeXrnfOjxZ7r-weV0D0Q9Yl87FMMdgHLO9DOP2Z7bUZd9lMmpV5CjSkv0DS5ktPSYQg
+[debug] [2026-04-21T21:16:27.695Z] <<< [apiv2][status] GET https://accounts.google.com/o/oauth2/revoke 200
+[debug] [2026-04-21T21:16:27.695Z] <<< [apiv2][body] GET https://accounts.google.com/o/oauth2/revoke {}
+[info] +  Logged out from mango.jacq@koshkikode.com 
+[info] 
+[info] Visit this URL on this device to log in:
+[info] https://accounts.google.com/o/oauth2/auth?client_id=563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com&scope=email%20openid%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudplatformprojects.readonly%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Ffirebase%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform&response_type=code&state=676131866&redirect_uri=http%3A%2F%2Flocalhost%3A9005
+[info] 
+[info] Waiting for authentication...
+[info] 
+[info] Visit this URL on this device to log in:
+[info] https://accounts.google.com/o/oauth2/auth?client_id=563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com&scope=email%20openid%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudplatformprojects.readonly%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Ffirebase%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform&response_type=code&state=676131866&redirect_uri=http%3A%2F%2Flocalhost%3A9006
+[info] 
+[info] Waiting for authentication...
+[info] [Firebase Plugin] Stopping Data Connect toolkit
+[warn] !  Data Connect Emulator has exited upon receiving signal: SIGINT 
+[debug] [2026-04-21T21:17:34.028Z] [Firebase Plugin] Activating Firebase extension.
+[info] [Firebase Plugin] Checked firebase-tools, is up to date!
+[debug] [2026-04-21T21:17:36.857Z] [Firebase Plugin] requireAuthWrapper
+[debug] [2026-04-21T21:17:36.858Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-21T21:17:36.867Z] [Firebase Plugin] VSCode notification server listening on port 40001
+[debug] [2026-04-21T21:17:37.175Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2026-04-21T21:17:37.176Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:17:37.176Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:17:37.176Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"glob"}
+[debug] [2026-04-21T21:17:37.176Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2026-04-21T21:17:37.176Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2026-04-21T21:17:37.176Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:17:37.176Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:17:37.176Z] Object "/hosting/rewrites/0" in "firebase.json" has unknown property: {"additionalProperty":"_comment"}
+[debug] [2026-04-21T21:17:37.176Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2026-04-21T21:17:37.176Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2026-04-21T21:17:37.176Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:17:37.176Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2026-04-21T21:17:37.176Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"regex"}
+[debug] [2026-04-21T21:17:37.177Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2026-04-21T21:17:37.177Z] Field "/hosting/rewrites/0" in "firebase.json" is possibly invalid: must match a schema in anyOf
+[debug] [2026-04-21T21:17:37.177Z] Field "/hosting" in "firebase.json" is possibly invalid: must be array
+[debug] [2026-04-21T21:17:37.177Z] Field "/hosting" in "firebase.json" is possibly invalid: must match a schema in anyOf
+[info] [Firebase Plugin] Starting Data Connect toolkit (version 3.3.1) on port 50001
+[debug] [2026-04-21T21:17:37.289Z] I0421 17:17:37.279304   24760 control.go:100] [projects/emulator/locations/emulator/services/unshelvd fc6e] UpdateResources(): done
+Main schema: sources: schema\schema.gql [1992B] 
+Connector "example": sources: example\mutations.gql [1243B] example\queries.gql [1801B] 
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:17:37.279304   24760 control.go:100] [projects/emulator/locations/emulator/services/unshelvd fc6e] UpdateResources(): done\nMain schema: sources: schema\\schema.gql [1992B] \nConnector \"example\": sources: example\\mutations.gql [1243B] example\\queries.gql [1801B] \n"}}
+[debug] [2026-04-21T21:17:37.290Z] Ignoring unsupported arg: auto_download {"metadata":{"emulator":{"name":"dataconnect"},"message":"Ignoring unsupported arg: auto_download"}}
+[debug] [2026-04-21T21:17:37.290Z] Ignoring unsupported arg: port {"metadata":{"emulator":{"name":"dataconnect"},"message":"Ignoring unsupported arg: port"}}
+[debug] [2026-04-21T21:17:37.291Z] Starting Data Connect Emulator with command {"binary":"C:\\Users\\Dylan\\.cache\\firebase\\emulators\\dataconnect-emulator-3.3.1.exe","args":["--logtostderr","-v=2","dev","--listen=localhost:50001","--config_dir=c:\\Users\\Dylan\\unshelvd\\dataconnect","--enable_output_schema_extensions=true","--enable_output_generated_sdk=true"],"optionalArgs":["listen","config_dir","enable_output_schema_extensions","enable_output_generated_sdk"],"joinArgs":true,"shell":false,"port":9399} {"metadata":{"emulator":{"name":"dataconnect"},"message":"Starting Data Connect Emulator with command {\"binary\":\"C:\\\\Users\\\\Dylan\\\\.cache\\\\firebase\\\\emulators\\\\dataconnect-emulator-3.3.1.exe\",\"args\":[\"--logtostderr\",\"-v=2\",\"dev\",\"--listen=localhost:50001\",\"--config_dir=c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\",\"--enable_output_schema_extensions=true\",\"--enable_output_generated_sdk=true\"],\"optionalArgs\":[\"listen\",\"config_dir\",\"enable_output_schema_extensions\",\"enable_output_generated_sdk\"],\"joinArgs\":true,\"shell\":false,\"port\":9399}"}}
+[info] i  dataconnect: Data Connect Emulator logging to dataconnect-debug.log {"metadata":{"emulator":{"name":"dataconnect"},"message":"Data Connect Emulator logging to \u001b[1mdataconnect-debug.log\u001b[22m"}}
+[debug] [2026-04-21T21:17:37.324Z] [Firebase Plugin] Value of process.env.MONOSPACE_ENV: undefined
+[debug] [2026-04-21T21:17:37.324Z] [Firebase Plugin] requireAuthWrapper
+[debug] [2026-04-21T21:17:37.325Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-21T21:17:37.332Z] [Firebase Plugin] Value of process.env.MONOSPACE_ENV: undefined
+[debug] [2026-04-21T21:17:37.333Z] [Firebase Plugin] requireAuthWrapper
+[debug] [2026-04-21T21:17:37.334Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-21T21:17:37.345Z] I0421 17:17:37.339252   27740 load.go:31] Reloading schema and connectors...
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:17:37.339252   27740 load.go:31] Reloading schema and connectors...\n"}}
+[debug] [2026-04-21T21:17:37.372Z] I0421 17:17:37.366835   27740 control.go:100] [projects/emulator/locations/emulator/services/unshelvd fa53] UpdateResources(): done
+Main schema: sources: schema\schema.gql [1992B] 
+Connector "example": sources: example\mutations.gql [1243B] example\queries.gql [1801B] 
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:17:37.366835   27740 control.go:100] [projects/emulator/locations/emulator/services/unshelvd fa53] UpdateResources(): done\nMain schema: sources: schema\\schema.gql [1992B] \nConnector \"example\": sources: example\\mutations.gql [1243B] example\\queries.gql [1801B] \n"}}
+[debug] [2026-04-21T21:17:37.429Z] I0421 17:17:37.396560   27740 codegen.go:101] [connector "example" javascriptSdk] Generating sources into "c:\\Users\\Dylan\\unshelvd\\src\\dataconnect-generated"
+I0421 17:17:37.407099   27740 codegen.go:101] [connector "example" kotlinSdk] Generating sources into "c:\\Users\\Dylan\\unshelvd\\android\\capacitor-cordova-android-plugins\\src\\main\\kotlin\\com\\google\\firebase\\dataconnect\\generated"
+I0421 17:17:37.411106   27740 codegen.go:101] [connector "example" kotlinSdk] Generating sources into "c:\\Users\\Dylan\\unshelvd\\android\\app\\src\\main\\kotlin\\com\\google\\firebase\\dataconnect\\generated"
+I0421 17:17:37.414646   27740 codegen.go:101] [connector "example" swiftSdk] Generating sources into "c:\\Users\\Dylan\\unshelvd\\ios\\FirebaseDataConnectGenerated\\DataConnectGenerated"
+I0421 17:17:37.426836   27740 collector.go:107] schema extensions wrote into "c:\\Users\\Dylan\\unshelvd\\dataconnect\\.dataconnect\\schema"
+Generated sources: prelude.gql [80888B] main\implicit.gql [1261B] main\input.gql [28927B] main\relation.gql [14318B] main\query.gql [5099B] main\mutation.gql [13679B] 
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:17:37.396560   27740 codegen.go:101] [connector \"example\" javascriptSdk] Generating sources into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\src\\\\dataconnect-generated\"\nI0421 17:17:37.407099   27740 codegen.go:101] [connector \"example\" kotlinSdk] Generating sources into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\android\\\\capacitor-cordova-android-plugins\\\\src\\\\main\\\\kotlin\\\\com\\\\google\\\\firebase\\\\dataconnect\\\\generated\"\nI0421 17:17:37.411106   27740 codegen.go:101] [connector \"example\" kotlinSdk] Generating sources into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\android\\\\app\\\\src\\\\main\\\\kotlin\\\\com\\\\google\\\\firebase\\\\dataconnect\\\\generated\"\nI0421 17:17:37.414646   27740 codegen.go:101] [connector \"example\" swiftSdk] Generating sources into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\ios\\\\FirebaseDataConnectGenerated\\\\DataConnectGenerated\"\nI0421 17:17:37.426836   27740 collector.go:107] schema extensions wrote into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\\\\.dataconnect\\\\schema\"\nGenerated sources: prelude.gql [80888B] main\\implicit.gql [1261B] main\\input.gql [28927B] main\\relation.gql [14318B] main\\query.gql [5099B] main\\mutation.gql [13679B] \n"}}
+[debug] [2026-04-21T21:17:37.440Z] I0421 17:17:37.438811   27740 collector.go:107] connector "example" javascriptSdk wrote into "c:\\Users\\Dylan\\unshelvd\\src\\dataconnect-generated"
+Generated sources: README.md [41235B] react\esm\package.json [17B] react\README.md [48299B] .guides/config.json [236B] react\index.cjs.js [3439B] .guides/setup.md [1682B] .guides/usage.md [3489B] esm\index.esm.js [5266B] react\package.json [460B] react\esm\index.esm.js [3269B] index.cjs.js [5810B] package.json [853B] react\index.d.ts [3961B] index.d.ts [8426B] esm\package.json [17B] 
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:17:37.438811   27740 collector.go:107] connector \"example\" javascriptSdk wrote into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\src\\\\dataconnect-generated\"\nGenerated sources: README.md [41235B] react\\esm\\package.json [17B] react\\README.md [48299B] .guides/config.json [236B] react\\index.cjs.js [3439B] .guides/setup.md [1682B] .guides/usage.md [3489B] esm\\index.esm.js [5266B] react\\package.json [460B] react\\esm\\index.esm.js [3269B] index.cjs.js [5810B] package.json [853B] react\\index.d.ts [3961B] index.d.ts [8426B] esm\\package.json [17B] \n"}}
+[debug] [2026-04-21T21:17:37.444Z] I0421 17:17:37.444363   27740 installsdk.go:55] Package @dataconnect/generated is already installed. Skipping installation
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:17:37.444363   27740 installsdk.go:55] Package @dataconnect/generated is already installed. Skipping installation\n"}}
+[debug] [2026-04-21T21:17:37.460Z] I0421 17:17:37.460437   27740 collector.go:107] connector "example" kotlinSdk wrote into "c:\\Users\\Dylan\\unshelvd\\android\\capacitor-cordova-android-plugins\\src\\main\\kotlin\\com\\google\\firebase\\dataconnect\\generated"
+Generated sources: ExampleConnector.kt [13215B] AddReviewMutation.kt [1954B] CreateMovieMutation.kt [1814B] DeleteReviewMutation.kt [1805B] ListUserReviewsQuery.kt [2608B] README.md [8629B] GetMovieByIdQuery.kt [3347B] ListMoviesQuery.kt [2184B] ListUsersQuery.kt [2007B] SearchMovieQuery.kt [4303B] UpsertUserMutation.kt [1651B] ExampleConnectorKeys.kt [907B] ExampleConnectorEnums.kt [309B] 
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:17:37.460437   27740 collector.go:107] connector \"example\" kotlinSdk wrote into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\android\\\\capacitor-cordova-android-plugins\\\\src\\\\main\\\\kotlin\\\\com\\\\google\\\\firebase\\\\dataconnect\\\\generated\"\nGenerated sources: ExampleConnector.kt [13215B] AddReviewMutation.kt [1954B] CreateMovieMutation.kt [1814B] DeleteReviewMutation.kt [1805B] ListUserReviewsQuery.kt [2608B] README.md [8629B] GetMovieByIdQuery.kt [3347B] ListMoviesQuery.kt [2184B] ListUsersQuery.kt [2007B] SearchMovieQuery.kt [4303B] UpsertUserMutation.kt [1651B] ExampleConnectorKeys.kt [907B] ExampleConnectorEnums.kt [309B] \n"}}
+[debug] [2026-04-21T21:17:38.172Z] I0421 17:17:37.473155   27740 collector.go:107] connector "example" kotlinSdk wrote into "c:\\Users\\Dylan\\unshelvd\\android\\app\\src\\main\\kotlin\\com\\google\\firebase\\dataconnect\\generated"
+Generated sources: UpsertUserMutation.kt [1651B] ExampleConnectorKeys.kt [907B] AddReviewMutation.kt [1954B] DeleteReviewMutation.kt [1805B] ListUsersQuery.kt [2007B] ExampleConnectorEnums.kt [309B] README.md [8629B] ExampleConnector.kt [13215B] CreateMovieMutation.kt [1814B] GetMovieByIdQuery.kt [3347B] ListMoviesQuery.kt [2184B] ListUserReviewsQuery.kt [2608B] SearchMovieQuery.kt [4303B] 
+I0421 17:17:37.477301   27740 collector.go:107] connector "example" swiftSdk wrote into "c:\\Users\\Dylan\\unshelvd\\ios\\FirebaseDataConnectGenerated\\DataConnectGenerated"
+Generated sources: Sources/ExampleOperations.swift [30062B] README.md [4495B] Package.swift [831B] Sources/ExampleClient.swift [2088B] Sources/ExampleKeys.swift [4734B] 
+I0421 17:17:37.477301   27740 collector.go:114] connector "example" swiftSdk deleted obsolete file "c:\\Users\\Dylan\\unshelvd\\ios\\FirebaseDataConnectGenerated\\DataConnectGenerated\\Sources\\ExampleClient.swift"
+I0421 17:17:37.477840   27740 collector.go:114] connector "example" swiftSdk deleted obsolete file "c:\\Users\\Dylan\\unshelvd\\ios\\FirebaseDataConnectGenerated\\DataConnectGenerated\\Sources\\ExampleKeys.swift"
+I0421 17:17:37.478410   27740 collector.go:114] connector "example" swiftSdk deleted obsolete file "c:\\Users\\Dylan\\unshelvd\\ios\\FirebaseDataConnectGenerated\\DataConnectGenerated\\Sources\\ExampleOperations.swift"
+I0421 17:17:37.478410   27740 load.go:109] Finished reloading
+I0421 17:17:37.495732   27740 dev.go:104] Listening on address (HTTP + gRPC): 127.0.0.1:50001
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:17:37.473155   27740 collector.go:107] connector \"example\" kotlinSdk wrote into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\android\\\\app\\\\src\\\\main\\\\kotlin\\\\com\\\\google\\\\firebase\\\\dataconnect\\\\generated\"\nGenerated sources: UpsertUserMutation.kt [1651B] ExampleConnectorKeys.kt [907B] AddReviewMutation.kt [1954B] DeleteReviewMutation.kt [1805B] ListUsersQuery.kt [2007B] ExampleConnectorEnums.kt [309B] README.md [8629B] ExampleConnector.kt [13215B] CreateMovieMutation.kt [1814B] GetMovieByIdQuery.kt [3347B] ListMoviesQuery.kt [2184B] ListUserReviewsQuery.kt [2608B] SearchMovieQuery.kt [4303B] \nI0421 17:17:37.477301   27740 collector.go:107] connector \"example\" swiftSdk wrote into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\ios\\\\FirebaseDataConnectGenerated\\\\DataConnectGenerated\"\nGenerated sources: Sources/ExampleOperations.swift [30062B] README.md [4495B] Package.swift [831B] Sources/ExampleClient.swift [2088B] Sources/ExampleKeys.swift [4734B] \nI0421 17:17:37.477301   27740 collector.go:114] connector \"example\" swiftSdk deleted obsolete file \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\ios\\\\FirebaseDataConnectGenerated\\\\DataConnectGenerated\\\\Sources\\\\ExampleClient.swift\"\nI0421 17:17:37.477840   27740 collector.go:114] connector \"example\" swiftSdk deleted obsolete file \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\ios\\\\FirebaseDataConnectGenerated\\\\DataConnectGenerated\\\\Sources\\\\ExampleKeys.swift\"\nI0421 17:17:37.478410   27740 collector.go:114] connector \"example\" swiftSdk deleted obsolete file \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\ios\\\\FirebaseDataConnectGenerated\\\\DataConnectGenerated\\\\Sources\\\\ExampleOperations.swift\"\nI0421 17:17:37.478410   27740 load.go:109] Finished reloading\nI0421 17:17:37.495732   27740 dev.go:104] Listening on address (HTTP + gRPC): 127.0.0.1:50001\n"}}
+[debug] [2026-04-21T21:17:39.394Z] I0421 17:17:39.337807   27740 engine.go:209] [projects/emulator/locations/emulator/services/unshelvd fa53] ExecuteGraphqlRead query IntrospectionQuery: succeeded. 
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:17:39.337807   27740 engine.go:209] [projects/emulator/locations/emulator/services/unshelvd fa53] ExecuteGraphqlRead query IntrospectionQuery: succeeded. \n"}}
+[error] [Firebase Plugin] requireAuth error: {"error":"invalid_grant","error_description":"reauth related error (invalid_rapt)","error_uri":"https://support.google.com/a/answer/9368756","error_subtype":"invalid_rapt"}
+[error] [Firebase Plugin] requireAuth error: {"error":"invalid_grant","error_description":"reauth related error (invalid_rapt)","error_uri":"https://support.google.com/a/answer/9368756","error_subtype":"invalid_rapt"}
+[error] [Firebase Plugin] requireAuth error: {"error":"invalid_grant","error_description":"reauth related error (invalid_rapt)","error_uri":"https://support.google.com/a/answer/9368756","error_subtype":"invalid_rapt"}
+[info] 
+[info] Visit this URL on this device to log in:
+[info] https://accounts.google.com/o/oauth2/auth?client_id=563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com&scope=email%20openid%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudplatformprojects.readonly%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Ffirebase%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform&response_type=code&state=999719185&redirect_uri=http%3A%2F%2Flocalhost%3A9005
+[info] 
+[info] Waiting for authentication...
+[debug] [2026-04-21T21:17:56.170Z] >>> [apiv2][query] POST https://accounts.google.com/o/oauth2/token [none]
+[debug] [2026-04-21T21:17:56.171Z] >>> [apiv2][body] POST https://accounts.google.com/o/oauth2/token [omitted]
+[debug] [2026-04-21T21:17:56.383Z] <<< [apiv2][status] POST https://accounts.google.com/o/oauth2/token 200
+[debug] [2026-04-21T21:17:56.384Z] <<< [apiv2][body] POST https://accounts.google.com/o/oauth2/token [omitted]
+[info] [Firebase Plugin] (Core:Project) New user detected, fetching projects
+[debug] [2026-04-21T21:17:56.431Z] Checked if tokens are valid: true, expires at: 1776809875385
+[debug] [2026-04-21T21:17:56.437Z] Checked if tokens are valid: true, expires at: 1776809875385
+[debug] [2026-04-21T21:17:56.445Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=1000
+[debug] [2026-04-21T21:17:56.879Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2026-04-21T21:17:56.879Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[debug] [2026-04-21T21:18:17.358Z] [Firebase Plugin] Received emulators shutdown notification.
+[debug] [2026-04-21T21:18:17.362Z] [Firebase Plugin] Received emulators shutdown notification.
+[debug] [2026-04-21T21:29:37.481Z] I0421 17:29:37.481461   27740 load.go:31] Reloading schema and connectors...
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:29:37.481461   27740 load.go:31] Reloading schema and connectors...\n"}}
+[debug] [2026-04-21T21:29:37.509Z] I0421 17:29:37.509557   27740 codegen.go:101] [connector "example" javascriptSdk] Generating sources into "c:\\Users\\Dylan\\unshelvd\\src\\dataconnect-generated"
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:29:37.509557   27740 codegen.go:101] [connector \"example\" javascriptSdk] Generating sources into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\src\\\\dataconnect-generated\"\n"}}
+[debug] [2026-04-21T21:29:37.527Z] I0421 17:29:37.527321   27740 codegen.go:101] [connector "example" kotlinSdk] Generating sources into "c:\\Users\\Dylan\\unshelvd\\android\\capacitor-cordova-android-plugins\\src\\main\\kotlin\\com\\google\\firebase\\dataconnect\\generated"
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:29:37.527321   27740 codegen.go:101] [connector \"example\" kotlinSdk] Generating sources into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\android\\\\capacitor-cordova-android-plugins\\\\src\\\\main\\\\kotlin\\\\com\\\\google\\\\firebase\\\\dataconnect\\\\generated\"\n"}}
+[debug] [2026-04-21T21:29:37.537Z] I0421 17:29:37.536861   27740 collector.go:107] schema extensions wrote into "c:\\Users\\Dylan\\unshelvd\\dataconnect\\.dataconnect\\schema"
+Generated sources: main\implicit.gql [1261B] main\input.gql [28927B] main\relation.gql [14318B] main\query.gql [5099B] main\mutation.gql [13679B] prelude.gql [80888B] 
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:29:37.536861   27740 collector.go:107] schema extensions wrote into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\dataconnect\\\\.dataconnect\\\\schema\"\nGenerated sources: main\\implicit.gql [1261B] main\\input.gql [28927B] main\\relation.gql [14318B] main\\query.gql [5099B] main\\mutation.gql [13679B] prelude.gql [80888B] \n"}}
+[debug] [2026-04-21T21:29:37.545Z] I0421 17:29:37.545360   27740 collector.go:107] connector "example" javascriptSdk wrote into "c:\\Users\\Dylan\\unshelvd\\src\\dataconnect-generated"
+Generated sources: README.md [41235B] react\index.cjs.js [3439B] react\esm\index.esm.js [3269B] index.d.ts [8426B] esm\package.json [17B] package.json [853B] .guides/setup.md [1682B] .guides/config.json [236B] index.cjs.js [5810B] react\index.d.ts [3961B] react\package.json [460B] react\README.md [48299B] .guides/usage.md [3489B] esm\index.esm.js [5266B] react\esm\package.json [17B] 
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:29:37.545360   27740 collector.go:107] connector \"example\" javascriptSdk wrote into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\src\\\\dataconnect-generated\"\nGenerated sources: README.md [41235B] react\\index.cjs.js [3439B] react\\esm\\index.esm.js [3269B] index.d.ts [8426B] esm\\package.json [17B] package.json [853B] .guides/setup.md [1682B] .guides/config.json [236B] index.cjs.js [5810B] react\\index.d.ts [3961B] react\\package.json [460B] react\\README.md [48299B] .guides/usage.md [3489B] esm\\index.esm.js [5266B] react\\esm\\package.json [17B] \n"}}
+[debug] [2026-04-21T21:29:37.550Z] I0421 17:29:37.550679   27740 installsdk.go:55] Package @dataconnect/generated is already installed. Skipping installation
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:29:37.550679   27740 installsdk.go:55] Package @dataconnect/generated is already installed. Skipping installation\n"}}
+[debug] [2026-04-21T21:29:37.556Z] I0421 17:29:37.557208   27740 collector.go:107] connector "example" kotlinSdk wrote into "c:\\Users\\Dylan\\unshelvd\\android\\capacitor-cordova-android-plugins\\src\\main\\kotlin\\com\\google\\firebase\\dataconnect\\generated"
+Generated sources: GetMovieByIdQuery.kt [3347B] ListUserReviewsQuery.kt [2608B] UpsertUserMutation.kt [1651B] ExampleConnectorEnums.kt [309B] README.md [8629B] AddReviewMutation.kt [1954B] CreateMovieMutation.kt [1814B] DeleteReviewMutation.kt [1805B] ListMoviesQuery.kt [2184B] ListUsersQuery.kt [2007B] SearchMovieQuery.kt [4303B] ExampleConnectorKeys.kt [907B] ExampleConnector.kt [13215B] 
+I0421 17:29:37.557208   27740 load.go:109] Finished reloading
+ {"metadata":{"emulator":{"name":"dataconnect"},"message":"I0421 17:29:37.557208   27740 collector.go:107] connector \"example\" kotlinSdk wrote into \"c:\\\\Users\\\\Dylan\\\\unshelvd\\\\android\\\\capacitor-cordova-android-plugins\\\\src\\\\main\\\\kotlin\\\\com\\\\google\\\\firebase\\\\dataconnect\\\\generated\"\nGenerated sources: GetMovieByIdQuery.kt [3347B] ListUserReviewsQuery.kt [2608B] UpsertUserMutation.kt [1651B] ExampleConnectorEnums.kt [309B] README.md [8629B] AddReviewMutation.kt [1954B] CreateMovieMutation.kt [1814B] DeleteReviewMutation.kt [1805B] ListMoviesQuery.kt [2184B] ListUsersQuery.kt [2007B] SearchMovieQuery.kt [4303B] ExampleConnectorKeys.kt [907B] ExampleConnector.kt [13215B] \nI0421 17:29:37.557208   27740 load.go:109] Finished reloading\n"}}
+[info] [Firebase Plugin] Stopping Data Connect toolkit
+[warn] !  Data Connect Emulator has exited upon receiving signal: SIGINT 
