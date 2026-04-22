@@ -1,14 +1,24 @@
-# Settings for Backend (on Cloud Run).
 runConfig:
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
   minInstances: 0
+  maxInstances: 2
 
 env:
-  - variable: SESSION_SECRET
-    secret: SESSION_SECRET
-    availability:
-      - RUNTIME
-
+  - variable: NODE_ENV
+    value: production
+  - variable: PORT
+    value: "8080"
+  - variable: APP_URL
+    value: https://unshelvd.koshkikode.com
+  - variable: PUBLIC_APP_URL
+    value: https://unshelvd.koshkikode.com
+  - variable: WEB_BASE_URL
+    value: https://unshelvd.koshkikode.com
+  - variable: CORS_ALLOWED_ORIGINS
+    value: https://unshelvd.koshkikode.com
   - variable: DATABASE_URL
     secret: DATABASE_URL
-    availability:
-      - RUNTIME
+  - variable: SESSION_SECRET
+    secret: SESSION_SECRET
