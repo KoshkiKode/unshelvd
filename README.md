@@ -69,27 +69,35 @@ To preserve stable admin access across reseeds, set `ADMIN_USERNAME`, `ADMIN_EMA
 npm install
 ```
 
-### 5) Create all database tables
+### 5) Create all database tables and seed searchable catalog data
+
+```bash
+npm run db:setup
+```
+
+This is the fastest supported setup path. It runs the tracked migrations and then seeds the app data, including the Firebase SQL Connect searchable catalog from `dataconnect/catalog.csv`.
+
+This creates the full PostgreSQL schema used by the app (users, books, catalog, requests, messages, offers, transactions, platform settings, and works).
+
+If you only need to apply migrations without reseeding, use:
+
+```bash
+npm run db:migrate:run
+```
+
+If you are iterating on the schema during development and want Drizzle to push the current model directly, use:
 
 ```bash
 npm run db:push
 ```
 
-This creates the full PostgreSQL schema used by the app (users, books, catalog, requests, messages, offers, transactions, platform settings, and works).
-
-### 6) Seed full app data (admin + users + books + requests + catalog/work data)
-
-```bash
-npm run db:seed
-```
-
-This seeds:
+The `db:setup` flow seeds:
 
 - Admin account (created or rotated)
 - Demo users
 - Book listings
 - Book requests
-- Works and catalog entries
+- Works and catalog entries, with catalog metadata loaded from `dataconnect/catalog.csv` when available
 
 Optional larger catalog import:
 
@@ -107,6 +115,35 @@ npm run dev
 ```
 
 Open: `http://localhost:5000` (hash routes are used, for example `/#/login`).
+
+## Firebase SQL Connect Search Setup
+
+The Firebase SQL Connect service definition lives in `dataconnect/` and reads from the same PostgreSQL database as the app.
+
+The repo is currently configured for:
+
+- SQL Connect service region: `us-central1`
+- Cloud SQL instance: `unshelvd-instance`
+- PostgreSQL database: `unshelvd`
+
+To make that database searchable through Firebase SQL Connect, point `DATABASE_URL` at the SQL Connect backing PostgreSQL instance and run:
+
+```bash
+npm run db:setup
+```
+
+If you are targeting a remote PostgreSQL instance and want the repo to build the connection string for you, use:
+
+```bash
+./database/setup.sh --host "HOST" --username "USER" --password "PASSWORD" --database "unshelvd"
+```
+
+The Firebase connector currently exposes:
+
+- `SearchCatalog` for title, author, or genre search
+- `SearchCatalogByTitle` for title-only search
+- `ListCatalogEntries` for paginated catalog browsing
+- `ListWorks` for work-level browsing
 
 ---
 

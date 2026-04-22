@@ -1,4 +1,4 @@
-connectorId: example
+connectorId: catalog
 generate:
   javascriptSdk:
     - outputDir: ../../src/dataconnect-generated

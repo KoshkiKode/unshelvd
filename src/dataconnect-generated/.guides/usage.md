@@ -12,26 +12,16 @@ For each operation, there is a wrapper hook that can be used to call the operati
 
 Here are all of the hooks that get generated:
 ```ts
-import { useCreateMovie, useUpsertUser, useAddReview, useDeleteReview, useListMovies, useListUsers, useListUserReviews, useGetMovieById, useSearchMovie } from '@dataconnect/generated/react';
+import { useListCatalogEntries, useSearchCatalogByTitle, useSearchCatalog, useListWorks } from '@dataconnect/generated/react';
 // The types of these hooks are available in react/index.d.ts
 
-const { data, isPending, isSuccess, isError, error } = useCreateMovie(createMovieVars);
+const { data, isPending, isSuccess, isError, error } = useListCatalogEntries(listCatalogEntriesVars);
 
-const { data, isPending, isSuccess, isError, error } = useUpsertUser(upsertUserVars);
+const { data, isPending, isSuccess, isError, error } = useSearchCatalogByTitle(searchCatalogByTitleVars);
 
-const { data, isPending, isSuccess, isError, error } = useAddReview(addReviewVars);
+const { data, isPending, isSuccess, isError, error } = useSearchCatalog(searchCatalogVars);
 
-const { data, isPending, isSuccess, isError, error } = useDeleteReview(deleteReviewVars);
-
-const { data, isPending, isSuccess, isError, error } = useListMovies();
-
-const { data, isPending, isSuccess, isError, error } = useListUsers();
-
-const { data, isPending, isSuccess, isError, error } = useListUserReviews();
-
-const { data, isPending, isSuccess, isError, error } = useGetMovieById(getMovieByIdVars);
-
-const { data, isPending, isSuccess, isError, error } = useSearchMovie(searchMovieVars);
+const { data, isPending, isSuccess, isError, error } = useListWorks(listWorksVars);
 
 ```
 
@@ -70,35 +60,20 @@ If a user is not using a supported framework, they can use the generated SDK dir
 Here's an example of how to use it with the first 5 operations:
 
 ```js
-import { createMovie, upsertUser, addReview, deleteReview, listMovies, listUsers, listUserReviews, getMovieById, searchMovie } from '@dataconnect/generated';
+import { listCatalogEntries, searchCatalogByTitle, searchCatalog, listWorks } from '@dataconnect/generated';
 
 
-// Operation CreateMovie:  For variables, look at type CreateMovieVars in ../index.d.ts
-const { data } = await CreateMovie(dataConnect, createMovieVars);
+// Operation ListCatalogEntries:  For variables, look at type ListCatalogEntriesVars in ../index.d.ts
+const { data } = await ListCatalogEntries(dataConnect, listCatalogEntriesVars);
 
-// Operation UpsertUser:  For variables, look at type UpsertUserVars in ../index.d.ts
-const { data } = await UpsertUser(dataConnect, upsertUserVars);
+// Operation SearchCatalogByTitle:  For variables, look at type SearchCatalogByTitleVars in ../index.d.ts
+const { data } = await SearchCatalogByTitle(dataConnect, searchCatalogByTitleVars);
 
-// Operation AddReview:  For variables, look at type AddReviewVars in ../index.d.ts
-const { data } = await AddReview(dataConnect, addReviewVars);
+// Operation SearchCatalog:  For variables, look at type SearchCatalogVars in ../index.d.ts
+const { data } = await SearchCatalog(dataConnect, searchCatalogVars);
 
-// Operation DeleteReview:  For variables, look at type DeleteReviewVars in ../index.d.ts
-const { data } = await DeleteReview(dataConnect, deleteReviewVars);
-
-// Operation ListMovies: 
-const { data } = await ListMovies(dataConnect);
-
-// Operation ListUsers: 
-const { data } = await ListUsers(dataConnect);
-
-// Operation ListUserReviews: 
-const { data } = await ListUserReviews(dataConnect);
-
-// Operation GetMovieById:  For variables, look at type GetMovieByIdVars in ../index.d.ts
-const { data } = await GetMovieById(dataConnect, getMovieByIdVars);
-
-// Operation SearchMovie:  For variables, look at type SearchMovieVars in ../index.d.ts
-const { data } = await SearchMovie(dataConnect, searchMovieVars);
+// Operation ListWorks:  For variables, look at type ListWorksVars in ../index.d.ts
+const { data } = await ListWorks(dataConnect, listWorksVars);
 
 
 ```

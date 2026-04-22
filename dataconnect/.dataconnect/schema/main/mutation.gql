@@ -1,31 +1,103 @@
 extend type Mutation {
   """
-  ✨ Insert a single `Movie` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  ✨ Insert a single `AuditLog` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
   """
-  movie_insert(
+  auditLog_insert(
     """
     Data object to insert into the table.
     """
-    data: Movie_Data!
-  ): Movie_KeyOutput! @fdc_generated(from: "Movie", purpose: INSERT_SINGLE)
+    data: AuditLog_Data!
+  ): AuditLog_KeyOutput! @fdc_generated(from: "AuditLog", purpose: INSERT_SINGLE)
   """
-  ✨ Insert a single `MovieMetadata` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  ✨ Insert a single `BlockRecord` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
   """
-  movieMetadata_insert(
+  blockRecord_insert(
     """
     Data object to insert into the table.
     """
-    data: MovieMetadata_Data!
-  ): MovieMetadata_KeyOutput! @fdc_generated(from: "MovieMetadata", purpose: INSERT_SINGLE)
+    data: BlockRecord_Data!
+  ): BlockRecord_KeyOutput! @fdc_generated(from: "BlockRecord", purpose: INSERT_SINGLE)
   """
-  ✨ Insert a single `Review` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  ✨ Insert a single `Book` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
   """
-  review_insert(
+  book_insert(
     """
     Data object to insert into the table.
     """
-    data: Review_Data!
-  ): Review_KeyOutput! @fdc_generated(from: "Review", purpose: INSERT_SINGLE)
+    data: Book_Data!
+  ): Book_KeyOutput! @fdc_generated(from: "Book", purpose: INSERT_SINGLE)
+  """
+  ✨ Insert a single `BookCatalog` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  bookCatalog_insert(
+    """
+    Data object to insert into the table.
+    """
+    data: BookCatalog_Data!
+  ): BookCatalog_KeyOutput! @fdc_generated(from: "BookCatalog", purpose: INSERT_SINGLE)
+  """
+  ✨ Insert a single `BookRequest` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  bookRequest_insert(
+    """
+    Data object to insert into the table.
+    """
+    data: BookRequest_Data!
+  ): BookRequest_KeyOutput! @fdc_generated(from: "BookRequest", purpose: INSERT_SINGLE)
+  """
+  ✨ Insert a single `Conversation` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  conversation_insert(
+    """
+    Data object to insert into the table.
+    """
+    data: Conversation_Data!
+  ): Conversation_KeyOutput! @fdc_generated(from: "Conversation", purpose: INSERT_SINGLE)
+  """
+  ✨ Insert a single `Message` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  message_insert(
+    """
+    Data object to insert into the table.
+    """
+    data: Message_Data!
+  ): Message_KeyOutput! @fdc_generated(from: "Message", purpose: INSERT_SINGLE)
+  """
+  ✨ Insert a single `Offer` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  offer_insert(
+    """
+    Data object to insert into the table.
+    """
+    data: Offer_Data!
+  ): Offer_KeyOutput! @fdc_generated(from: "Offer", purpose: INSERT_SINGLE)
+  """
+  ✨ Insert a single `PlatformSetting` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  platformSetting_insert(
+    """
+    Data object to insert into the table.
+    """
+    data: PlatformSetting_Data!
+  ): PlatformSetting_KeyOutput! @fdc_generated(from: "PlatformSetting", purpose: INSERT_SINGLE)
+  """
+  ✨ Insert a single `Report` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  report_insert(
+    """
+    Data object to insert into the table.
+    """
+    data: Report_Data!
+  ): Report_KeyOutput! @fdc_generated(from: "Report", purpose: INSERT_SINGLE)
+  """
+  ✨ Insert a single `Transaction` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  transaction_insert(
+    """
+    Data object to insert into the table.
+    """
+    data: Transaction_Data!
+  ): Transaction_KeyOutput! @fdc_generated(from: "Transaction", purpose: INSERT_SINGLE)
   """
   ✨ Insert a single `User` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
   """
@@ -36,32 +108,113 @@ extend type Mutation {
     data: User_Data!
   ): User_KeyOutput! @fdc_generated(from: "User", purpose: INSERT_SINGLE)
   """
-  ✨ Insert `Movie` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  ✨ Insert a single `Work` into the table and return its key. Columns not specified in `data` will receive defaults (e.g. `null`).
   """
-  movie_insertMany(
+  work_insert(
+    """
+    Data object to insert into the table.
+    """
+    data: Work_Data!
+  ): Work_KeyOutput! @fdc_generated(from: "Work", purpose: INSERT_SINGLE)
+  """
+  ✨ Insert `AuditLog` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  auditLog_insertMany(
     """
     List of data objects to insert into the table.
     """
-    data: [Movie_Data!]!
-  ): [Movie_KeyOutput!]! @fdc_generated(from: "Movie", purpose: INSERT_MULTIPLE)
+    data: [AuditLog_Data!]!
+  ): [AuditLog_KeyOutput!]! @fdc_generated(from: "AuditLog", purpose: INSERT_MULTIPLE)
   """
-  ✨ Insert `MovieMetadata` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  ✨ Insert `BlockRecord` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
   """
-  movieMetadata_insertMany(
+  blockRecord_insertMany(
     """
     List of data objects to insert into the table.
     """
-    data: [MovieMetadata_Data!]!
-  ): [MovieMetadata_KeyOutput!]! @fdc_generated(from: "MovieMetadata", purpose: INSERT_MULTIPLE)
+    data: [BlockRecord_Data!]!
+  ): [BlockRecord_KeyOutput!]! @fdc_generated(from: "BlockRecord", purpose: INSERT_MULTIPLE)
   """
-  ✨ Insert `Review` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  ✨ Insert `Book` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
   """
-  review_insertMany(
+  book_insertMany(
     """
     List of data objects to insert into the table.
     """
-    data: [Review_Data!]!
-  ): [Review_KeyOutput!]! @fdc_generated(from: "Review", purpose: INSERT_MULTIPLE)
+    data: [Book_Data!]!
+  ): [Book_KeyOutput!]! @fdc_generated(from: "Book", purpose: INSERT_MULTIPLE)
+  """
+  ✨ Insert `BookCatalog` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  bookCatalog_insertMany(
+    """
+    List of data objects to insert into the table.
+    """
+    data: [BookCatalog_Data!]!
+  ): [BookCatalog_KeyOutput!]! @fdc_generated(from: "BookCatalog", purpose: INSERT_MULTIPLE)
+  """
+  ✨ Insert `BookRequest` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  bookRequest_insertMany(
+    """
+    List of data objects to insert into the table.
+    """
+    data: [BookRequest_Data!]!
+  ): [BookRequest_KeyOutput!]! @fdc_generated(from: "BookRequest", purpose: INSERT_MULTIPLE)
+  """
+  ✨ Insert `Conversation` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  conversation_insertMany(
+    """
+    List of data objects to insert into the table.
+    """
+    data: [Conversation_Data!]!
+  ): [Conversation_KeyOutput!]! @fdc_generated(from: "Conversation", purpose: INSERT_MULTIPLE)
+  """
+  ✨ Insert `Message` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  message_insertMany(
+    """
+    List of data objects to insert into the table.
+    """
+    data: [Message_Data!]!
+  ): [Message_KeyOutput!]! @fdc_generated(from: "Message", purpose: INSERT_MULTIPLE)
+  """
+  ✨ Insert `Offer` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  offer_insertMany(
+    """
+    List of data objects to insert into the table.
+    """
+    data: [Offer_Data!]!
+  ): [Offer_KeyOutput!]! @fdc_generated(from: "Offer", purpose: INSERT_MULTIPLE)
+  """
+  ✨ Insert `PlatformSetting` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  platformSetting_insertMany(
+    """
+    List of data objects to insert into the table.
+    """
+    data: [PlatformSetting_Data!]!
+  ): [PlatformSetting_KeyOutput!]! @fdc_generated(from: "PlatformSetting", purpose: INSERT_MULTIPLE)
+  """
+  ✨ Insert `Report` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  report_insertMany(
+    """
+    List of data objects to insert into the table.
+    """
+    data: [Report_Data!]!
+  ): [Report_KeyOutput!]! @fdc_generated(from: "Report", purpose: INSERT_MULTIPLE)
+  """
+  ✨ Insert `Transaction` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
+  """
+  transaction_insertMany(
+    """
+    List of data objects to insert into the table.
+    """
+    data: [Transaction_Data!]!
+  ): [Transaction_KeyOutput!]! @fdc_generated(from: "Transaction", purpose: INSERT_MULTIPLE)
   """
   ✨ Insert `User` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
   """
@@ -72,32 +225,113 @@ extend type Mutation {
     data: [User_Data!]!
   ): [User_KeyOutput!]! @fdc_generated(from: "User", purpose: INSERT_MULTIPLE)
   """
-  ✨ Insert or update a single `Movie` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Movie`.
+  ✨ Insert `Work` objects into the table and return their keys. Columns not specified in `data` will receive defaults (e.g. `null`).
   """
-  movie_upsert(
+  work_insertMany(
+    """
+    List of data objects to insert into the table.
+    """
+    data: [Work_Data!]!
+  ): [Work_KeyOutput!]! @fdc_generated(from: "Work", purpose: INSERT_MULTIPLE)
+  """
+  ✨ Insert or update a single `AuditLog` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `AuditLog`.
+  """
+  auditLog_upsert(
     """
     Data object to insert or update if it already exists.
     """
-    data: Movie_Data!
-  ): Movie_KeyOutput! @fdc_generated(from: "Movie", purpose: UPSERT_SINGLE)
+    data: AuditLog_Data!
+  ): AuditLog_KeyOutput! @fdc_generated(from: "AuditLog", purpose: UPSERT_SINGLE)
   """
-  ✨ Insert or update a single `MovieMetadata` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `MovieMetadata`.
+  ✨ Insert or update a single `BlockRecord` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `BlockRecord`.
   """
-  movieMetadata_upsert(
+  blockRecord_upsert(
     """
     Data object to insert or update if it already exists.
     """
-    data: MovieMetadata_Data!
-  ): MovieMetadata_KeyOutput! @fdc_generated(from: "MovieMetadata", purpose: UPSERT_SINGLE)
+    data: BlockRecord_Data!
+  ): BlockRecord_KeyOutput! @fdc_generated(from: "BlockRecord", purpose: UPSERT_SINGLE)
   """
-  ✨ Insert or update a single `Review` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Review`.
+  ✨ Insert or update a single `Book` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Book`.
   """
-  review_upsert(
+  book_upsert(
     """
     Data object to insert or update if it already exists.
     """
-    data: Review_Data!
-  ): Review_KeyOutput! @fdc_generated(from: "Review", purpose: UPSERT_SINGLE)
+    data: Book_Data!
+  ): Book_KeyOutput! @fdc_generated(from: "Book", purpose: UPSERT_SINGLE)
+  """
+  ✨ Insert or update a single `BookCatalog` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `BookCatalog`.
+  """
+  bookCatalog_upsert(
+    """
+    Data object to insert or update if it already exists.
+    """
+    data: BookCatalog_Data!
+  ): BookCatalog_KeyOutput! @fdc_generated(from: "BookCatalog", purpose: UPSERT_SINGLE)
+  """
+  ✨ Insert or update a single `BookRequest` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `BookRequest`.
+  """
+  bookRequest_upsert(
+    """
+    Data object to insert or update if it already exists.
+    """
+    data: BookRequest_Data!
+  ): BookRequest_KeyOutput! @fdc_generated(from: "BookRequest", purpose: UPSERT_SINGLE)
+  """
+  ✨ Insert or update a single `Conversation` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Conversation`.
+  """
+  conversation_upsert(
+    """
+    Data object to insert or update if it already exists.
+    """
+    data: Conversation_Data!
+  ): Conversation_KeyOutput! @fdc_generated(from: "Conversation", purpose: UPSERT_SINGLE)
+  """
+  ✨ Insert or update a single `Message` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Message`.
+  """
+  message_upsert(
+    """
+    Data object to insert or update if it already exists.
+    """
+    data: Message_Data!
+  ): Message_KeyOutput! @fdc_generated(from: "Message", purpose: UPSERT_SINGLE)
+  """
+  ✨ Insert or update a single `Offer` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Offer`.
+  """
+  offer_upsert(
+    """
+    Data object to insert or update if it already exists.
+    """
+    data: Offer_Data!
+  ): Offer_KeyOutput! @fdc_generated(from: "Offer", purpose: UPSERT_SINGLE)
+  """
+  ✨ Insert or update a single `PlatformSetting` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `PlatformSetting`.
+  """
+  platformSetting_upsert(
+    """
+    Data object to insert or update if it already exists.
+    """
+    data: PlatformSetting_Data!
+  ): PlatformSetting_KeyOutput! @fdc_generated(from: "PlatformSetting", purpose: UPSERT_SINGLE)
+  """
+  ✨ Insert or update a single `Report` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Report`.
+  """
+  report_upsert(
+    """
+    Data object to insert or update if it already exists.
+    """
+    data: Report_Data!
+  ): Report_KeyOutput! @fdc_generated(from: "Report", purpose: UPSERT_SINGLE)
+  """
+  ✨ Insert or update a single `Transaction` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Transaction`.
+  """
+  transaction_upsert(
+    """
+    Data object to insert or update if it already exists.
+    """
+    data: Transaction_Data!
+  ): Transaction_KeyOutput! @fdc_generated(from: "Transaction", purpose: UPSERT_SINGLE)
   """
   ✨ Insert or update a single `User` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `User`.
   """
@@ -108,32 +342,113 @@ extend type Mutation {
     data: User_Data!
   ): User_KeyOutput! @fdc_generated(from: "User", purpose: UPSERT_SINGLE)
   """
-  ✨ Insert or update `Movie` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Movie`.
+  ✨ Insert or update a single `Work` into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Work`.
   """
-  movie_upsertMany(
+  work_upsert(
+    """
+    Data object to insert or update if it already exists.
+    """
+    data: Work_Data!
+  ): Work_KeyOutput! @fdc_generated(from: "Work", purpose: UPSERT_SINGLE)
+  """
+  ✨ Insert or update `AuditLog` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `AuditLog`.
+  """
+  auditLog_upsertMany(
     """
     List of data objects to insert or update if it already exists.
     """
-    data: [Movie_Data!]!
-  ): [Movie_KeyOutput!]! @fdc_generated(from: "Movie", purpose: UPSERT_MULTIPLE)
+    data: [AuditLog_Data!]!
+  ): [AuditLog_KeyOutput!]! @fdc_generated(from: "AuditLog", purpose: UPSERT_MULTIPLE)
   """
-  ✨ Insert or update `MovieMetadata` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `MovieMetadata`.
+  ✨ Insert or update `BlockRecord` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `BlockRecord`.
   """
-  movieMetadata_upsertMany(
+  blockRecord_upsertMany(
     """
     List of data objects to insert or update if it already exists.
     """
-    data: [MovieMetadata_Data!]!
-  ): [MovieMetadata_KeyOutput!]! @fdc_generated(from: "MovieMetadata", purpose: UPSERT_MULTIPLE)
+    data: [BlockRecord_Data!]!
+  ): [BlockRecord_KeyOutput!]! @fdc_generated(from: "BlockRecord", purpose: UPSERT_MULTIPLE)
   """
-  ✨ Insert or update `Review` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Review`.
+  ✨ Insert or update `Book` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Book`.
   """
-  review_upsertMany(
+  book_upsertMany(
     """
     List of data objects to insert or update if it already exists.
     """
-    data: [Review_Data!]!
-  ): [Review_KeyOutput!]! @fdc_generated(from: "Review", purpose: UPSERT_MULTIPLE)
+    data: [Book_Data!]!
+  ): [Book_KeyOutput!]! @fdc_generated(from: "Book", purpose: UPSERT_MULTIPLE)
+  """
+  ✨ Insert or update `BookCatalog` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `BookCatalog`.
+  """
+  bookCatalog_upsertMany(
+    """
+    List of data objects to insert or update if it already exists.
+    """
+    data: [BookCatalog_Data!]!
+  ): [BookCatalog_KeyOutput!]! @fdc_generated(from: "BookCatalog", purpose: UPSERT_MULTIPLE)
+  """
+  ✨ Insert or update `BookRequest` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `BookRequest`.
+  """
+  bookRequest_upsertMany(
+    """
+    List of data objects to insert or update if it already exists.
+    """
+    data: [BookRequest_Data!]!
+  ): [BookRequest_KeyOutput!]! @fdc_generated(from: "BookRequest", purpose: UPSERT_MULTIPLE)
+  """
+  ✨ Insert or update `Conversation` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Conversation`.
+  """
+  conversation_upsertMany(
+    """
+    List of data objects to insert or update if it already exists.
+    """
+    data: [Conversation_Data!]!
+  ): [Conversation_KeyOutput!]! @fdc_generated(from: "Conversation", purpose: UPSERT_MULTIPLE)
+  """
+  ✨ Insert or update `Message` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Message`.
+  """
+  message_upsertMany(
+    """
+    List of data objects to insert or update if it already exists.
+    """
+    data: [Message_Data!]!
+  ): [Message_KeyOutput!]! @fdc_generated(from: "Message", purpose: UPSERT_MULTIPLE)
+  """
+  ✨ Insert or update `Offer` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Offer`.
+  """
+  offer_upsertMany(
+    """
+    List of data objects to insert or update if it already exists.
+    """
+    data: [Offer_Data!]!
+  ): [Offer_KeyOutput!]! @fdc_generated(from: "Offer", purpose: UPSERT_MULTIPLE)
+  """
+  ✨ Insert or update `PlatformSetting` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `PlatformSetting`.
+  """
+  platformSetting_upsertMany(
+    """
+    List of data objects to insert or update if it already exists.
+    """
+    data: [PlatformSetting_Data!]!
+  ): [PlatformSetting_KeyOutput!]! @fdc_generated(from: "PlatformSetting", purpose: UPSERT_MULTIPLE)
+  """
+  ✨ Insert or update `Report` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Report`.
+  """
+  report_upsertMany(
+    """
+    List of data objects to insert or update if it already exists.
+    """
+    data: [Report_Data!]!
+  ): [Report_KeyOutput!]! @fdc_generated(from: "Report", purpose: UPSERT_MULTIPLE)
+  """
+  ✨ Insert or update `Transaction` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Transaction`.
+  """
+  transaction_upsertMany(
+    """
+    List of data objects to insert or update if it already exists.
+    """
+    data: [Transaction_Data!]!
+  ): [Transaction_KeyOutput!]! @fdc_generated(from: "Transaction", purpose: UPSERT_MULTIPLE)
   """
   ✨ Insert or update `User` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `User`.
   """
@@ -144,72 +459,323 @@ extend type Mutation {
     data: [User_Data!]!
   ): [User_KeyOutput!]! @fdc_generated(from: "User", purpose: UPSERT_MULTIPLE)
   """
-  ✨ Update a single `Movie` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `Movie` or `null` if not found.
+  ✨ Insert or update `Work` objects into the table, based on the primary key. Returns the key of the newly inserted or existing updated `Work`.
   """
-  movie_update(
+  work_upsertMany(
+    """
+    List of data objects to insert or update if it already exists.
+    """
+    data: [Work_Data!]!
+  ): [Work_KeyOutput!]! @fdc_generated(from: "Work", purpose: UPSERT_MULTIPLE)
+  """
+  ✨ Update a single `AuditLog` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `AuditLog` or `null` if not found.
+  """
+  auditLog_update(
     """
     The unique ID of the object.
     """
-    id: UUID
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
 
     """
     The key used to identify the object.
     """
-    key: Movie_Key
+    key: AuditLog_Key
 
     """
     Fetch the first row based on the filters and ordering.
     """
-    first: Movie_FirstRow
+    first: AuditLog_FirstRow
 
     """
     Data object containing fields to be updated.
     """
-    data: Movie_Data!
-  ): Movie_KeyOutput @fdc_generated(from: "Movie", purpose: UPDATE_SINGLE)
+    data: AuditLog_Data!
+  ): AuditLog_KeyOutput @fdc_generated(from: "AuditLog", purpose: UPDATE_SINGLE)
   """
-  ✨ Update a single `MovieMetadata` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `MovieMetadata` or `null` if not found.
+  ✨ Update a single `BlockRecord` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `BlockRecord` or `null` if not found.
   """
-  movieMetadata_update(
+  blockRecord_update(
     """
     The unique ID of the object.
     """
-    id: UUID
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
 
     """
     The key used to identify the object.
     """
-    key: MovieMetadata_Key
+    key: BlockRecord_Key
 
     """
     Fetch the first row based on the filters and ordering.
     """
-    first: MovieMetadata_FirstRow
+    first: BlockRecord_FirstRow
 
     """
     Data object containing fields to be updated.
     """
-    data: MovieMetadata_Data!
-  ): MovieMetadata_KeyOutput @fdc_generated(from: "MovieMetadata", purpose: UPDATE_SINGLE)
+    data: BlockRecord_Data!
+  ): BlockRecord_KeyOutput @fdc_generated(from: "BlockRecord", purpose: UPDATE_SINGLE)
   """
-  ✨ Update a single `Review` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `Review` or `null` if not found.
+  ✨ Update a single `Book` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `Book` or `null` if not found.
   """
-  review_update(
+  book_update(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
     """
     The key used to identify the object.
     """
-    key: Review_Key
+    key: Book_Key
 
     """
     Fetch the first row based on the filters and ordering.
     """
-    first: Review_FirstRow
+    first: Book_FirstRow
 
     """
     Data object containing fields to be updated.
     """
-    data: Review_Data!
-  ): Review_KeyOutput @fdc_generated(from: "Review", purpose: UPDATE_SINGLE)
+    data: Book_Data!
+  ): Book_KeyOutput @fdc_generated(from: "Book", purpose: UPDATE_SINGLE)
+  """
+  ✨ Update a single `BookCatalog` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `BookCatalog` or `null` if not found.
+  """
+  bookCatalog_update(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: BookCatalog_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: BookCatalog_FirstRow
+
+    """
+    Data object containing fields to be updated.
+    """
+    data: BookCatalog_Data!
+  ): BookCatalog_KeyOutput @fdc_generated(from: "BookCatalog", purpose: UPDATE_SINGLE)
+  """
+  ✨ Update a single `BookRequest` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `BookRequest` or `null` if not found.
+  """
+  bookRequest_update(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: BookRequest_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: BookRequest_FirstRow
+
+    """
+    Data object containing fields to be updated.
+    """
+    data: BookRequest_Data!
+  ): BookRequest_KeyOutput @fdc_generated(from: "BookRequest", purpose: UPDATE_SINGLE)
+  """
+  ✨ Update a single `Conversation` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `Conversation` or `null` if not found.
+  """
+  conversation_update(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Conversation_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Conversation_FirstRow
+
+    """
+    Data object containing fields to be updated.
+    """
+    data: Conversation_Data!
+  ): Conversation_KeyOutput @fdc_generated(from: "Conversation", purpose: UPDATE_SINGLE)
+  """
+  ✨ Update a single `Message` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `Message` or `null` if not found.
+  """
+  message_update(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Message_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Message_FirstRow
+
+    """
+    Data object containing fields to be updated.
+    """
+    data: Message_Data!
+  ): Message_KeyOutput @fdc_generated(from: "Message", purpose: UPDATE_SINGLE)
+  """
+  ✨ Update a single `Offer` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `Offer` or `null` if not found.
+  """
+  offer_update(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Offer_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Offer_FirstRow
+
+    """
+    Data object containing fields to be updated.
+    """
+    data: Offer_Data!
+  ): Offer_KeyOutput @fdc_generated(from: "Offer", purpose: UPDATE_SINGLE)
+  """
+  ✨ Update a single `PlatformSetting` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `PlatformSetting` or `null` if not found.
+  """
+  platformSetting_update(
+    """
+    The key used to identify the object.
+    """
+    key: PlatformSetting_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: PlatformSetting_FirstRow
+
+    """
+    Data object containing fields to be updated.
+    """
+    data: PlatformSetting_Data!
+  ): PlatformSetting_KeyOutput @fdc_generated(from: "PlatformSetting", purpose: UPDATE_SINGLE)
+  """
+  ✨ Update a single `Report` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `Report` or `null` if not found.
+  """
+  report_update(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Report_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Report_FirstRow
+
+    """
+    Data object containing fields to be updated.
+    """
+    data: Report_Data!
+  ): Report_KeyOutput @fdc_generated(from: "Report", purpose: UPDATE_SINGLE)
+  """
+  ✨ Update a single `Transaction` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `Transaction` or `null` if not found.
+  """
+  transaction_update(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Transaction_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Transaction_FirstRow
+
+    """
+    Data object containing fields to be updated.
+    """
+    data: Transaction_Data!
+  ): Transaction_KeyOutput @fdc_generated(from: "Transaction", purpose: UPDATE_SINGLE)
   """
   ✨ Update a single `User` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `User` or `null` if not found.
   """
@@ -217,12 +783,12 @@ extend type Mutation {
     """
     The unique ID of the object.
     """
-    id: String
+    id: Int
 
     """
     ✨ `_expr` server value variant of `id` (The unique ID of the object.)
     """
-    id_expr: String_Expr
+    id_expr: Int_Expr
 
     """
     The key used to identify the object.
@@ -240,13 +806,42 @@ extend type Mutation {
     data: User_Data!
   ): User_KeyOutput @fdc_generated(from: "User", purpose: UPDATE_SINGLE)
   """
-  ✨ Update `Movie` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  ✨ Update a single `Work` based on `id`, `key` or `first`, setting columns specified in `data`. Returns the key of the updated `Work` or `null` if not found.
   """
-  movie_updateMany(
+  work_update(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Work_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Work_FirstRow
+
+    """
+    Data object containing fields to be updated.
+    """
+    data: Work_Data!
+  ): Work_KeyOutput @fdc_generated(from: "Work", purpose: UPDATE_SINGLE)
+  """
+  ✨ Update `AuditLog` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  """
+  auditLog_updateMany(
     """
     Filter condition to specify which rows to update.
     """
-    where: Movie_Filter
+    where: AuditLog_Filter
 
     """
     Set to true to update all rows.
@@ -256,16 +851,16 @@ extend type Mutation {
     """
     Data object containing fields to update.
     """
-    data: Movie_Data!
-  ): Int! @fdc_generated(from: "Movie", purpose: UPDATE_MULTIPLE)
+    data: AuditLog_Data!
+  ): Int! @fdc_generated(from: "AuditLog", purpose: UPDATE_MULTIPLE)
   """
-  ✨ Update `MovieMetadata` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  ✨ Update `BlockRecord` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
   """
-  movieMetadata_updateMany(
+  blockRecord_updateMany(
     """
     Filter condition to specify which rows to update.
     """
-    where: MovieMetadata_Filter
+    where: BlockRecord_Filter
 
     """
     Set to true to update all rows.
@@ -275,16 +870,16 @@ extend type Mutation {
     """
     Data object containing fields to update.
     """
-    data: MovieMetadata_Data!
-  ): Int! @fdc_generated(from: "MovieMetadata", purpose: UPDATE_MULTIPLE)
+    data: BlockRecord_Data!
+  ): Int! @fdc_generated(from: "BlockRecord", purpose: UPDATE_MULTIPLE)
   """
-  ✨ Update `Review` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  ✨ Update `Book` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
   """
-  review_updateMany(
+  book_updateMany(
     """
     Filter condition to specify which rows to update.
     """
-    where: Review_Filter
+    where: Book_Filter
 
     """
     Set to true to update all rows.
@@ -294,8 +889,160 @@ extend type Mutation {
     """
     Data object containing fields to update.
     """
-    data: Review_Data!
-  ): Int! @fdc_generated(from: "Review", purpose: UPDATE_MULTIPLE)
+    data: Book_Data!
+  ): Int! @fdc_generated(from: "Book", purpose: UPDATE_MULTIPLE)
+  """
+  ✨ Update `BookCatalog` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  """
+  bookCatalog_updateMany(
+    """
+    Filter condition to specify which rows to update.
+    """
+    where: BookCatalog_Filter
+
+    """
+    Set to true to update all rows.
+    """
+    all: Boolean = false
+
+    """
+    Data object containing fields to update.
+    """
+    data: BookCatalog_Data!
+  ): Int! @fdc_generated(from: "BookCatalog", purpose: UPDATE_MULTIPLE)
+  """
+  ✨ Update `BookRequest` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  """
+  bookRequest_updateMany(
+    """
+    Filter condition to specify which rows to update.
+    """
+    where: BookRequest_Filter
+
+    """
+    Set to true to update all rows.
+    """
+    all: Boolean = false
+
+    """
+    Data object containing fields to update.
+    """
+    data: BookRequest_Data!
+  ): Int! @fdc_generated(from: "BookRequest", purpose: UPDATE_MULTIPLE)
+  """
+  ✨ Update `Conversation` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  """
+  conversation_updateMany(
+    """
+    Filter condition to specify which rows to update.
+    """
+    where: Conversation_Filter
+
+    """
+    Set to true to update all rows.
+    """
+    all: Boolean = false
+
+    """
+    Data object containing fields to update.
+    """
+    data: Conversation_Data!
+  ): Int! @fdc_generated(from: "Conversation", purpose: UPDATE_MULTIPLE)
+  """
+  ✨ Update `Message` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  """
+  message_updateMany(
+    """
+    Filter condition to specify which rows to update.
+    """
+    where: Message_Filter
+
+    """
+    Set to true to update all rows.
+    """
+    all: Boolean = false
+
+    """
+    Data object containing fields to update.
+    """
+    data: Message_Data!
+  ): Int! @fdc_generated(from: "Message", purpose: UPDATE_MULTIPLE)
+  """
+  ✨ Update `Offer` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  """
+  offer_updateMany(
+    """
+    Filter condition to specify which rows to update.
+    """
+    where: Offer_Filter
+
+    """
+    Set to true to update all rows.
+    """
+    all: Boolean = false
+
+    """
+    Data object containing fields to update.
+    """
+    data: Offer_Data!
+  ): Int! @fdc_generated(from: "Offer", purpose: UPDATE_MULTIPLE)
+  """
+  ✨ Update `PlatformSetting` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  """
+  platformSetting_updateMany(
+    """
+    Filter condition to specify which rows to update.
+    """
+    where: PlatformSetting_Filter
+
+    """
+    Set to true to update all rows.
+    """
+    all: Boolean = false
+
+    """
+    Data object containing fields to update.
+    """
+    data: PlatformSetting_Data!
+  ): Int! @fdc_generated(from: "PlatformSetting", purpose: UPDATE_MULTIPLE)
+  """
+  ✨ Update `Report` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  """
+  report_updateMany(
+    """
+    Filter condition to specify which rows to update.
+    """
+    where: Report_Filter
+
+    """
+    Set to true to update all rows.
+    """
+    all: Boolean = false
+
+    """
+    Data object containing fields to update.
+    """
+    data: Report_Data!
+  ): Int! @fdc_generated(from: "Report", purpose: UPDATE_MULTIPLE)
+  """
+  ✨ Update `Transaction` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
+  """
+  transaction_updateMany(
+    """
+    Filter condition to specify which rows to update.
+    """
+    where: Transaction_Filter
+
+    """
+    Set to true to update all rows.
+    """
+    all: Boolean = false
+
+    """
+    Data object containing fields to update.
+    """
+    data: Transaction_Data!
+  ): Int! @fdc_generated(from: "Transaction", purpose: UPDATE_MULTIPLE)
   """
   ✨ Update `User` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
   """
@@ -316,57 +1063,278 @@ extend type Mutation {
     data: User_Data!
   ): Int! @fdc_generated(from: "User", purpose: UPDATE_MULTIPLE)
   """
-  ✨ Delete a single `Movie` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  ✨ Update `Work` objects matching `where` conditions (or `all`, if true) according to `data`. Returns the number of rows updated.
   """
-  movie_delete(
+  work_updateMany(
+    """
+    Filter condition to specify which rows to update.
+    """
+    where: Work_Filter
+
+    """
+    Set to true to update all rows.
+    """
+    all: Boolean = false
+
+    """
+    Data object containing fields to update.
+    """
+    data: Work_Data!
+  ): Int! @fdc_generated(from: "Work", purpose: UPDATE_MULTIPLE)
+  """
+  ✨ Delete a single `AuditLog` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  """
+  auditLog_delete(
     """
     The unique ID of the object.
     """
-    id: UUID
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
 
     """
     The key used to identify the object.
     """
-    key: Movie_Key
+    key: AuditLog_Key
 
     """
     Fetch the first row based on the filters and ordering.
     """
-    first: Movie_FirstRow
-  ): Movie_KeyOutput @fdc_generated(from: "Movie", purpose: DELETE_SINGLE)
+    first: AuditLog_FirstRow
+  ): AuditLog_KeyOutput @fdc_generated(from: "AuditLog", purpose: DELETE_SINGLE)
   """
-  ✨ Delete a single `MovieMetadata` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  ✨ Delete a single `BlockRecord` based on `id`, `key` or `first` and return its key (or `null` if not found).
   """
-  movieMetadata_delete(
+  blockRecord_delete(
     """
     The unique ID of the object.
     """
-    id: UUID
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
 
     """
     The key used to identify the object.
     """
-    key: MovieMetadata_Key
+    key: BlockRecord_Key
 
     """
     Fetch the first row based on the filters and ordering.
     """
-    first: MovieMetadata_FirstRow
-  ): MovieMetadata_KeyOutput @fdc_generated(from: "MovieMetadata", purpose: DELETE_SINGLE)
+    first: BlockRecord_FirstRow
+  ): BlockRecord_KeyOutput @fdc_generated(from: "BlockRecord", purpose: DELETE_SINGLE)
   """
-  ✨ Delete a single `Review` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  ✨ Delete a single `Book` based on `id`, `key` or `first` and return its key (or `null` if not found).
   """
-  review_delete(
+  book_delete(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
     """
     The key used to identify the object.
     """
-    key: Review_Key
+    key: Book_Key
 
     """
     Fetch the first row based on the filters and ordering.
     """
-    first: Review_FirstRow
-  ): Review_KeyOutput @fdc_generated(from: "Review", purpose: DELETE_SINGLE)
+    first: Book_FirstRow
+  ): Book_KeyOutput @fdc_generated(from: "Book", purpose: DELETE_SINGLE)
+  """
+  ✨ Delete a single `BookCatalog` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  """
+  bookCatalog_delete(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: BookCatalog_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: BookCatalog_FirstRow
+  ): BookCatalog_KeyOutput @fdc_generated(from: "BookCatalog", purpose: DELETE_SINGLE)
+  """
+  ✨ Delete a single `BookRequest` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  """
+  bookRequest_delete(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: BookRequest_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: BookRequest_FirstRow
+  ): BookRequest_KeyOutput @fdc_generated(from: "BookRequest", purpose: DELETE_SINGLE)
+  """
+  ✨ Delete a single `Conversation` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  """
+  conversation_delete(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Conversation_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Conversation_FirstRow
+  ): Conversation_KeyOutput @fdc_generated(from: "Conversation", purpose: DELETE_SINGLE)
+  """
+  ✨ Delete a single `Message` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  """
+  message_delete(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Message_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Message_FirstRow
+  ): Message_KeyOutput @fdc_generated(from: "Message", purpose: DELETE_SINGLE)
+  """
+  ✨ Delete a single `Offer` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  """
+  offer_delete(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Offer_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Offer_FirstRow
+  ): Offer_KeyOutput @fdc_generated(from: "Offer", purpose: DELETE_SINGLE)
+  """
+  ✨ Delete a single `PlatformSetting` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  """
+  platformSetting_delete(
+    """
+    The key used to identify the object.
+    """
+    key: PlatformSetting_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: PlatformSetting_FirstRow
+  ): PlatformSetting_KeyOutput @fdc_generated(from: "PlatformSetting", purpose: DELETE_SINGLE)
+  """
+  ✨ Delete a single `Report` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  """
+  report_delete(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Report_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Report_FirstRow
+  ): Report_KeyOutput @fdc_generated(from: "Report", purpose: DELETE_SINGLE)
+  """
+  ✨ Delete a single `Transaction` based on `id`, `key` or `first` and return its key (or `null` if not found).
+  """
+  transaction_delete(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Transaction_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Transaction_FirstRow
+  ): Transaction_KeyOutput @fdc_generated(from: "Transaction", purpose: DELETE_SINGLE)
   """
   ✨ Delete a single `User` based on `id`, `key` or `first` and return its key (or `null` if not found).
   """
@@ -374,12 +1342,12 @@ extend type Mutation {
     """
     The unique ID of the object.
     """
-    id: String
+    id: Int
 
     """
     ✨ `_expr` server value variant of `id` (The unique ID of the object.)
     """
-    id_expr: String_Expr
+    id_expr: Int_Expr
 
     """
     The key used to identify the object.
@@ -392,47 +1360,183 @@ extend type Mutation {
     first: User_FirstRow
   ): User_KeyOutput @fdc_generated(from: "User", purpose: DELETE_SINGLE)
   """
-  ✨ Delete `Movie` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  ✨ Delete a single `Work` based on `id`, `key` or `first` and return its key (or `null` if not found).
   """
-  movie_deleteMany(
+  work_delete(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Work_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Work_FirstRow
+  ): Work_KeyOutput @fdc_generated(from: "Work", purpose: DELETE_SINGLE)
+  """
+  ✨ Delete `AuditLog` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  """
+  auditLog_deleteMany(
     """
     Filter condition to specify which rows to delete.
     """
-    where: Movie_Filter
+    where: AuditLog_Filter
 
     """
     Set to true to delete all rows.
     """
     all: Boolean = false
-  ): Int! @fdc_generated(from: "Movie", purpose: DELETE_MULTIPLE)
+  ): Int! @fdc_generated(from: "AuditLog", purpose: DELETE_MULTIPLE)
   """
-  ✨ Delete `MovieMetadata` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  ✨ Delete `BlockRecord` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
   """
-  movieMetadata_deleteMany(
+  blockRecord_deleteMany(
     """
     Filter condition to specify which rows to delete.
     """
-    where: MovieMetadata_Filter
+    where: BlockRecord_Filter
 
     """
     Set to true to delete all rows.
     """
     all: Boolean = false
-  ): Int! @fdc_generated(from: "MovieMetadata", purpose: DELETE_MULTIPLE)
+  ): Int! @fdc_generated(from: "BlockRecord", purpose: DELETE_MULTIPLE)
   """
-  ✨ Delete `Review` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  ✨ Delete `Book` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
   """
-  review_deleteMany(
+  book_deleteMany(
     """
     Filter condition to specify which rows to delete.
     """
-    where: Review_Filter
+    where: Book_Filter
 
     """
     Set to true to delete all rows.
     """
     all: Boolean = false
-  ): Int! @fdc_generated(from: "Review", purpose: DELETE_MULTIPLE)
+  ): Int! @fdc_generated(from: "Book", purpose: DELETE_MULTIPLE)
+  """
+  ✨ Delete `BookCatalog` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  """
+  bookCatalog_deleteMany(
+    """
+    Filter condition to specify which rows to delete.
+    """
+    where: BookCatalog_Filter
+
+    """
+    Set to true to delete all rows.
+    """
+    all: Boolean = false
+  ): Int! @fdc_generated(from: "BookCatalog", purpose: DELETE_MULTIPLE)
+  """
+  ✨ Delete `BookRequest` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  """
+  bookRequest_deleteMany(
+    """
+    Filter condition to specify which rows to delete.
+    """
+    where: BookRequest_Filter
+
+    """
+    Set to true to delete all rows.
+    """
+    all: Boolean = false
+  ): Int! @fdc_generated(from: "BookRequest", purpose: DELETE_MULTIPLE)
+  """
+  ✨ Delete `Conversation` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  """
+  conversation_deleteMany(
+    """
+    Filter condition to specify which rows to delete.
+    """
+    where: Conversation_Filter
+
+    """
+    Set to true to delete all rows.
+    """
+    all: Boolean = false
+  ): Int! @fdc_generated(from: "Conversation", purpose: DELETE_MULTIPLE)
+  """
+  ✨ Delete `Message` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  """
+  message_deleteMany(
+    """
+    Filter condition to specify which rows to delete.
+    """
+    where: Message_Filter
+
+    """
+    Set to true to delete all rows.
+    """
+    all: Boolean = false
+  ): Int! @fdc_generated(from: "Message", purpose: DELETE_MULTIPLE)
+  """
+  ✨ Delete `Offer` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  """
+  offer_deleteMany(
+    """
+    Filter condition to specify which rows to delete.
+    """
+    where: Offer_Filter
+
+    """
+    Set to true to delete all rows.
+    """
+    all: Boolean = false
+  ): Int! @fdc_generated(from: "Offer", purpose: DELETE_MULTIPLE)
+  """
+  ✨ Delete `PlatformSetting` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  """
+  platformSetting_deleteMany(
+    """
+    Filter condition to specify which rows to delete.
+    """
+    where: PlatformSetting_Filter
+
+    """
+    Set to true to delete all rows.
+    """
+    all: Boolean = false
+  ): Int! @fdc_generated(from: "PlatformSetting", purpose: DELETE_MULTIPLE)
+  """
+  ✨ Delete `Report` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  """
+  report_deleteMany(
+    """
+    Filter condition to specify which rows to delete.
+    """
+    where: Report_Filter
+
+    """
+    Set to true to delete all rows.
+    """
+    all: Boolean = false
+  ): Int! @fdc_generated(from: "Report", purpose: DELETE_MULTIPLE)
+  """
+  ✨ Delete `Transaction` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  """
+  transaction_deleteMany(
+    """
+    Filter condition to specify which rows to delete.
+    """
+    where: Transaction_Filter
+
+    """
+    Set to true to delete all rows.
+    """
+    all: Boolean = false
+  ): Int! @fdc_generated(from: "Transaction", purpose: DELETE_MULTIPLE)
   """
   ✨ Delete `User` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
   """
@@ -447,4 +1551,18 @@ extend type Mutation {
     """
     all: Boolean = false
   ): Int! @fdc_generated(from: "User", purpose: DELETE_MULTIPLE)
+  """
+  ✨ Delete `Work` objects matching `where` conditions (or `all`, if true). Returns the number of rows deleted.
+  """
+  work_deleteMany(
+    """
+    Filter condition to specify which rows to delete.
+    """
+    where: Work_Filter
+
+    """
+    Set to true to delete all rows.
+    """
+    all: Boolean = false
+  ): Int! @fdc_generated(from: "Work", purpose: DELETE_MULTIPLE)
 }

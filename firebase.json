@@ -39,5 +39,29 @@
   },
   "dataconnect": {
     "source": "dataconnect"
-  }
+  },
+  "apphosting": [
+    {
+      "backendId": "unshelvd",
+      "rootDir": "/",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "functions"
+      ]
+    },
+    {
+      "backendId": "unshelvd",
+      "rootDir": "/android",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "functions"
+      ]
+    }
+  ]
 }

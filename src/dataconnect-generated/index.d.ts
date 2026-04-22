@@ -1,4 +1,4 @@
-import { ConnectorConfig, DataConnect, QueryRef, QueryPromise, ExecuteQueryOptions, MutationRef, MutationPromise, DataConnectSettings } from 'firebase/data-connect';
+import { ConnectorConfig, DataConnect, QueryRef, QueryPromise, ExecuteQueryOptions, DataConnectSettings } from 'firebase/data-connect';
 
 export const connectorConfig: ConnectorConfig;
 export const dataConnectSettings: DataConnectSettings;
@@ -11,241 +11,196 @@ export type DateString = string;
 
 
 
-export interface AddReviewData {
-  review_upsert: Review_Key;
+export interface AuditLog_Key {
+  id: number;
+  __typename?: 'AuditLog_Key';
 }
 
-export interface AddReviewVariables {
-  movieId: UUIDString;
-  rating: number;
-  reviewText: string;
+export interface BlockRecord_Key {
+  id: number;
+  __typename?: 'BlockRecord_Key';
 }
 
-export interface CreateMovieData {
-  movie_insert: Movie_Key;
+export interface BookCatalog_Key {
+  id: number;
+  __typename?: 'BookCatalog_Key';
 }
 
-export interface CreateMovieVariables {
+export interface BookRequest_Key {
+  id: number;
+  __typename?: 'BookRequest_Key';
+}
+
+export interface Book_Key {
+  id: number;
+  __typename?: 'Book_Key';
+}
+
+export interface Conversation_Key {
+  id: number;
+  __typename?: 'Conversation_Key';
+}
+
+export interface ListCatalogEntriesData {
+  bookCatalogs: ({
+    id: number;
+    title: string;
+    author: string;
+    language: string;
+    publisher?: string | null;
+    publicationYear?: number | null;
+    genre?: string | null;
+    coverUrl?: string | null;
+    originalLanguage?: string | null;
+    countryOfOrigin?: string | null;
+    workId?: number | null;
+  } & BookCatalog_Key)[];
+}
+
+export interface ListCatalogEntriesVariables {
+  limit?: number | null;
+  offset?: number | null;
+}
+
+export interface ListWorksData {
+  works: ({
+    id: number;
+    title: string;
+    author: string;
+    originalLanguage?: string | null;
+    firstPublishedYear?: number | null;
+    genre?: string | null;
+    coverUrl?: string | null;
+  } & Work_Key)[];
+}
+
+export interface ListWorksVariables {
+  limit?: number | null;
+  offset?: number | null;
+}
+
+export interface Message_Key {
+  id: number;
+  __typename?: 'Message_Key';
+}
+
+export interface Offer_Key {
+  id: number;
+  __typename?: 'Offer_Key';
+}
+
+export interface PlatformSetting_Key {
+  settingKey: string;
+  __typename?: 'PlatformSetting_Key';
+}
+
+export interface Report_Key {
+  id: number;
+  __typename?: 'Report_Key';
+}
+
+export interface SearchCatalogByTitleData {
+  bookCatalogs: ({
+    id: number;
+    title: string;
+    author: string;
+    language: string;
+    publisher?: string | null;
+    publicationYear?: number | null;
+    genre?: string | null;
+    coverUrl?: string | null;
+    originalLanguage?: string | null;
+    countryOfOrigin?: string | null;
+    workId?: number | null;
+  } & BookCatalog_Key)[];
+}
+
+export interface SearchCatalogByTitleVariables {
   title: string;
-  genre: string;
-  imageUrl: string;
+  limit?: number | null;
 }
 
-export interface DeleteReviewData {
-  review_delete?: Review_Key | null;
-}
-
-export interface DeleteReviewVariables {
-  movieId: UUIDString;
-}
-
-export interface GetMovieByIdData {
-  movie?: {
-    id: UUIDString;
+export interface SearchCatalogData {
+  bookCatalogs: ({
+    id: number;
     title: string;
-    imageUrl: string;
+    author: string;
+    language: string;
+    publisher?: string | null;
+    publicationYear?: number | null;
     genre?: string | null;
-    metadata?: {
-      rating?: number | null;
-      releaseYear?: number | null;
-      description?: string | null;
-    };
-      reviews: ({
-        reviewText?: string | null;
-        reviewDate: DateString;
-        rating?: number | null;
-        user: {
-          id: string;
-          username: string;
-        } & User_Key;
-      })[];
-  } & Movie_Key;
+    coverUrl?: string | null;
+    originalLanguage?: string | null;
+    countryOfOrigin?: string | null;
+    workId?: number | null;
+  } & BookCatalog_Key)[];
 }
 
-export interface GetMovieByIdVariables {
-  id: UUIDString;
+export interface SearchCatalogVariables {
+  query: string;
+  limit?: number | null;
 }
 
-export interface ListMoviesData {
-  movies: ({
-    id: UUIDString;
-    title: string;
-    imageUrl: string;
-    genre?: string | null;
-  } & Movie_Key)[];
-}
-
-export interface ListUserReviewsData {
-  user?: {
-    id: string;
-    username: string;
-    reviews: ({
-      rating?: number | null;
-      reviewDate: DateString;
-      reviewText?: string | null;
-      movie: {
-        id: UUIDString;
-        title: string;
-      } & Movie_Key;
-    })[];
-  } & User_Key;
-}
-
-export interface ListUsersData {
-  users: ({
-    id: string;
-    username: string;
-  } & User_Key)[];
-}
-
-export interface MovieMetadata_Key {
-  id: UUIDString;
-  __typename?: 'MovieMetadata_Key';
-}
-
-export interface Movie_Key {
-  id: UUIDString;
-  __typename?: 'Movie_Key';
-}
-
-export interface Review_Key {
-  userId: string;
-  movieId: UUIDString;
-  __typename?: 'Review_Key';
-}
-
-export interface SearchMovieData {
-  movies: ({
-    id: UUIDString;
-    title: string;
-    genre?: string | null;
-    imageUrl: string;
-  } & Movie_Key)[];
-}
-
-export interface SearchMovieVariables {
-  titleInput?: string | null;
-  genre?: string | null;
-}
-
-export interface UpsertUserData {
-  user_upsert: User_Key;
-}
-
-export interface UpsertUserVariables {
-  username: string;
+export interface Transaction_Key {
+  id: number;
+  __typename?: 'Transaction_Key';
 }
 
 export interface User_Key {
-  id: string;
+  id: number;
   __typename?: 'User_Key';
 }
 
-interface CreateMovieRef {
+export interface Work_Key {
+  id: number;
+  __typename?: 'Work_Key';
+}
+
+interface ListCatalogEntriesRef {
   /* Allow users to create refs without passing in DataConnect */
-  (vars: CreateMovieVariables): MutationRef<CreateMovieData, CreateMovieVariables>;
+  (vars?: ListCatalogEntriesVariables): QueryRef<ListCatalogEntriesData, ListCatalogEntriesVariables>;
   /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: CreateMovieVariables): MutationRef<CreateMovieData, CreateMovieVariables>;
+  (dc: DataConnect, vars?: ListCatalogEntriesVariables): QueryRef<ListCatalogEntriesData, ListCatalogEntriesVariables>;
   operationName: string;
 }
-export const createMovieRef: CreateMovieRef;
+export const listCatalogEntriesRef: ListCatalogEntriesRef;
 
-export function createMovie(vars: CreateMovieVariables): MutationPromise<CreateMovieData, CreateMovieVariables>;
-export function createMovie(dc: DataConnect, vars: CreateMovieVariables): MutationPromise<CreateMovieData, CreateMovieVariables>;
+export function listCatalogEntries(vars?: ListCatalogEntriesVariables, options?: ExecuteQueryOptions): QueryPromise<ListCatalogEntriesData, ListCatalogEntriesVariables>;
+export function listCatalogEntries(dc: DataConnect, vars?: ListCatalogEntriesVariables, options?: ExecuteQueryOptions): QueryPromise<ListCatalogEntriesData, ListCatalogEntriesVariables>;
 
-interface UpsertUserRef {
+interface SearchCatalogByTitleRef {
   /* Allow users to create refs without passing in DataConnect */
-  (vars: UpsertUserVariables): MutationRef<UpsertUserData, UpsertUserVariables>;
+  (vars: SearchCatalogByTitleVariables): QueryRef<SearchCatalogByTitleData, SearchCatalogByTitleVariables>;
   /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: UpsertUserVariables): MutationRef<UpsertUserData, UpsertUserVariables>;
+  (dc: DataConnect, vars: SearchCatalogByTitleVariables): QueryRef<SearchCatalogByTitleData, SearchCatalogByTitleVariables>;
   operationName: string;
 }
-export const upsertUserRef: UpsertUserRef;
+export const searchCatalogByTitleRef: SearchCatalogByTitleRef;
 
-export function upsertUser(vars: UpsertUserVariables): MutationPromise<UpsertUserData, UpsertUserVariables>;
-export function upsertUser(dc: DataConnect, vars: UpsertUserVariables): MutationPromise<UpsertUserData, UpsertUserVariables>;
+export function searchCatalogByTitle(vars: SearchCatalogByTitleVariables, options?: ExecuteQueryOptions): QueryPromise<SearchCatalogByTitleData, SearchCatalogByTitleVariables>;
+export function searchCatalogByTitle(dc: DataConnect, vars: SearchCatalogByTitleVariables, options?: ExecuteQueryOptions): QueryPromise<SearchCatalogByTitleData, SearchCatalogByTitleVariables>;
 
-interface AddReviewRef {
+interface SearchCatalogRef {
   /* Allow users to create refs without passing in DataConnect */
-  (vars: AddReviewVariables): MutationRef<AddReviewData, AddReviewVariables>;
+  (vars: SearchCatalogVariables): QueryRef<SearchCatalogData, SearchCatalogVariables>;
   /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: AddReviewVariables): MutationRef<AddReviewData, AddReviewVariables>;
+  (dc: DataConnect, vars: SearchCatalogVariables): QueryRef<SearchCatalogData, SearchCatalogVariables>;
   operationName: string;
 }
-export const addReviewRef: AddReviewRef;
+export const searchCatalogRef: SearchCatalogRef;
 
-export function addReview(vars: AddReviewVariables): MutationPromise<AddReviewData, AddReviewVariables>;
-export function addReview(dc: DataConnect, vars: AddReviewVariables): MutationPromise<AddReviewData, AddReviewVariables>;
+export function searchCatalog(vars: SearchCatalogVariables, options?: ExecuteQueryOptions): QueryPromise<SearchCatalogData, SearchCatalogVariables>;
+export function searchCatalog(dc: DataConnect, vars: SearchCatalogVariables, options?: ExecuteQueryOptions): QueryPromise<SearchCatalogData, SearchCatalogVariables>;
 
-interface DeleteReviewRef {
+interface ListWorksRef {
   /* Allow users to create refs without passing in DataConnect */
-  (vars: DeleteReviewVariables): MutationRef<DeleteReviewData, DeleteReviewVariables>;
+  (vars?: ListWorksVariables): QueryRef<ListWorksData, ListWorksVariables>;
   /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: DeleteReviewVariables): MutationRef<DeleteReviewData, DeleteReviewVariables>;
+  (dc: DataConnect, vars?: ListWorksVariables): QueryRef<ListWorksData, ListWorksVariables>;
   operationName: string;
 }
-export const deleteReviewRef: DeleteReviewRef;
+export const listWorksRef: ListWorksRef;
 
-export function deleteReview(vars: DeleteReviewVariables): MutationPromise<DeleteReviewData, DeleteReviewVariables>;
-export function deleteReview(dc: DataConnect, vars: DeleteReviewVariables): MutationPromise<DeleteReviewData, DeleteReviewVariables>;
-
-interface ListMoviesRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (): QueryRef<ListMoviesData, undefined>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect): QueryRef<ListMoviesData, undefined>;
-  operationName: string;
-}
-export const listMoviesRef: ListMoviesRef;
-
-export function listMovies(options?: ExecuteQueryOptions): QueryPromise<ListMoviesData, undefined>;
-export function listMovies(dc: DataConnect, options?: ExecuteQueryOptions): QueryPromise<ListMoviesData, undefined>;
-
-interface ListUsersRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (): QueryRef<ListUsersData, undefined>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect): QueryRef<ListUsersData, undefined>;
-  operationName: string;
-}
-export const listUsersRef: ListUsersRef;
-
-export function listUsers(options?: ExecuteQueryOptions): QueryPromise<ListUsersData, undefined>;
-export function listUsers(dc: DataConnect, options?: ExecuteQueryOptions): QueryPromise<ListUsersData, undefined>;
-
-interface ListUserReviewsRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (): QueryRef<ListUserReviewsData, undefined>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect): QueryRef<ListUserReviewsData, undefined>;
-  operationName: string;
-}
-export const listUserReviewsRef: ListUserReviewsRef;
-
-export function listUserReviews(options?: ExecuteQueryOptions): QueryPromise<ListUserReviewsData, undefined>;
-export function listUserReviews(dc: DataConnect, options?: ExecuteQueryOptions): QueryPromise<ListUserReviewsData, undefined>;
-
-interface GetMovieByIdRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars: GetMovieByIdVariables): QueryRef<GetMovieByIdData, GetMovieByIdVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars: GetMovieByIdVariables): QueryRef<GetMovieByIdData, GetMovieByIdVariables>;
-  operationName: string;
-}
-export const getMovieByIdRef: GetMovieByIdRef;
-
-export function getMovieById(vars: GetMovieByIdVariables, options?: ExecuteQueryOptions): QueryPromise<GetMovieByIdData, GetMovieByIdVariables>;
-export function getMovieById(dc: DataConnect, vars: GetMovieByIdVariables, options?: ExecuteQueryOptions): QueryPromise<GetMovieByIdData, GetMovieByIdVariables>;
-
-interface SearchMovieRef {
-  /* Allow users to create refs without passing in DataConnect */
-  (vars?: SearchMovieVariables): QueryRef<SearchMovieData, SearchMovieVariables>;
-  /* Allow users to pass in custom DataConnect instances */
-  (dc: DataConnect, vars?: SearchMovieVariables): QueryRef<SearchMovieData, SearchMovieVariables>;
-  operationName: string;
-}
-export const searchMovieRef: SearchMovieRef;
-
-export function searchMovie(vars?: SearchMovieVariables, options?: ExecuteQueryOptions): QueryPromise<SearchMovieData, SearchMovieVariables>;
-export function searchMovie(dc: DataConnect, vars?: SearchMovieVariables, options?: ExecuteQueryOptions): QueryPromise<SearchMovieData, SearchMovieVariables>;
+export function listWorks(vars?: ListWorksVariables, options?: ExecuteQueryOptions): QueryPromise<ListWorksData, ListWorksVariables>;
+export function listWorks(dc: DataConnect, vars?: ListWorksVariables, options?: ExecuteQueryOptions): QueryPromise<ListWorksData, ListWorksVariables>;
 

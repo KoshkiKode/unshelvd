@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # Unshelv'd — Linux / macOS Setup Script
-# Amazon Aurora PostgreSQL (or any PostgreSQL-compatible DB)
+# Cloud SQL / PostgreSQL-compatible database bootstrap
 #
 # Runs database migrations (creates tables) then seeds catalog data.
 # Requires Node.js to be installed.
@@ -10,7 +10,7 @@
 #   cd /path/to/unshelvd
 #   chmod +x database/setup.sh
 #   ./database/setup.sh \
-#     --host     "your-cluster.cluster-abc123.us-east-1.rds.amazonaws.com" \
+#     --host     "your-postgres-host" \
 #     --username "unshelvd" \
 #     --password "YourPassword" \
 #     --database "unshelvd"
@@ -47,7 +47,7 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
     echo "ERROR: Provide connection details either as arguments or via DATABASE_URL." >&2
     echo ""
     echo "Example:"
-    echo '  ./database/setup.sh --host "your-cluster.us-east-1.rds.amazonaws.com" --username "unshelvd" --password "YourPass"'
+    echo '  ./database/setup.sh --host "your-postgres-host" --username "unshelvd" --password "YourPass"'
     echo ""
     echo "Or set it manually:"
     echo '  export DATABASE_URL="postgresql://USER:PASS@HOST:5432/unshelvd"'
@@ -78,20 +78,15 @@ if [[ ! -d "${ROOT_DIR}/node_modules" ]]; then
   (cd "${ROOT_DIR}" && npm install)
 fi
 
-# ── Step 1: Run migrations (CREATE TABLE) ───────────────────
-echo "Step 1/2 — Running migrations (creating tables)..."
-(cd "${ROOT_DIR}" && node script/migrate.js)
-echo ""
-
-# ── Step 2: Seed catalog data ────────────────────────────────
-echo "Step 2/2 — Seeding catalog and demo data..."
-(cd "${ROOT_DIR}" && node script/seed.js)
+# ── Step 1: Run migrations + seed searchable catalog data ───
+echo "Step 1/1 — Running migrations and seeding searchable catalog data..."
+(cd "${ROOT_DIR}" && npm run db:setup)
 
 echo ""
 echo "============================================"
 echo " Database setup complete!"
 echo "============================================"
 echo ""
-echo "Your Aurora database is ready. Set this in your .env:"
+echo "Your PostgreSQL database is ready for Unshelv'd and Firebase SQL Connect search. Set this in your .env:"
 echo "  DATABASE_URL=${DATABASE_URL}"
 echo ""

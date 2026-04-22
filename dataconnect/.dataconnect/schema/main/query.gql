@@ -1,56 +1,258 @@
 extend type Query {
   """
-  ✨ Look up a single `Movie` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  ✨ Look up a single `AuditLog` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
   """
-  movie(
+  auditLog(
     """
     The unique ID of the object.
     """
-    id: UUID
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
 
     """
     The key used to identify the object.
     """
-    key: Movie_Key
+    key: AuditLog_Key
 
     """
     Fetch the first row based on the filters and ordering.
     """
-    first: Movie_FirstRow
-  ): Movie @fdc_generated(from: "Movie", purpose: QUERY_SINGLE)
+    first: AuditLog_FirstRow
+  ): AuditLog @fdc_generated(from: "AuditLog", purpose: QUERY_SINGLE)
   """
-  ✨ Look up a single `MovieMetadata` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  ✨ Look up a single `BlockRecord` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
   """
-  movieMetadata(
+  blockRecord(
     """
     The unique ID of the object.
     """
-    id: UUID
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
 
     """
     The key used to identify the object.
     """
-    key: MovieMetadata_Key
+    key: BlockRecord_Key
 
     """
     Fetch the first row based on the filters and ordering.
     """
-    first: MovieMetadata_FirstRow
-  ): MovieMetadata @fdc_generated(from: "MovieMetadata", purpose: QUERY_SINGLE)
+    first: BlockRecord_FirstRow
+  ): BlockRecord @fdc_generated(from: "BlockRecord", purpose: QUERY_SINGLE)
   """
-  ✨ Look up a single `Review` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  ✨ Look up a single `Book` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
   """
-  review(
+  book(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
     """
     The key used to identify the object.
     """
-    key: Review_Key
+    key: Book_Key
 
     """
     Fetch the first row based on the filters and ordering.
     """
-    first: Review_FirstRow
-  ): Review @fdc_generated(from: "Review", purpose: QUERY_SINGLE)
+    first: Book_FirstRow
+  ): Book @fdc_generated(from: "Book", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `BookCatalog` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  bookCatalog(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: BookCatalog_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: BookCatalog_FirstRow
+  ): BookCatalog @fdc_generated(from: "BookCatalog", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `BookRequest` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  bookRequest(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: BookRequest_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: BookRequest_FirstRow
+  ): BookRequest @fdc_generated(from: "BookRequest", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `Conversation` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  conversation(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Conversation_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Conversation_FirstRow
+  ): Conversation @fdc_generated(from: "Conversation", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `Message` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  message(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Message_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Message_FirstRow
+  ): Message @fdc_generated(from: "Message", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `Offer` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  offer(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Offer_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Offer_FirstRow
+  ): Offer @fdc_generated(from: "Offer", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `PlatformSetting` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  platformSetting(
+    """
+    The key used to identify the object.
+    """
+    key: PlatformSetting_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: PlatformSetting_FirstRow
+  ): PlatformSetting @fdc_generated(from: "PlatformSetting", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `Report` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  report(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Report_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Report_FirstRow
+  ): Report @fdc_generated(from: "Report", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `Transaction` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  transaction(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Transaction_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Transaction_FirstRow
+  ): Transaction @fdc_generated(from: "Transaction", purpose: QUERY_SINGLE)
   """
   ✨ Look up a single `User` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
   """
@@ -58,12 +260,12 @@ extend type Query {
     """
     The unique ID of the object.
     """
-    id: String
+    id: Int
 
     """
     ✨ `_expr` server value variant of `id` (The unique ID of the object.)
     """
-    id_expr: String_Expr
+    id_expr: Int_Expr
 
     """
     The key used to identify the object.
@@ -76,18 +278,42 @@ extend type Query {
     first: User_FirstRow
   ): User @fdc_generated(from: "User", purpose: QUERY_SINGLE)
   """
-  ✨ List `Movie` objects in the table and return selected fields, optionally filtered by `where` conditions
+  ✨ Look up a single `Work` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
   """
-  movies(
+  work(
+    """
+    The unique ID of the object.
+    """
+    id: Int
+
+    """
+    ✨ `_expr` server value variant of `id` (The unique ID of the object.)
+    """
+    id_expr: Int_Expr
+
+    """
+    The key used to identify the object.
+    """
+    key: Work_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: Work_FirstRow
+  ): Work @fdc_generated(from: "Work", purpose: QUERY_SINGLE)
+  """
+  ✨ List `AuditLog` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  auditLogs(
     """
     Filter condition to narrow down the query results.
     """
-    where: Movie_Filter
+    where: AuditLog_Filter
 
     """
     Order the query results by specific fields.
     """
-    orderBy: [Movie_Order!]
+    orderBy: [AuditLog_Order!]
 
     """
     Number of rows to skip before starting to return the results.
@@ -107,21 +333,21 @@ extend type Query {
     """
     Filter condition to apply to the groups of aggregate queries.
     """
-    having: Movie_Having
-  ): [Movie!]! @fdc_generated(from: "Movie", purpose: QUERY_MULTIPLE)
+    having: AuditLog_Having
+  ): [AuditLog!]! @fdc_generated(from: "AuditLog", purpose: QUERY_MULTIPLE)
   """
-  ✨ List `MovieMetadata` objects in the table and return selected fields, optionally filtered by `where` conditions
+  ✨ List `BlockRecord` objects in the table and return selected fields, optionally filtered by `where` conditions
   """
-  movieMetadatas(
+  blockRecords(
     """
     Filter condition to narrow down the query results.
     """
-    where: MovieMetadata_Filter
+    where: BlockRecord_Filter
 
     """
     Order the query results by specific fields.
     """
-    orderBy: [MovieMetadata_Order!]
+    orderBy: [BlockRecord_Order!]
 
     """
     Number of rows to skip before starting to return the results.
@@ -141,21 +367,21 @@ extend type Query {
     """
     Filter condition to apply to the groups of aggregate queries.
     """
-    having: MovieMetadata_Having
-  ): [MovieMetadata!]! @fdc_generated(from: "MovieMetadata", purpose: QUERY_MULTIPLE)
+    having: BlockRecord_Having
+  ): [BlockRecord!]! @fdc_generated(from: "BlockRecord", purpose: QUERY_MULTIPLE)
   """
-  ✨ List `Review` objects in the table and return selected fields, optionally filtered by `where` conditions
+  ✨ List `Book` objects in the table and return selected fields, optionally filtered by `where` conditions
   """
-  reviews(
+  books(
     """
     Filter condition to narrow down the query results.
     """
-    where: Review_Filter
+    where: Book_Filter
 
     """
     Order the query results by specific fields.
     """
-    orderBy: [Review_Order!]
+    orderBy: [Book_Order!]
 
     """
     Number of rows to skip before starting to return the results.
@@ -175,8 +401,280 @@ extend type Query {
     """
     Filter condition to apply to the groups of aggregate queries.
     """
-    having: Review_Having
-  ): [Review!]! @fdc_generated(from: "Review", purpose: QUERY_MULTIPLE)
+    having: Book_Having
+  ): [Book!]! @fdc_generated(from: "Book", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `BookCatalog` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  bookCatalogs(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: BookCatalog_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [BookCatalog_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: BookCatalog_Having
+  ): [BookCatalog!]! @fdc_generated(from: "BookCatalog", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `BookRequest` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  bookRequests(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: BookRequest_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [BookRequest_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: BookRequest_Having
+  ): [BookRequest!]! @fdc_generated(from: "BookRequest", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `Conversation` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  conversations(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: Conversation_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [Conversation_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: Conversation_Having
+  ): [Conversation!]! @fdc_generated(from: "Conversation", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `Message` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  messages(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: Message_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [Message_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: Message_Having
+  ): [Message!]! @fdc_generated(from: "Message", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `Offer` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  offers(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: Offer_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [Offer_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: Offer_Having
+  ): [Offer!]! @fdc_generated(from: "Offer", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `PlatformSetting` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  platformSettings(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: PlatformSetting_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [PlatformSetting_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: PlatformSetting_Having
+  ): [PlatformSetting!]! @fdc_generated(from: "PlatformSetting", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `Report` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  reports(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: Report_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [Report_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: Report_Having
+  ): [Report!]! @fdc_generated(from: "Report", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `Transaction` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  transactions(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: Transaction_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [Transaction_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: Transaction_Having
+  ): [Transaction!]! @fdc_generated(from: "Transaction", purpose: QUERY_MULTIPLE)
   """
   ✨ List `User` objects in the table and return selected fields, optionally filtered by `where` conditions
   """
@@ -211,4 +709,38 @@ extend type Query {
     """
     having: User_Having
   ): [User!]! @fdc_generated(from: "User", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `Work` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  works(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: Work_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [Work_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: Work_Having
+  ): [Work!]! @fdc_generated(from: "Work", purpose: QUERY_MULTIPLE)
 }

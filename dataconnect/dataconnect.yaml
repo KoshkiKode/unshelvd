@@ -1,13 +1,13 @@
 specVersion: "v1"
 serviceId: "unshelvd"
-location: "us-east4"
+location: "us-central1"
 schemas:
   - source: "./schema"
     datasource:
       postgresql:
-        database: "fdcdb"
+        database: "unshelvd"
         cloudSql:
-          instanceId: "unshelvd-fdc"
+          instanceId: "unshelvd-instance"
           # schemaValidation: "STRICT"     # STRICT mode makes Postgres schema match Data Connect exactly.
           # schemaValidation: "COMPATIBLE" # COMPATIBLE mode makes Postgres schema compatible with Data Connect.
 connectorDirs: ["./example"]

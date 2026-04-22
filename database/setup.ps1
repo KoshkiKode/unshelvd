@@ -1,13 +1,13 @@
 # ============================================================
 # Unshelv'd — Windows PowerShell Setup Script
-# Amazon Aurora PostgreSQL
+# Cloud SQL / PostgreSQL-compatible database bootstrap
 #
 # Runs database migrations (creates tables) then seeds catalog data.
 # Requires Node.js to be installed.
 #
 # USAGE — open PowerShell and run:
 #   cd path\to\unshelvd
-#   .\database\setup.ps1 -Host "your-cluster.cluster-abc123.us-east-1.rds.amazonaws.com" `
+#   .\database\setup.ps1 -Host "your-postgres-host" `
 #                         -Username "unshelvd" `
 #                         -Password "YourPassword" `
 #                         -Database "unshelvd"
@@ -32,7 +32,7 @@ if (-not $env:DATABASE_URL) {
         Write-Host "ERROR: Provide connection details either as parameters or via `$env:DATABASE_URL." -ForegroundColor Red
         Write-Host ""
         Write-Host "Example:" -ForegroundColor Yellow
-        Write-Host '  .\database\setup.ps1 -Host "your-cluster.us-east-1.rds.amazonaws.com" -Username "unshelvd" -Password "YourPass"' -ForegroundColor Yellow
+        Write-Host '  .\database\setup.ps1 -Host "your-postgres-host" -Username "unshelvd" -Password "YourPass"' -ForegroundColor Yellow
         Write-Host ""
         Write-Host "Or set it manually:" -ForegroundColor Yellow
         Write-Host '  $env:DATABASE_URL = "postgresql://USER:PASS@HOST:5432/unshelvd"' -ForegroundColor Yellow
@@ -67,25 +67,16 @@ if (-not (Test-Path "$scriptDir\node_modules")) {
     }
 }
 
-# ── Step 1: Run migrations (CREATE TABLE) ───────────────────
-Write-Host "Step 1/2 — Running migrations (creating tables)..." -ForegroundColor Yellow
-node "$scriptDir\script\migrate.js"
+# ── Step 1: Run migrations + seed searchable catalog data ──
+Write-Host "Step 1/1 — Running migrations and seeding searchable catalog data..." -ForegroundColor Yellow
+Push-Location $scriptDir
+npm run db:setup
+Pop-Location
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
-    Write-Host "ERROR: Migration failed. Check your DATABASE_URL and Aurora connectivity." -ForegroundColor Red
-    Write-Host "  - Make sure Aurora allows connections from your IP (Security Group inbound rule)" -ForegroundColor Yellow
+    Write-Host "ERROR: Database bootstrap failed. Check your DATABASE_URL and PostgreSQL connectivity." -ForegroundColor Red
+    Write-Host "  - Make sure your database allows connections from your IP" -ForegroundColor Yellow
     Write-Host "  - Verify the endpoint, username, password, and database name" -ForegroundColor Yellow
-    exit 1
-}
-
-Write-Host ""
-
-# ── Step 2: Seed catalog data ────────────────────────────────
-Write-Host "Step 2/2 — Seeding catalog and demo data..." -ForegroundColor Yellow
-node "$scriptDir\script\seed.js"
-if ($LASTEXITCODE -ne 0) {
-    Write-Host ""
-    Write-Host "ERROR: Seeding failed." -ForegroundColor Red
     exit 1
 }
 
@@ -94,6 +85,6 @@ Write-Host "============================================" -ForegroundColor Green
 Write-Host " Database setup complete!" -ForegroundColor Green
 Write-Host "============================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Your Aurora database is ready. Set this in your .env:" -ForegroundColor Cyan
+Write-Host "Your PostgreSQL database is ready for Unshelv'd and Firebase SQL Connect search. Set this in your .env:" -ForegroundColor Cyan
 Write-Host "  DATABASE_URL=$env:DATABASE_URL" -ForegroundColor White
 Write-Host ""

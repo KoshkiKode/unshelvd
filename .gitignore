@@ -17,10 +17,13 @@ cloud-sql-proxy.exe
 
 # Firebase local state (project ID is user-specific — set via `firebase use PROJECT_ID`)
 .firebaserc
+.firebase/logs/
+.firebase/*.cache
 
 # Debug / scratch files
 git_diff.txt
 *.diff.txt
+*-debug.log
 
 # One-off helper scripts (use npm run scripts instead)
 grant.js

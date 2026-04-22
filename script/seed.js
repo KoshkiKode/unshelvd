@@ -1,8 +1,12 @@
 import pg from 'pg';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { existsSync, readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 const { Client } = pg;
 const BCRYPT_SALT_ROUNDS = 14;
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Open Library cover URLs by ISBN
 const cover = (isbn) => `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
@@ -12,6 +16,103 @@ const ADMIN_EMAIL_DOMAIN = "koshkikode.com";
 
 const generateAdminUsername = () => `admin_${crypto.randomBytes(4).toString('hex')}`;
 const generateAdminPassword = () => `${crypto.randomBytes(12).toString('base64url').slice(0, 16)}!A1`;
+
+function parseCsvLine(line) {
+  const values = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+
+    if (char === '"') {
+      if (inQuotes && line[index + 1] === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      values.push(current);
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current);
+  return values;
+}
+
+function normalizeCsvValue(value) {
+  const trimmed = value?.trim() ?? '';
+  return trimmed === '' ? null : trimmed;
+}
+
+function loadCatalogEntriesFromCsv(workIds) {
+  const candidatePaths = [
+    join(__dirname, '..', 'dataconnect', 'catalog.csv'),
+    join(__dirname, '..', 'database', 'catalog.csv'),
+  ];
+  const csvPath = candidatePaths.find((candidatePath) => existsSync(candidatePath));
+
+  if (!csvPath) {
+    return [];
+  }
+
+  const lines = readFileSync(csvPath, 'utf8')
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
+
+  if (lines.length < 2) {
+    return [];
+  }
+
+  const headers = parseCsvLine(lines[0]).map((header) => header.trim());
+  const headerIndex = new Map(headers.map((header, index) => [header, index]));
+  const catalogEntries = [];
+
+  for (const line of lines.slice(1)) {
+    const cells = parseCsvLine(line);
+    const getValue = (header) => normalizeCsvValue(cells[headerIndex.get(header)] ?? '');
+    const title = getValue('title');
+    const author = getValue('author');
+    const language = getValue('language');
+
+    if (!title || !author || !language) {
+      continue;
+    }
+
+    const workTitle = getValue('work_title');
+    const workAuthor = getValue('work_author');
+    const publicationYear = getValue('publication_year');
+    const isbn13 = getValue('isbn13');
+    const isbn10 = getValue('isbn10');
+    const coverUrl = getValue('cover_url') ?? (isbn13 ? cover(isbn13) : null);
+
+    catalogEntries.push([
+      title,
+      author,
+      isbn10,
+      isbn13,
+      language,
+      getValue('publisher'),
+      publicationYear ? Number(publicationYear) : null,
+      getValue('genre'),
+      coverUrl,
+      getValue('original_language'),
+      getValue('country_of_origin'),
+      workTitle && workAuthor ? workIds[`${workTitle}|${workAuthor}`] ?? null : null,
+    ]);
+  }
+
+  console.log(`Loaded ${catalogEntries.length} catalog entries from ${csvPath}`);
+  return catalogEntries;
+}
 
 function printAdminCredentials(username, email, password, action) {
   const actionLine = `  ACTION: ${action.toUpperCase()}`;
@@ -215,6 +316,7 @@ async function seed() {
       }
 
       const wid = (title, author) => workIds[`${title}|${author}`] || null;
+      const csvCatalogEntries = loadCatalogEntriesFromCsv(workIds);
 
       // Insert catalog entries
       const catalogEntries = [
@@ -376,16 +478,33 @@ async function seed() {
         ['Season of Migration to the North', 'Tayeb Salih', '9780894108501', 'English', 'NYRB Classics', 2009, 'https://covers.openlibrary.org/b/isbn/9780894108501-L.jpg', wid('Season of Migration to the North', 'Tayeb Salih')],
       ];
 
-      for (const [title, author, isbn13, language, publisher, pubYear, coverUrl, workId] of catalogEntries) {
+      const searchableCatalogEntries = csvCatalogEntries.length
+        ? csvCatalogEntries
+        : catalogEntries.map(([title, author, isbn13, language, publisher, pubYear, coverUrl, workId]) => [
+            title,
+            author,
+            null,
+            isbn13,
+            language,
+            publisher,
+            pubYear,
+            null,
+            coverUrl,
+            null,
+            null,
+            workId,
+          ]);
+
+      for (const [title, author, isbn10, isbn13, language, publisher, pubYear, genre, coverUrl, originalLanguage, countryOfOrigin, workId] of searchableCatalogEntries) {
         await client.query(
-          `INSERT INTO book_catalog (title, author, isbn_13, language, publisher, publication_year, cover_url, work_id, source, verified)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'manual', true)
+          `INSERT INTO book_catalog (title, author, isbn_10, isbn_13, language, publisher, publication_year, genre, cover_url, original_language, country_of_origin, work_id, source, verified)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'manual', true)
            ON CONFLICT DO NOTHING`,
-          [title, author, isbn13, language, publisher, pubYear, coverUrl, workId]
+          [title, author, isbn10, isbn13, language, publisher, pubYear, genre, coverUrl, originalLanguage, countryOfOrigin, workId]
         );
       }
 
-      console.log(`✅ Seeded ${worksData.length} works and ${catalogEntries.length} catalog entries.`);
+      console.log(`✅ Seeded ${worksData.length} works and ${searchableCatalogEntries.length} catalog entries.`);
     }
 
     // ── STEP 2: Ensure/rotate admin credentials on every seed run ──

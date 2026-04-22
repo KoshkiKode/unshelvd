@@ -1,9 +1,12 @@
-# Unshelv'd — Database Setup (PostgreSQL / AlloyDB)
+# Unshelv'd — Database Setup (PostgreSQL / Cloud SQL)
 
-All the files you need to create and restore the Unshelv'd database are in this folder.
+This folder contains the repo's database backup assets and setup scripts.
 
-The production database runs on **AlloyDB for PostgreSQL** (Google Cloud).
-Local development uses **Docker** (see `docker-compose.yml`).
+Current searchable SQL Connect target:
+- Cloud SQL connection name: `unshelvd:us-central1:unshelvd-instance`
+- PostgreSQL database: `unshelvd`
+
+Local development still uses Docker (see `docker-compose.yml`).
 
 ---
 
@@ -11,13 +14,20 @@ Local development uses **Docker** (see `docker-compose.yml`).
 
 | File | Purpose |
 |------|---------|
-| `schema.sql` | `CREATE TABLE IF NOT EXISTS` — all 9 tables |
-| `seed-catalog.sql` | `INSERT … ON CONFLICT DO NOTHING` — 25 works + 53 catalog editions (multi-language) |
-| `setup.sh` | Bash script (Linux / macOS) — runs migrations + full seed via Node.js |
+| `schema.sql` | Archival SQL schema snapshot for baseline/manual restores |
+| `seed-catalog.sql` | Archival idempotent SQL seed for `works` and `book_catalog` |
+| `catalog.csv` | Catalog source data copy; `script/seed.js` falls back to this if `dataconnect/catalog.csv` is absent |
+| `setup.sh` | Bash script (Linux / macOS) — runs the tracked migrations + full seed via `npm run db:setup` |
 | `setup.ps1` | PowerShell script (Windows) — same as above |
 
-> **These SQL files are the authoritative backup of the database structure and initial data.**  
-> Any time the database instance is recreated or reset, run `schema.sql` then `seed-catalog.sql` to restore it.
+Preferred source of truth for the current schema:
+- `migrations/` plus `script/migrate.js`
+- `shared/schema.ts` for the live application model
+
+Preferred source of truth for searchable catalog seeding:
+- `script/seed.js`, which prefers `dataconnect/catalog.csv`
+
+Use `schema.sql` and `seed-catalog.sql` as archival SQL backups, not as the primary day-to-day bootstrap path.
 
 ---
 
@@ -54,8 +64,10 @@ chmod +x database/setup.sh
 
 Both scripts will:
 1. Install npm dependencies if needed
-2. Run migrations (creates all 9 tables via `script/migrate.js`)
-3. Run the full seed (adds works, catalog entries, and demo users/books via `script/seed.js`)
+2. Run `npm run db:setup`
+3. Apply tracked migrations and seed works, searchable catalog data, admin credentials, and demo users/books
+
+The seed path prefers `dataconnect/catalog.csv`, then falls back to `database/catalog.csv`.
 
 ---
 
@@ -63,16 +75,20 @@ Both scripts will:
 
 ```bash
 export DATABASE_URL="postgresql://USER:PASSWORD@YOUR-DB-HOST:5432/unshelvd"
-node script/migrate.js
-node script/seed.js
+npm run db:setup
 ```
 
 On Windows (PowerShell):
 
 ```powershell
 $env:DATABASE_URL = "postgresql://USER:PASSWORD@YOUR-DB-HOST:5432/unshelvd"
-node script\migrate.js
-node script\seed.js
+npm run db:setup
+```
+
+If you only want migrations without reseeding:
+
+```bash
+npm run db:migrate:run
 ```
 
 ---
@@ -86,29 +102,23 @@ psql "postgresql://USER:PASSWORD@YOUR-DB-HOST:5432/unshelvd" -f database/seed-ca
 
 Both files are safe to re-run (`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`).
 
+This path restores only the baseline SQL assets. It does not reproduce the full Node-based bootstrap behavior such as admin credential rotation or the CSV-preferred catalog seed flow.
+
 ---
 
-## Production (AlloyDB)
+## Remote PostgreSQL / Cloud SQL
 
-For production deployment, follow the full walkthrough in [DEPLOY.md](../DEPLOY.md).
+For the current Firebase SQL Connect-backed setup, point `DATABASE_URL` at the `unshelvd` database on `unshelvd:us-central1:unshelvd-instance`, or let the setup scripts build the connection string for you.
 
-The production `DATABASE_URL` connects via the AlloyDB private IP (accessed through a Serverless VPC Access connector):
+Example direct connection string:
 
-```postgresql://unshelvd:<YOUR_DB_PASSWORD>@ALLOYDB_PRIVATE_IP:5432/unshelvd```
-
-This connection string is stored in Google Secret Manager as `DATABASE_URL`.
+```postgresql://unshelvd:<YOUR_DB_PASSWORD>@YOUR_DB_HOST:5432/unshelvd```
 
 ---
 
 ## Keeping the database backed up
 
-The catalog data lives in `database/seed-catalog.sql` **in this repo** — always backed up as long as code is pushed to GitHub.
-
-For **user-generated data** (listings, messages, offers, transactions), use AlloyDB automated backups:
-
-```bash
-gcloud alloydb backups create unshelvd-backup-$(date +%Y%m%d) --cluster=unshelvd-db --region=us-central1
-```
+Catalog backup assets live in `database/seed-catalog.sql` and `database/catalog.csv` **in this repo**.
 
 To export a manual backup:
 
@@ -140,6 +150,7 @@ Key choices:
 | Problem | Fix |
 |---------|-----|
 | `connection refused` | Check firewall/security settings allow port 5432 from your IP |
+| `Operation timed out` / connection timeout | Your machine cannot reach the Cloud SQL public IP. Verify the instance really has public IP `136.114.75.19`, and add your current public IP to Cloud SQL Authorized Networks before retrying. |
 | `password authentication failed` | Double-check username/password |
 | `database "unshelvd" does not exist` | Create it: `CREATE DATABASE unshelvd;` |
 | `ENOTFOUND` / hostname not found | Paste the full endpoint URL, not just the hostname |
