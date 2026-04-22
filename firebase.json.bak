@@ -43,14 +43,24 @@
   "apphosting": [
     {
       "backendId": "unshelvd",
-      "rootDir": ".",
+      "rootDir": "/",
       "ignore": [
         "node_modules",
         ".git",
         "firebase-debug.log",
         "firebase-debug.*.log",
-        "android",
-        "ios"
+        "functions"
+      ]
+    },
+    {
+      "backendId": "unshelvd",
+      "rootDir": "/android",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "functions"
       ]
     }
   ]
