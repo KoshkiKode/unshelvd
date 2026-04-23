@@ -1,0 +1,46 @@
+# AWS Amplify Hosting build spec
+# ──────────────────────────────
+# Amplify Hosting builds and serves the static SPA from `dist/public`.
+# All `/api/**` requests are proxied to the App Runner service via a
+# Custom Rewrite + Redirect rule that you configure once in the Amplify
+# console (or via amplify.yml deployments — see "customHeaders" / "redirects"
+# below).
+#
+# Required Amplify environment variables (set per branch in the console):
+#   VITE_API_URL                 — usually empty so the SPA uses the same
+#                                  origin and the rewrite proxies /api/**
+#   VITE_STRIPE_PUBLISHABLE_KEY  — pk_live_… or pk_test_…
+#   VITE_THRIFTBOOKS_AFF_ID      — optional ThriftBooks affiliate ID
+#   VITE_ADSENSE_CLIENT          — optional AdSense publisher ID
+
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+    build:
+      commands:
+        - SKIP_ENV_VERIFY=true npm run build
+  artifacts:
+    baseDirectory: dist/public
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
+
+# Configure these in the Amplify console under "Rewrites and redirects":
+#
+#   Source                Target                                       Type
+#   ─────────             ──────────────────────────────────────       ────
+#   /api/<*>              https://YOUR-APP-RUNNER-URL.awsapprunner.com/api/<*>   200 (rewrite)
+#   /<*>                  /index.html                                  200 (rewrite)
+#
+# The first rule must be ABOVE the SPA fallback rule.
+
+customHeaders:
+  - pattern: '/assets/**'
+    headers:
+      - key: 'Cache-Control'
+        value: 'public, max-age=31536000, immutable'

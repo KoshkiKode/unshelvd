@@ -4,8 +4,8 @@
   iOS Export Options — Ad-Hoc distribution
   ─────────────────────────────────────────
   Used by the GitHub Actions "release.yml" workflow to export a signed .ipa
-  that can be distributed via Firebase App Distribution, Diawi, TestFlight
-  alternatives, or any other third-party service.
+  that can be distributed via Diawi, TestFlight alternatives, or any other
+  third-party service.
 
   Requirements (set as GitHub repository secrets):
     IOS_CERTIFICATE_BASE64           — base64-encoded Distribution certificate (.p12)
@@ -37,7 +37,7 @@
     <key>signingStyle</key>
     <string>automatic</string>
 
-    <!-- Include symbols so crash reports are symbolicated in Firebase Crashlytics -->
+    <!-- Include symbols so crash reports are symbolicated by your crash reporting tool -->
     <key>uploadSymbols</key>
     <true/>
 

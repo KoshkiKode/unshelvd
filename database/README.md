@@ -106,13 +106,13 @@ This path restores only the baseline SQL assets. It does not reproduce the full 
 
 ---
 
-## Remote PostgreSQL / Cloud SQL
+## Remote PostgreSQL / Amazon RDS
 
-For the current Firebase SQL Connect-backed setup, point `DATABASE_URL` at the `unshelvd` database on `unshelvd:us-central1:unshelvd-instance`, or let the setup scripts build the connection string for you.
+For the production AWS deployment, point `DATABASE_URL` at your Amazon RDS for PostgreSQL instance, or let the setup scripts build the connection string for you.
 
 Example direct connection string:
 
-```postgresql://unshelvd:<YOUR_DB_PASSWORD>@YOUR_DB_HOST:5432/unshelvd```
+```postgresql://unshelvd:<YOUR_DB_PASSWORD>@YOUR-RDS-ENDPOINT.rds.amazonaws.com:5432/unshelvd```
 
 ---
 
@@ -132,7 +132,7 @@ pg_dump "$DATABASE_URL" --no-owner --no-acl -f database/backup-$(date +%Y%m%d).s
 
 The SQL in this folder is compatible with:
 
-- **AlloyDB for PostgreSQL** (production target)
+- **Amazon RDS for PostgreSQL** (production target)
 - **Standard PostgreSQL 13+** (local dev)
 
 Key choices:

@@ -22,7 +22,7 @@ A peer-to-peer book marketplace for every language, every country, every era. Bu
 | Database | PostgreSQL + Drizzle ORM |
 | Desktop | Tauri v2 (optional — see [DESKTOP.md](./DESKTOP.md)) |
 | Mobile | Capacitor (Android + iOS) |
-| Hosting | Google Cloud Run + AlloyDB |
+| Hosting | AWS App Runner + Amazon RDS for PostgreSQL |
 | Catalog | Open Library API + proprietary database |
 
 ## Complete Local Setup (Web + API + Database + Admin + Mobile)
@@ -75,7 +75,7 @@ npm install
 npm run db:setup
 ```
 
-This is the fastest supported setup path. It runs the tracked migrations and then seeds the app data, including the Firebase SQL Connect searchable catalog from `dataconnect/catalog.csv`.
+This is the fastest supported setup path. It runs the tracked migrations and then seeds the app data, including the searchable catalog data baked into the seed scripts.
 
 This creates the full PostgreSQL schema used by the app (users, books, catalog, requests, messages, offers, transactions, platform settings, and works).
 
@@ -97,7 +97,7 @@ The `db:setup` flow seeds:
 - Demo users
 - Book listings
 - Book requests
-- Works and catalog entries, with catalog metadata loaded from `dataconnect/catalog.csv` when available
+- Works and catalog entries (catalog metadata loaded from the bundled seed data)
 
 Optional larger catalog import:
 
@@ -115,35 +115,6 @@ npm run dev
 ```
 
 Open: `http://localhost:5000` (hash routes are used, for example `/#/login`).
-
-## Firebase SQL Connect Search Setup
-
-The Firebase SQL Connect service definition lives in `dataconnect/` and reads from the same PostgreSQL database as the app.
-
-The repo is currently configured for:
-
-- SQL Connect service region: `us-central1`
-- Cloud SQL instance: `unshelvd-instance`
-- PostgreSQL database: `unshelvd`
-
-To make that database searchable through Firebase SQL Connect, point `DATABASE_URL` at the SQL Connect backing PostgreSQL instance and run:
-
-```bash
-npm run db:setup
-```
-
-If you are targeting a remote PostgreSQL instance and want the repo to build the connection string for you, use:
-
-```bash
-./database/setup.sh --host "HOST" --username "USER" --password "PASSWORD" --database "unshelvd"
-```
-
-The Firebase connector currently exposes:
-
-- `SearchCatalog` for title, author, or genre search
-- `SearchCatalogByTitle` for title-only search
-- `ListCatalogEntries` for paginated catalog browsing
-- `ListWorks` for work-level browsing
 
 ---
 
@@ -226,9 +197,9 @@ unshelvd/
 ├── ios/                   # Capacitor iOS project
 ├── scripts/               # Build scripts (Android, iOS, catalog seeder)
 ├── .github/workflows/     # CI: auto-build APK + verify iOS on every push
-├── Dockerfile             # Production container
+├── Dockerfile             # Production container (App Runner)
 ├── docker-compose.yml     # Local dev (PostgreSQL)
-└── cloudbuild.yaml        # Google Cloud Build config
+└── apprunner.yaml         # AWS App Runner service config
 ```
 
 ## Security

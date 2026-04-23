@@ -85,6 +85,6 @@ Write-Host "============================================" -ForegroundColor Green
 Write-Host " Database setup complete!" -ForegroundColor Green
 Write-Host "============================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Your PostgreSQL database is ready for Unshelv'd and Firebase SQL Connect search. Set this in your .env:" -ForegroundColor Cyan
+Write-Host "Your PostgreSQL database is ready for Unshelv'd. Set this in your .env:" -ForegroundColor Cyan
 Write-Host "  DATABASE_URL=$env:DATABASE_URL" -ForegroundColor White
 Write-Host ""

@@ -11,14 +11,7 @@ vite.config.ts.*
 .env
 .env.local
 
-# Cloud SQL proxy binary (download separately — never commit binaries)
-cloud-sql-proxy
-cloud-sql-proxy.exe
-
-# Firebase local state (project ID is user-specific — set via `firebase use PROJECT_ID`)
-.firebaserc
-.firebase/logs/
-.firebase/*.cache
+# (Removed Cloud SQL proxy and Firebase local-state ignores after AWS migration.)
 
 # Debug / scratch files
 git_diff.txt

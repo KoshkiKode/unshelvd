@@ -61,7 +61,7 @@ captures/
 .externalNativeBuild
 .cxx/
 
-# Google Services (e.g. APIs or Firebase)
+# Google Services (e.g. APIs or Firebase) — no longer used after AWS migration
 # google-services.json
 
 # Freeline

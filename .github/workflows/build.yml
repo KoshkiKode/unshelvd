@@ -4,9 +4,9 @@ name: Build
 # Unshelv'd — Native App Build Pipeline
 #
 # Produces three artifacts and nothing else:
-#   • unshelvd-<version>.apk  — Android APK  (direct install / Firebase App Dist.)
+#   • unshelvd-<version>.apk  — Android APK  (direct install / Diawi)
 #   • unshelvd-<version>.aab  — Android AAB  (Play Store upload)
-#   • unshelvd-<version>.ipa  — iOS IPA      (TestFlight / Firebase App Dist.)
+#   • unshelvd-<version>.ipa  — iOS IPA      (TestFlight / Diawi)
 #
 # Triggers
 # ────────
@@ -306,13 +306,13 @@ jobs:
           # Build a dynamic list of available assets
           ASSET_LIST=""
           if ls release-assets/*.apk 1>/dev/null 2>&1; then
-            ASSET_LIST+="- 📱 **Android APK** — \`$(basename release-assets/*.apk)\` — direct install (Firebase App Distribution, Diawi, etc.)"$'\n'
+            ASSET_LIST+="- 📱 **Android APK** — \`$(basename release-assets/*.apk)\` — direct install (Diawi, etc.)"$'\n'
           fi
           if ls release-assets/*.aab 1>/dev/null 2>&1; then
             ASSET_LIST+="- 📦 **Android AAB** — \`$(basename release-assets/*.aab)\` — Play Store upload"$'\n'
           fi
           if ls release-assets/*.ipa 1>/dev/null 2>&1; then
-            ASSET_LIST+="- 🍎 **iOS IPA** — \`$(basename release-assets/*.ipa)\` — TestFlight / Firebase App Distribution"$'\n'
+            ASSET_LIST+="- 🍎 **iOS IPA** — \`$(basename release-assets/*.ipa)\` — TestFlight / Diawi"$'\n'
           fi
 
           gh release create "$VERSION" \
@@ -328,7 +328,7 @@ jobs:
           3. Open the APK file to install
 
           ### iOS installation
-          Upload the IPA to [Firebase App Distribution](https://firebase.google.com/products/app-distribution), [TestFlight](https://developer.apple.com/testflight/), or [Diawi](https://www.diawi.com/) and share the link with testers.
+          Upload the IPA to [TestFlight](https://developer.apple.com/testflight/) or [Diawi](https://www.diawi.com/) and share the link with testers.
 
           ---
           Built from commit \`${{ github.sha }}\`" \

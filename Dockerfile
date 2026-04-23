@@ -32,10 +32,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-# Run as non-root for security (Cloud Run also enforces this, but be explicit)
+# Run as non-root for security
 USER node
 
-# Ensure production runtime behavior in Cloud Run
+# Production runtime
 ENV NODE_ENV=production
 
 # Copy built output
@@ -55,8 +55,7 @@ COPY script/seed.js ./script/seed.js
 ENV PORT=8080
 EXPOSE 8080
 
-# Cloud Run uses its own TCP startup probe — no Docker HEALTHCHECK needed.
-# Adding one causes unnecessary restarts during cold starts.
+# AWS App Runner uses its own TCP startup probe — no Docker HEALTHCHECK needed.
 
 # Run
 CMD ["node", "dist/index.cjs"]

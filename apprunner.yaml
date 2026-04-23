@@ -1,0 +1,49 @@
+# AWS App Runner service configuration
+# ─────────────────────────────────────
+# Used when App Runner pulls a pre-built image from Amazon ECR. The Docker
+# image is built/pushed by the GitHub Actions deploy workflow
+# (.github/workflows/deploy.yml) — App Runner just runs the container.
+#
+# Secrets (DATABASE_URL, SESSION_SECRET, STRIPE_SECRET_KEY,
+# STRIPE_WEBHOOK_SECRET, PAYPAL_CLIENT_SECRET, …) are wired in the App Runner
+# console (or via Terraform/CDK) as references to AWS Secrets Manager — they
+# are intentionally NOT listed here, because secret values must never live in
+# source control.
+#
+# Non-secret runtime env vars are listed below and become App Runner-managed
+# environment variables on every deploy.
+
+version: 1.0
+runtime: docker
+build:
+  # Image-based deploys skip the App Runner build phase; the Docker image is
+  # built in CI and pushed to ECR. The "build" section is required by the
+  # schema but is a no-op for source-type "ECR".
+  commands:
+    build: []
+run:
+  # The Docker image's CMD already starts the server. App Runner uses this
+  # field only when overriding the entrypoint, which we don't.
+  command: node dist/index.cjs
+  network:
+    port: 8080
+    env: PORT
+  env:
+    - name: NODE_ENV
+      value: production
+    - name: PORT
+      value: "8080"
+    - name: APP_URL
+      value: https://unshelvd.koshkikode.com
+    - name: PUBLIC_APP_URL
+      value: https://unshelvd.koshkikode.com
+    - name: WEB_BASE_URL
+      value: https://unshelvd.koshkikode.com
+    - name: CORS_ALLOWED_ORIGINS
+      value: https://unshelvd.koshkikode.com
+    # AWS_REGION is supplied automatically by App Runner; uncomment to override.
+    # - name: AWS_REGION
+    #   value: us-east-1
+    # S3_BUCKET_NAME for profile image uploads — set to your bucket name.
+    # - name: S3_BUCKET_NAME
+    #   value: unshelvd-uploads

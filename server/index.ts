@@ -11,7 +11,7 @@ import { startJobs } from "./jobs";
 
 const app = express();
 
-// Trust proxy — needed for Cloud Run, secure cookies, and rate limiting
+// Trust proxy — needed for App Runner / load balancers, secure cookies, and rate limiting
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
 
@@ -166,8 +166,7 @@ app.use((req, res, next) => {
 (async () => {
   try {
     // Run DB migrations before anything else (no-op in dev if migrations/ doesn't exist)
-    // The bootstrap Cloud Run job (script/bootstrap.js) runs first to fix permissions,
-    // then this applies the schema from migrations/ so all tables are created.
+    // Applies the schema from migrations/ so all tables are created.
     await runMigrations();
 
     await registerRoutes(httpServer, app);
@@ -211,7 +210,7 @@ app.use((req, res, next) => {
     );
 
     // Auto-seed works + catalog on first run (no-op if already populated).
-    // Runs AFTER listen() so Cloud Run sees the port open immediately.
+    // Runs AFTER listen() so App Runner sees the port open immediately.
     runAutoSeed().catch((err) => {
       console.error("Auto-seed failed (non-fatal):", err);
     });

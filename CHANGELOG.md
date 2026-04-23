@@ -22,12 +22,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **Admin dashboard** — user management, dispute resolution, platform settings (fees, maintenance mode, payment toggles), catalog seeding
 - **Rating system** — buyers and sellers can rate each other after each completed transaction
 - **Dispute resolution** — buyers can open disputes; admins can issue refunds or release funds to sellers
-- **Background jobs** — auto-complete shipped transactions after 14 days, expire stale offers after 7 days, cancel abandoned checkouts after 72 hours; PostgreSQL advisory locks prevent duplicate runs across Cloud Run instances
+- **Background jobs** — auto-complete shipped transactions after 14 days, expire stale offers after 7 days, cancel abandoned checkouts after 72 hours; PostgreSQL advisory locks prevent duplicate runs across server instances
 - **Android app** — Capacitor 8; CI builds a debug APK on every push
 - **iOS app** — Capacitor 8; CI verifies the build on every push (archiving requires macOS)
 - **Desktop app guide** — Tauri v2 setup instructions (see [DESKTOP.md](./DESKTOP.md))
 - **Unicode-aware password policy** — 12+ characters, upper/lower/number/symbol, rejects passwords that contain the user's name or username
-- **PostgreSQL-backed rate limiting** — enforced across all Cloud Run instances; auth (10/15 min), payments (5/min), API (100/min), search (20/min); dedicated limiters skip the general API counter to avoid double-counting
+- **PostgreSQL-backed rate limiting** — enforced across all server instances; auth (10/15 min), payments (5/min), API (100/min), search (20/min); dedicated limiters skip the general API counter to avoid double-counting
 - **HTTP security headers** — Helmet with production CSP, CORS restricted to known origins
 - **Work-resolver** — automatically links new book listings to Open Library works and updates edition/language/listing counts
 

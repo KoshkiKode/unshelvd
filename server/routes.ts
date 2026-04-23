@@ -76,7 +76,7 @@ import connectPgSimple from "connect-pg-simple";
 import createMemoryStore from "memorystore";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { uploadImage, deleteImage, isGcsConfigured } from "./gcs";
+import { uploadImage, deleteImage, isS3Configured } from "./s3";
 
 const BCRYPT_SALT_ROUNDS = 14;
 
@@ -193,7 +193,7 @@ export async function registerRoutes(
   const SESSION_PRUNE_INTERVAL_S = 15 * 60;        // prune expired sessions every 15 min
 
   // In production use a PostgreSQL-backed session store so sessions survive
-  // across multiple Cloud Run instances.  In development fall back to the
+  // across multiple server instances.  In development fall back to the
   // in-memory store to avoid requiring a database connection.
   const sessionStore =
     process.env.NODE_ENV === "production" && process.env.DATABASE_URL
@@ -223,7 +223,7 @@ export async function registerRoutes(
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       secure: process.env.NODE_ENV === "production",
     },
-    // Trust the first proxy (Cloud Run, nginx, etc.)
+    // Trust the first proxy (App Runner, nginx, etc.)
     proxy: process.env.NODE_ENV === "production",
   });
   app.use(sessionMiddleware);
@@ -1716,13 +1716,13 @@ export async function registerRoutes(
       });
       const data = allowedFields.parse(req.body);
 
-      // If the avatar is being replaced and the old one lives in our GCS bucket,
+      // If the avatar is being replaced and the old one lives in our S3 bucket,
       // delete the old object so we don't accumulate orphaned files.
       if (data.avatarUrl !== undefined) {
         const currentUser = await storage.getUser(req.user!.id);
         if (currentUser?.avatarUrl && currentUser.avatarUrl !== data.avatarUrl) {
           deleteImage(currentUser.avatarUrl).catch((err) => {
-            console.error("[gcs] Failed to delete old avatar on profile update:", err);
+            console.error("[s3] Failed to delete old avatar on profile update:", err);
           });
         }
       }
@@ -2514,10 +2514,10 @@ export async function registerRoutes(
       const deletedEmail = `deleted_${user.id}@deleted.invalid`;
       const deletedUsername = `deleted_${user.id}`;
 
-      // Delete the user's avatar from GCS (best-effort, non-fatal)
+      // Delete the user's avatar from S3 (best-effort, non-fatal)
       if (user.avatarUrl) {
         deleteImage(user.avatarUrl).catch((err) => {
-          console.error("[gcs] Failed to delete avatar on account deletion:", err);
+          console.error("[s3] Failed to delete avatar on account deletion:", err);
         });
       }
 
@@ -2590,9 +2590,9 @@ export async function registerRoutes(
 
   // === IMAGE UPLOAD ===
   // Accepts a base64-encoded data URL from the client (FileReader.readAsDataURL).
-  // When GCS_BUCKET_NAME is configured, decodes the bytes and uploads to GCS,
-  // returning a permanent https://storage.googleapis.com/… URL.
-  // When GCS is not configured (local dev without a bucket), echoes the data
+  // When S3_BUCKET_NAME is configured, decodes the bytes and uploads to S3,
+  // returning a permanent https://<bucket>.s3.<region>.amazonaws.com/… URL.
+  // When S3 is not configured (local dev without a bucket), echoes the data
   // URL back so the rest of the flow still works without cloud infra.
   // Max size: 1 MB avatar / 2 MB cover (raw).  The path-specific 3 mb body parser
   // is registered in server/index.ts before the global 100 kb parser so large
@@ -2619,13 +2619,13 @@ export async function registerRoutes(
         return res.status(400).json({ message: `Image too large. Maximum size is ${limitMB} MB.` });
       }
 
-      if (isGcsConfigured()) {
+      if (isS3Configured()) {
         const buffer = Buffer.from(base64Part, "base64");
         const url = await uploadImage(req.user!.id, buffer, mimeType, type);
         return res.json({ url });
       }
 
-      // GCS not configured — fall back to echoing the data URI (dev/no-bucket mode)
+      // S3 not configured — fall back to echoing the data URI (dev/no-bucket mode)
       return res.json({ url: dataUrl });
     } catch (err) {
       if (err instanceof ZodError) return res.status(400).json({ message: err.issues[0]?.message });
