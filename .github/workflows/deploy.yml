@@ -44,9 +44,49 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  migrate:
+    name: Drizzle migrate (Amazon RDS)
+    runs-on: ubuntu-latest
+    environment: production
+    # Migrations must run BEFORE the new container is deployed — otherwise a
+    # release that adds a column the app reads will crash the new instance
+    # before the schema catches up. Drizzle migrations are idempotent (the
+    # journal records what's been applied), so re-running on a no-op deploy
+    # is safe.
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies (production only is enough for migrate)
+        run: npm ci
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Fetch DATABASE_URL from Secrets Manager
+        id: db-url
+        run: |
+          VALUE=$(aws secretsmanager get-secret-value \
+            --secret-id "${{ vars.DATABASE_URL_SECRET_ID }}" \
+            --query SecretString --output text)
+          echo "::add-mask::$VALUE"
+          echo "DATABASE_URL=$VALUE" >> "$GITHUB_ENV"
+
+      - name: Run migrations
+        run: node script/migrate.js
+
   build-and-deploy:
     name: Build → ECR → App Runner
     runs-on: ubuntu-latest
+    needs: migrate
     environment: production
     steps:
       - uses: actions/checkout@v6
@@ -84,41 +124,3 @@ jobs:
         run: |
           aws apprunner start-deployment \
             --service-arn "${{ secrets.APPRUNNER_SERVICE_ARN }}"
-
-  migrate:
-    name: Drizzle migrate (Amazon RDS)
-    runs-on: ubuntu-latest
-    needs: build-and-deploy
-    environment: production
-    # Migrations are intentionally idempotent — Drizzle skips already-applied
-    # ones automatically. This job runs against RDS using a short-lived
-    # connection string fetched from Secrets Manager via OIDC.
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Set up Node.js 24
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install dependencies (production only is enough for migrate)
-        run: npm ci
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
-
-      - name: Fetch DATABASE_URL from Secrets Manager
-        id: db-url
-        run: |
-          VALUE=$(aws secretsmanager get-secret-value \
-            --secret-id "${{ vars.DATABASE_URL_SECRET_ID }}" \
-            --query SecretString --output text)
-          echo "::add-mask::$VALUE"
-          echo "DATABASE_URL=$VALUE" >> "$GITHUB_ENV"
-
-      - name: Run migrations
-        run: node script/migrate.js

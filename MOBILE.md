@@ -1,5 +1,33 @@
 # Unshelv'd — Mobile App Build Guide
 
+## App identity (don't change after first store submission)
+
+| Field | Value |
+|---|---|
+| Bundle / application ID | `com.koshkikode.unshelvd` |
+| Display name | `Unshelv'd` |
+| Production API | `https://unshelvd.koshkikode.com` |
+
+> ⚠️ The bundle ID is **immutable** once the app is published to either store.
+> Both stores treat the bundle ID as the primary key for the listing — changing
+> it after launch means starting a brand-new listing and losing reviews,
+> ratings, and existing installs.
+
+## Versioning policy
+
+`package.json#version` is the single source of truth. The `prebuild` step runs
+`scripts/sync-version.ts`, which writes:
+
+- Android `versionName` ← exact `package.json` version (allows prerelease tags
+  like `0.1.0-beta` for Play Console internal-track builds)
+- Android `versionCode` ← `major*10000 + minor*100 + patch` (integer, monotonic)
+- iOS `MARKETING_VERSION` ← `major.minor.patch` only — **prerelease tags are
+  stripped** because Apple rejects non-numeric `CFBundleShortVersionString` at
+  upload time. Use `CURRENT_PROJECT_VERSION` (build number) to differentiate
+  beta builds within the same marketing version.
+
+To cut a new version: bump `package.json#version`, commit, then build.
+
 ## Prerequisites
 
 - **Android Studio** (latest) with Android SDK 34+
@@ -252,3 +280,57 @@ npx cap open ios
 ```
 
 Build from Xcode. Requires macOS.
+
+> 📅 **Deferred until the Apple Developer account is active.** Once you have
+> the account, the iOS-specific work is:
+>
+> 1. Create an App ID in the Apple Developer portal with bundle ID
+>    `com.koshkikode.unshelvd` (must match `ios/App/App.xcodeproj/project.pbxproj`).
+> 2. Generate a Distribution certificate and an App Store provisioning profile
+>    (and an Ad-Hoc profile if you want Diawi-style direct installs).
+> 3. Populate the `IOS_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, and
+>    `IOS_PROVISIONING_PROFILE_BASE64` GitHub secrets listed above.
+> 4. Create the App Store Connect listing (same bundle ID), fill in metadata,
+>    upload screenshots, and submit a TestFlight build via `release.yml` or
+>    the manual `build-ios.yml` dispatch.
+> 5. Re-run `release.yml` for the next tag — the iOS IPA will now be produced
+>    and attached to the GitHub Release alongside the Android artifacts.
+
+---
+
+## Google Play — first-submission checklist
+
+Generic checklist for the first time the app is uploaded to a Play Console
+account. Most of these are one-time setup tasks.
+
+- [ ] Create the app in Play Console with package name `com.koshkikode.unshelvd`
+      (this becomes immutable on first upload).
+- [ ] Opt **in** to Play App Signing — upload your generated keystore as the
+      *upload key*; Google manages the actual signing key. (The `release.yml`
+      workflow already produces an upload-key-signed AAB.)
+- [ ] Set the default language and store listing copy.
+- [ ] Upload the icon (512×512 PNG), feature graphic (1024×500 PNG), and at
+      least 2 phone screenshots per language you list.
+- [ ] Fill in the **Privacy policy URL**: `https://unshelvd.koshkikode.com/#/privacy`.
+- [ ] Complete the **Data safety** form. Unshelv'd collects: account info
+      (email, name), user-generated content (listings, messages), payment info
+      (handled by Stripe/PayPal — not stored on our servers), and approximate
+      location only if the user opts in. Mark Stripe and PayPal as third-party
+      data processors.
+- [ ] Complete the **Content rating** questionnaire (peer-to-peer marketplace,
+      user messaging — usually rates as "Teen" or higher depending on country).
+- [ ] Declare **target audience** (13+ recommended; under-13 triggers extra
+      compliance requirements).
+- [ ] Confirm `targetSdkVersion` meets Play's current minimum — see
+      `android/variables.gradle`.
+- [ ] Upload the AAB produced by `release.yml` to the **Internal testing**
+      track first; promote to Closed → Open → Production once stable.
+- [ ] Add internal testers by email (your own Google account first, so you can
+      install the upload-key-signed build via the Play Store on your device).
+
+> 💳 **Payments are in test mode for the initial submission.** The `Stripe
+> Connect` and PayPal flows still work end-to-end against the sandbox, which
+> is what the Play reviewer will exercise. Switch to live keys (see
+> [DEPLOY.md](./DEPLOY.md) — Secrets Manager) only after the app is approved
+> and you're ready to take real money.
+

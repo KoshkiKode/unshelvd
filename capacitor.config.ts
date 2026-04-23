@@ -13,7 +13,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * See client/src/lib/api-base.ts → getApiBase() for the full resolution logic.
  */
 const config: CapacitorConfig = {
-  appId: "com.unshelvd.app",
+  appId: "com.koshkikode.unshelvd",
   appName: "Unshelv'd",
   webDir: "dist/public",
 
@@ -21,10 +21,11 @@ const config: CapacitorConfig = {
     androidScheme: "https",
     iosScheme: "https",
     // Restrict navigation to only the domains the app genuinely needs.
-    // Payments (Stripe), book covers (Open Library), and our own backend.
+    // Payments (Stripe + PayPal), book covers (Open Library), and our own backend.
     allowNavigation: [
       "*.koshkikode.com",
       "*.stripe.com",
+      "*.paypal.com",
       "*.openlibrary.org",
     ],
   },

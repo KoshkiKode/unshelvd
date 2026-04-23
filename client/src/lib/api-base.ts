@@ -44,6 +44,46 @@ export function getApiBase(): string {
 
 export const API_BASE = getApiBase();
 
+/**
+ * Build a WebSocket URL (ws:// or wss://) that targets the same backend host
+ * as the REST API.  Centralised so that callers don't accidentally derive the
+ * scheme from `window.location.protocol`, which is wrong inside Capacitor
+ * (`capacitor://localhost` on iOS, `http://localhost` on Android emulator)
+ * even when the API is served over HTTPS.
+ *
+ * @param path  WebSocket path, e.g. "/ws".  A leading slash is added if missing.
+ */
+export function getWebSocketUrl(path = "/ws"): string {
+  const normalisedPath = path.startsWith("/") ? path : `/${path}`;
+
+  // 1. Explicit override (rare; kept for parity with REST escape hatches).
+  const wsOverride = import.meta.env.VITE_WS_URL;
+  if (wsOverride) {
+    return `${trimTrailingSlash(wsOverride)}${normalisedPath}`;
+  }
+
+  // 2. Native or any build with an explicit API base — derive scheme from it
+  //    so we always upgrade to wss:// when the API is served over HTTPS.
+  if (API_BASE) {
+    try {
+      const apiUrl = new URL(API_BASE);
+      const wsProtocol = apiUrl.protocol === "https:" ? "wss:" : "ws:";
+      return `${wsProtocol}//${apiUrl.host}${normalisedPath}`;
+    } catch {
+      // Fall through to same-origin handling below.
+    }
+  }
+
+  // 3. Same-origin web build — derive from the page URL.
+  if (typeof window !== "undefined" && window.location) {
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${wsProtocol}//${window.location.host}${normalisedPath}`;
+  }
+
+  // 4. SSR / non-browser fallback (defensive — there is no DOM at this point).
+  return `ws://localhost:5000${normalisedPath}`;
+}
+
 export async function checkBackendHealth(): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/api/health`, {
