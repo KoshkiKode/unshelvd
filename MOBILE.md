@@ -111,9 +111,9 @@ git push origin v1.2.3
 ```
 
 That tag push triggers `release.yml`, which:
-1. Builds a **signed Android APK** (for Firebase App Distribution / direct install)
+1. Builds a **signed Android APK** (for direct install / Diawi)
 2. Builds a **signed Android AAB** (for Play Store upload)
-3. Builds a **signed iOS IPA** (for Firebase App Distribution / TestFlight)
+3. Builds a **signed iOS IPA** (for TestFlight / Diawi)
 4. Creates a **GitHub Release** at `Releases → v1.2.3` with all three files attached
 
 ### Setting Up Required Secrets
@@ -171,24 +171,18 @@ To export your Distribution certificate:
 
 ### Distributing to Testers (Before the App Store)
 
-**Android** — Firebase App Distribution (recommended):
-1. Go to [Firebase Console](https://console.firebase.google.com) → App Distribution
-2. Upload the `unshelvd-v1.2.3.apk` from the GitHub Release
-3. Add tester emails → Firebase sends install links
-
-**Android** — Diawi / direct:
+**Android** — Diawi / direct (recommended):
 1. Download the `.apk` from the GitHub Release
 2. Upload to [diawi.com](https://www.diawi.com) (generates a QR code install link)
 3. Or send the APK directly; testers enable **Install from unknown sources**
 
-**iOS** — Firebase App Distribution (recommended for pre-App Store):
-1. Go to Firebase Console → App Distribution
-2. Upload the `unshelvd-v1.2.3.ipa`
-3. Add tester emails → they get guided install instructions
-
-**iOS** — TestFlight:
+**iOS** — TestFlight (recommended for pre-App Store):
 1. Use `build-ios.yml` (manual dispatch) which exports via `ExportOptions.plist` (App Store method)
 2. That job uploads directly to App Store Connect → distribute to internal testers via TestFlight
+
+**iOS** — Diawi / Ad-Hoc direct:
+1. Download the `.ipa` from the GitHub Release (built with the Ad-Hoc `ExportOptions-adhoc.plist`)
+2. Upload to [diawi.com](https://www.diawi.com) → share the install link with testers whose UDIDs are registered in your provisioning profile
 
 ## How API Calls Work
 

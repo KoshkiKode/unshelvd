@@ -72,7 +72,7 @@ export default function PrivacyPolicy() {
           <ul className="list-disc list-inside space-y-1 mt-2">
             <li>Your display name and rating are visible to other users.</li>
             <li>Your shipping address (if provided during a transaction) is shared with the seller for that transaction only.</li>
-            <li>We use Google Cloud (hosting) and Amazon SES (email) — both process data under data processing agreements.</li>
+            <li>We use Amazon Web Services (hosting and storage) and Amazon SES (email) — both process data under data processing agreements.</li>
           </ul>
         </section>
 
