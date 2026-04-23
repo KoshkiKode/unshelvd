@@ -348,7 +348,14 @@ Attach an inline policy granting:
    | Source | Target | Type |
    |---|---|---|
    | `/api/<*>` | `https://<APP_RUNNER_URL>.awsapprunner.com/api/<*>` | `200 (Rewrite)` |
+   | `/ws/<*>` | `https://<APP_RUNNER_URL>.awsapprunner.com/ws/<*>` | `200 (Rewrite)` |
    | `/<*>` | `/index.html` | `200 (Rewrite)` |
+
+   The `/ws/<*>` rule is what allows the real-time messaging WebSocket
+   (`wss://unshelvd.koshkikode.com/ws`) to be proxied through to App Runner so
+   that web users get instant message delivery. Without it, the request falls
+   through to the SPA fallback and the upgrade never happens — messaging
+   silently degrades to the 5-second polling fallback.
 
    Order matters — the API rule must be **above** the SPA fallback.
 5. **Custom domain** → add `unshelvd.koshkikode.com`. Amplify will issue an ACM certificate and give you the CNAME(s) to add in Route 53. Point the apex (`koshkikode.com`) and `www` redirects in the same wizard if desired.
@@ -365,10 +372,14 @@ git push origin main
 ```
 
 The workflow:
-1. Builds the Docker image with the Vite client baked in.
-2. Pushes `:<sha>` and `:latest` tags to ECR.
-3. Calls `aws apprunner start-deployment` against the service ARN.
-4. Runs `node script/migrate.js` against RDS using a temporary DATABASE_URL pulled from Secrets Manager.
+1. Runs `node script/migrate.js` against RDS using a temporary DATABASE_URL
+   pulled from Secrets Manager. **Migrations run first** so a release that
+   adds a new column doesn't crash the new container before the schema
+   catches up. Drizzle migrations are idempotent — re-running on a no-op
+   deploy is safe.
+2. Builds the Docker image with the Vite client baked in.
+3. Pushes `:<sha>` and `:latest` tags to ECR.
+4. Calls `aws apprunner start-deployment` against the service ARN.
 
 App Runner will pull the new `:latest` image and roll the service.
 
@@ -388,6 +399,12 @@ Then click through these in the browser to confirm wiring end to end:
 3. Sign in with the seeded admin account at `/#/login`.
 4. Open `/#/admin` — confirms session cookie survived the cross-origin
    Amplify → App Runner hop (`SameSite=None; Secure` is set in production).
+5. **Cross-device handoff** — sign in as the same user on the website and
+   on the installed Android/iOS build. Open a conversation in `/#/messages`
+   on both. Send a message from one device; it should appear on the other
+   within ~1 second (WebSocket push, not the 5s polling fallback). If you
+   instead see a 5s delay, the `/ws/<*>` Amplify rewrite is missing — see
+   step 4 above.
 
 CloudWatch Logs are at:
 - `/aws/apprunner/<service>/<service-id>/application` — app stdout/stderr
@@ -424,6 +441,7 @@ these.
 | App Runner health check stuck on "Operation in progress" | Health check path or port mismatch | App Runner service settings → Health check: `HTTP`, path `/api/health`, port `8080` |
 | App Runner logs: `ECONNREFUSED` to RDS | Security group on the RDS instance doesn't allow the App Runner egress IP | Add the App Runner outbound IP (or VPC connector) to the RDS security group, or temporarily flip RDS to `--publicly-accessible` to confirm |
 | Login works on web but not in the mobile app | CORS rejected the Capacitor origin, or the session cookie isn't crossing origins | Confirm `CORS_ALLOWED_ORIGINS` includes the production domain (Capacitor origins are allowed by default in `server/index.ts`); confirm `NODE_ENV=production` so cookies are issued as `SameSite=None; Secure` |
+| Messages take 5s to arrive instead of being instant | The WebSocket isn't connecting — either the Amplify `/ws/<*>` rewrite is missing (web) or the native client tried `ws://` against an HTTPS host (native) | Add the `/ws/<*>` rewrite (see step 4); confirm the native build was produced after this fix landed (the client now derives the WS scheme from `VITE_API_URL`, not `window.location.protocol`) |
 | Stripe webhooks rejected with `signature verification failed` | The webhook signing secret in Secrets Manager doesn't match the one Stripe is sending | Re-copy the signing secret from the Stripe dashboard for the **specific endpoint** (test vs live secrets are different) and update `unshelvd/STRIPE_WEBHOOK_SECRET` |
 | `npm run check` fails in CI but passes locally | Node version drift | Pin Node 20+ in CI; the deploy migrate job uses Node 24 — keep that aligned with `.nvmrc`/your local env |
 | GitHub Actions OIDC step fails: `not authorized to perform sts:AssumeRoleWithWebIdentity` | The role's trust policy `sub` condition doesn't match this repo's branch/ref | Update the trust policy `StringLike` to `repo:KoshkiKode/unshelvd:*` (or scope it tighter to `:ref:refs/heads/main` once stable) |

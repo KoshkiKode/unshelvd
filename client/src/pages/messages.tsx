@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
-import { API_BASE } from "@/lib/api-base";
+import { getWebSocketUrl } from "@/lib/api-base";
 import { useSearch, Redirect, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,9 +100,7 @@ export default function Messages() {
   const connectWs = useCallback(() => {
     if (!user || !selectedConvId) return;
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = API_BASE ? new URL(API_BASE).host : window.location.host;
-    const ws = new WebSocket(`${protocol}//${host}/ws`);
+    const ws = new WebSocket(getWebSocketUrl("/ws"));
 
     wsRef.current = ws;
 

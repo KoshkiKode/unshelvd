@@ -10,7 +10,12 @@ type SemverParts = {
 
 function parseSemver(version: string): SemverParts {
   // Accepts e.g. "1.2.3" or "0.1.0-beta" or "0.1.0-beta.2".
-  const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/);
+  // Prerelease grammar follows semver: dot-separated identifiers, each
+  // alphanumeric/hyphen and non-empty. Rejects malformed inputs like
+  // "1.0.0-" or "1.0.0-.beta" or "1.0.0-beta.".
+  const match = version.match(
+    /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/,
+  );
   if (!match) {
     throw new Error(`Unsupported package version "${version}". Expected semver (x.y.z[-prerelease]).`);
   }
