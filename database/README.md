@@ -132,7 +132,7 @@ pg_dump "$DATABASE_URL" --no-owner --no-acl -f database/backup-$(date +%Y%m%d).s
 
 The SQL in this folder is compatible with:
 
-- **AlloyDB for PostgreSQL** (production target)
+- **Amazon RDS for PostgreSQL** (production target)
 - **Standard PostgreSQL 13+** (local dev)
 
 Key choices:

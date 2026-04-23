@@ -193,7 +193,7 @@ export async function registerRoutes(
   const SESSION_PRUNE_INTERVAL_S = 15 * 60;        // prune expired sessions every 15 min
 
   // In production use a PostgreSQL-backed session store so sessions survive
-  // across multiple Cloud Run instances.  In development fall back to the
+  // across multiple server instances.  In development fall back to the
   // in-memory store to avoid requiring a database connection.
   const sessionStore =
     process.env.NODE_ENV === "production" && process.env.DATABASE_URL
@@ -223,7 +223,7 @@ export async function registerRoutes(
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       secure: process.env.NODE_ENV === "production",
     },
-    // Trust the first proxy (Cloud Run, nginx, etc.)
+    // Trust the first proxy (App Runner, nginx, etc.)
     proxy: process.env.NODE_ENV === "production",
   });
   app.use(sessionMiddleware);

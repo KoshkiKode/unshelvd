@@ -1,4 +1,4 @@
-# Unshelv'd — Deployment Guide
+# Unshelv'd — Deployment Guide (AWS)
 
 This is the single deployment reference for this repository.
 
@@ -14,97 +14,61 @@ https://unshelvd.koshkikode.com/
 
 | Service | Role |
 |---------|------|
-| **Cloud Build** | CI/CD — builds image, runs migrations, deploys |
-| **Artifact Registry** | Docker image storage |
-| **Cloud Run** | Backend API + WebSocket server |
-| **AlloyDB** | PostgreSQL-compatible managed database |
-| **Serverless VPC Access** | Private connectivity: Cloud Run → AlloyDB |
-| **Secret Manager** | Runtime secrets (database URL, session key, Stripe) |
-| **Cloud Storage** | Profile image uploads |
-| **Firebase Hosting** | SPA CDN, custom domain (`unshelvd.koshkikode.com`), managed SSL |
-| **Cloud Monitoring** | Uptime checks, log-based alerting |
-| **Cloud Logging** | Structured application logs |
-| **Route 53** | DNS host for `koshkikode.com` (external — domain management only) |
+| **GitHub Actions** | CI/CD — type-check/build/test on every PR; deploy to ECR + App Runner on `main` |
+| **Amazon ECR** | Docker image registry |
+| **AWS App Runner** | Backend API + WebSocket server (containerised) |
+| **Amazon RDS for PostgreSQL** | Managed database |
+| **AWS Secrets Manager** | Runtime secrets (database URL, session key, Stripe, PayPal) |
+| **Amazon S3** | Profile image / cover uploads |
+| **AWS Amplify Hosting** | SPA CDN, custom domain (`unshelvd.koshkikode.com`), managed TLS, `/api/**` rewrite proxy |
+| **Amazon CloudWatch** | Logs, metrics, alarms |
+| **Amazon Route 53** | DNS host for `koshkikode.com` |
 
 ### Request routing
 
 ```
-Route 53 (DNS) → Firebase Hosting (unshelvd.koshkikode.com)
-                    │
-                    ├── /          → SPA static files (Firebase global CDN)
-                    └── /api/**    → Cloud Run (rewrite proxy, us-central1)
+Route 53 (DNS) → Amplify Hosting (unshelvd.koshkikode.com)
+                     │
+                     ├── /          → SPA static files (Amplify global CDN)
+                     └── /api/**    → App Runner service (rewrite proxy)
 ```
 
-### Why Firebase Hosting + Cloud Run (not Cloud Run alone)
+### Why Amplify Hosting + App Runner (not App Runner alone)
 
-Unshelv'd is a global peer-to-peer marketplace. The two services serve completely different workloads and pricing models:
+Unshelv'd is a global peer-to-peer marketplace. The two services serve completely different workloads:
 
 | Traffic type | Served by | Cost model |
 |---|---|---|
-| SPA shell, JS/CSS bundles, images | Firebase Hosting CDN | ~free (10 GB/month free egress on Blaze) |
-| API calls — listings, auth, Stripe | Cloud Run | Pay per request + CPU |
+| SPA shell, JS/CSS bundles, static assets | Amplify Hosting CDN | Per-GB egress (very cheap) |
+| API calls — listings, auth, Stripe | App Runner | Per-vCPU-second + memory |
 
-**What this means in practice:**
-- A user in Tokyo, Lagos, or São Paulo gets the frontend from the nearest Firebase CDN edge node — no latency penalty, no Cloud Run cold start, no egress charge.
-- Cloud Run only receives actual API traffic. Browse-heavy usage (users scrolling listings) costs virtually nothing on the backend.
-- Cloud Run runs in a single region (`us-central1`). Without Firebase CDN in front, every page load would hit that one region from wherever the user is. Firebase makes the app feel fast worldwide without paying for multi-region Cloud Run.
+A user in Tokyo, Lagos, or São Paulo gets the frontend from the nearest CloudFront edge node fronting Amplify — no cold-start latency on browse pages. App Runner only handles actual API traffic.
 
-**Route 53 role:** Route 53 is the authoritative DNS host for `koshkikode.com` (the domain is registered/managed there). It delegates to Firebase Hosting via A records — it does not proxy traffic. All actual request handling is Firebase → Cloud Run.
+**Route 53 role:** authoritative DNS for `koshkikode.com`. It delegates to Amplify Hosting via the records Amplify provides during the custom-domain wizard. It does not proxy traffic.
 
 ---
 
 ## 1. Prerequisites
 
 ```bash
-node --version
+node --version   # 20+
+npm --version    # 10+
+docker --version # 24+
+aws --version    # AWS CLI v2
 ```
-Expected: Node.js 20+
 
-```bash
-npm --version
-```
-Expected: npm 10+
-
-```bash
-gcloud --version
-```
-Expected: Google Cloud CLI (latest stable)
-
-```bash
-docker --version
-```
-Expected: Docker Engine 24+
-
-```bash
-firebase --version
-```
-Expected: Firebase CLI 13+ — install with: `npm install -g firebase-tools`
+You'll also need an AWS account with permission to create IAM roles, ECR repos, App Runner services, RDS instances, S3 buckets, and Secrets Manager secrets.
 
 ---
 
-## 2. Clone, install, and verify locally
+## 2. Clone, install, verify locally
 
 ```bash
 git clone https://github.com/KoshkiKode/unshelvd.git
-```
-
-```bash
 cd unshelvd
-```
-
-```bash
 npm install
-```
-
-```bash
 npm run check
-```
-
-```bash
 npm test
-```
-
-```bash
 npm run build
 ```
 
@@ -112,643 +76,300 @@ npm run build
 
 ## 3. Set shell variables (copy/paste once per session)
 
-Replace only `YOUR_GCP_PROJECT_ID`.
-
 ```bash
-export PROJECT_ID=YOUR_GCP_PROJECT_ID
-```
-
-```bash
-export REGION=us-central1
-```
-
-```bash
-export SERVICE_NAME=unshelvd
-```
-
-```bash
-export REPO_NAME=unshelvd
-```
-
-```bash
-export ALLOYDB_CLUSTER=unshelvd-db
-```
-
-```bash
-export ALLOYDB_INSTANCE=unshelvd-primary
-```
-
-```bash
-export VPC_CONNECTOR=unshelvd-connector
-```
-
-```bash
+export AWS_REGION=us-east-1
+export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+export ECR_REPO=unshelvd
+export APPRUNNER_SERVICE=unshelvd
+export S3_BUCKET=unshelvd-uploads
+export RDS_INSTANCE=unshelvd-db
 export DOMAIN=unshelvd.koshkikode.com
 ```
 
 ---
 
-## 4. Authenticate and configure Google Cloud
+## 4. Amazon ECR — image registry (one time)
 
 ```bash
-gcloud auth login
-```
-
-```bash
-gcloud config set project "$PROJECT_ID"
-```
-
-```bash
-gcloud services enable \
-  run.googleapis.com \
-  cloudbuild.googleapis.com \
-  alloydb.googleapis.com \
-  artifactregistry.googleapis.com \
-  secretmanager.googleapis.com \
-  vpcaccess.googleapis.com \
-  servicenetworking.googleapis.com \
-  storage.googleapis.com \
-  monitoring.googleapis.com \
-  logging.googleapis.com \
-  firebase.googleapis.com \
-  firebasehosting.googleapis.com \
-  iam.googleapis.com
+aws ecr create-repository \
+  --repository-name "$ECR_REPO" \
+  --region "$AWS_REGION" \
+  --image-scanning-configuration scanOnPush=true
 ```
 
 ---
 
-## 5. Firebase project setup (one time)
+## 5. Amazon RDS — PostgreSQL (one time)
 
-Link your Google Cloud project to Firebase (required for Firebase Hosting).
-
-```bash
-firebase login
-```
+Create a small Postgres instance in the same region. Adjust storage/instance class to taste.
 
 ```bash
-firebase projects:addfirebase "$PROJECT_ID"
+aws rds create-db-instance \
+  --db-instance-identifier "$RDS_INSTANCE" \
+  --db-instance-class db.t4g.micro \
+  --engine postgres \
+  --engine-version 16 \
+  --allocated-storage 20 \
+  --storage-type gp3 \
+  --master-username unshelvd \
+  --master-user-password "$(openssl rand -base64 24)" \
+  --publicly-accessible \
+  --backup-retention-period 7 \
+  --region "$AWS_REGION"
 ```
+
+> ⚠️  `--publicly-accessible` is the simplest option for a single-region setup; lock it down with a security group that only allows your App Runner egress + your laptop. For production hardening, put App Runner and RDS in the same VPC and use a VPC Connector instead.
+
+After the instance is `available`, grab the endpoint:
 
 ```bash
-firebase use "$PROJECT_ID"
+aws rds describe-db-instances \
+  --db-instance-identifier "$RDS_INSTANCE" \
+  --query 'DBInstances[0].Endpoint.Address' --output text
 ```
 
-Create `firebase.json` in the project root (copy/paste exactly):
+Build the connection string:
+
+```
+postgresql://unshelvd:<MASTER_PASSWORD>@<ENDPOINT>:5432/unshelvd?sslmode=require
+```
+
+Create the database:
+
+```bash
+psql "postgresql://unshelvd:<PASSWORD>@<ENDPOINT>:5432/postgres?sslmode=require" \
+  -c "CREATE DATABASE unshelvd;"
+```
+
+---
+
+## 6. AWS Secrets Manager — runtime secrets (one time)
+
+Create one secret per value. The deploy workflow expects to look these up by name.
+
+```bash
+aws secretsmanager create-secret --name unshelvd/DATABASE_URL \
+  --secret-string "postgresql://unshelvd:<PASSWORD>@<ENDPOINT>:5432/unshelvd?sslmode=require"
+
+aws secretsmanager create-secret --name unshelvd/SESSION_SECRET \
+  --secret-string "$(openssl rand -hex 32)"
+
+# Stripe (only if payments are enabled)
+aws secretsmanager create-secret --name unshelvd/STRIPE_SECRET_KEY     --secret-string "sk_live_..."
+aws secretsmanager create-secret --name unshelvd/STRIPE_WEBHOOK_SECRET --secret-string "whsec_..."
+
+# PayPal (optional)
+aws secretsmanager create-secret --name unshelvd/PAYPAL_CLIENT_SECRET --secret-string "..."
+```
+
+---
+
+## 7. Amazon S3 — profile image bucket (one time)
+
+```bash
+aws s3api create-bucket \
+  --bucket "$S3_BUCKET" \
+  --region "$AWS_REGION" \
+  $( [ "$AWS_REGION" != "us-east-1" ] && echo --create-bucket-configuration LocationConstraint="$AWS_REGION" )
+
+# Disable Block Public Access for this bucket so the public-read policy below can take effect.
+aws s3api put-public-access-block \
+  --bucket "$S3_BUCKET" \
+  --public-access-block-configuration "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
+
+# Allow anonymous GET on the avatar/cover prefixes only.
+cat > /tmp/bucket-policy.json <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadAvatarsAndCovers",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": [
+        "arn:aws:s3:::$S3_BUCKET/avatars/*",
+        "arn:aws:s3:::$S3_BUCKET/covers/*"
+      ]
+    }
+  ]
+}
+EOF
+aws s3api put-bucket-policy --bucket "$S3_BUCKET" --policy file:///tmp/bucket-policy.json
+```
+
+> Prefer to keep the bucket private? Front it with CloudFront and configure a CloudFront Origin Access Control (OAC) — then update `server/s3.ts` `publicUrl()` to return the CloudFront URL instead.
+
+---
+
+## 8. AWS App Runner — backend service (one time)
+
+The simplest path is the Console wizard:
+
+1. Open **App Runner → Create service**.
+2. Source: **Container registry → Amazon ECR**, image `…dkr.ecr.<region>.amazonaws.com/unshelvd:latest`.
+3. Deployment trigger: **Manual** (the GitHub Actions workflow calls `start-deployment` after each image push).
+4. Let App Runner create a new **ECR access role** (it needs `AmazonEC2ContainerRegistryReadOnly`).
+5. Service settings:
+   - Port: `8080`
+   - CPU/Memory: 1 vCPU / 2 GB (start small — App Runner scales horizontally automatically)
+   - **Instance role**: create one with this inline policy so the service can read secrets and write to S3:
+     ```json
+     {
+       "Version": "2012-10-17",
+       "Statement": [
+         {
+           "Effect": "Allow",
+           "Action": ["secretsmanager:GetSecretValue"],
+           "Resource": "arn:aws:secretsmanager:*:*:secret:unshelvd/*"
+         },
+         {
+           "Effect": "Allow",
+           "Action": ["s3:PutObject", "s3:DeleteObject"],
+           "Resource": "arn:aws:s3:::unshelvd-uploads/*"
+         }
+       ]
+     }
+     ```
+6. **Environment variables** (non-secret) — match `apprunner.yaml`:
+   - `NODE_ENV=production`
+   - `PORT=8080`
+   - `APP_URL=https://unshelvd.koshkikode.com`
+   - `PUBLIC_APP_URL=https://unshelvd.koshkikode.com`
+   - `WEB_BASE_URL=https://unshelvd.koshkikode.com`
+   - `CORS_ALLOWED_ORIGINS=https://unshelvd.koshkikode.com`
+   - `S3_BUCKET_NAME=unshelvd-uploads`
+7. **Environment variable references** (from Secrets Manager) — choose "Reference" type for each:
+   - `DATABASE_URL`         → `arn:aws:secretsmanager:…:secret:unshelvd/DATABASE_URL-…`
+   - `SESSION_SECRET`       → `…unshelvd/SESSION_SECRET-…`
+   - `STRIPE_SECRET_KEY`    → `…unshelvd/STRIPE_SECRET_KEY-…` *(only if enabled)*
+   - `STRIPE_WEBHOOK_SECRET`→ `…unshelvd/STRIPE_WEBHOOK_SECRET-…` *(only if enabled)*
+   - `PAYPAL_CLIENT_SECRET` → `…unshelvd/PAYPAL_CLIENT_SECRET-…` *(optional)*
+8. Health check path: `/api/health` (HTTP, port 8080).
+
+After the service is created, copy the **service ARN** and the default `*.awsapprunner.com` URL — you'll need both shortly.
+
+---
+
+## 9. GitHub OIDC role — let CI deploy without long-lived keys (one time)
+
+Add GitHub as an OIDC identity provider in IAM (only needed once per AWS account):
+
+```bash
+aws iam create-open-id-connect-provider \
+  --url https://token.actions.githubusercontent.com \
+  --client-id-list sts.amazonaws.com \
+  --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
+```
+
+Create the deploy role (`unshelvd-github-deploy`) with this trust policy:
 
 ```json
 {
-  "hosting": {
-    "public": "dist/public",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [
-      {
-        "source": "/api/**",
-        "run": {
-          "serviceId": "unshelvd",
-          "region": "us-central1"
-        }
-      },
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ],
-    "headers": [
-      {
-        "source": "/assets/**",
-        "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
-      }
-    ]
-  }
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": { "Federated": "arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com" },
+    "Action": "sts:AssumeRoleWithWebIdentity",
+    "Condition": {
+      "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
+      "StringLike":   { "token.actions.githubusercontent.com:sub": "repo:KoshkiKode/unshelvd:*" }
+    }
+  }]
 }
 ```
 
-> **Note — Firebase Hosting rewrites HTTP only.** The `/api/**` rewrite proxy handles
-> all REST API calls. This is sufficient for the current app which uses standard HTTP.
-
-Initialize Firebase Hosting (answer prompts: use existing project, public dir = `dist/public`, SPA = yes, no GitHub action overwrite):
-
-```bash
-firebase init hosting
-```
+Attach an inline policy granting:
+- `ecr:GetAuthorizationToken`, `ecr:Batch*`, `ecr:Put*`, `ecr:Initiate*`, `ecr:Upload*`, `ecr:Complete*` on the repository
+- `apprunner:StartDeployment` on the service ARN
+- `secretsmanager:GetSecretValue` on `unshelvd/DATABASE_URL` (used by the migrate job)
 
 ---
 
-## 6. Artifact Registry (one time)
+## 10. Configure the GitHub repository
 
-```bash
-gcloud artifacts repositories create "$REPO_NAME" \
-  --repository-format=docker \
-  --location="$REGION" \
-  --description="Unshelv'd containers"
-```
+**Settings → Secrets and variables → Actions → Secrets**:
 
----
-
-## 7. AlloyDB — database (one time)
-
-### 7.1 Allocate a private IP range for AlloyDB
-
-```bash
-gcloud compute addresses create google-managed-services-default \
-  --global \
-  --purpose=VPC_PEERING \
-  --prefix-length=16 \
-  --network=default
-```
-
-```bash
-gcloud services vpc-peerings connect \
-  --service=servicenetworking.googleapis.com \
-  --ranges=google-managed-services-default \
-  --network=default \
-  --project="$PROJECT_ID"
-```
-
-### 7.2 Create the AlloyDB cluster
-
-```bash
-# Use a strong random password. Store it securely (e.g., in a password manager)
-# then use it again when creating the DATABASE_URL secret in §9.
-gcloud alloydb clusters create "$ALLOYDB_CLUSTER" \
-  --region="$REGION" \
-  --network=default \
-  --password="$(openssl rand -base64 24 | tr -d '=+/')"
-```
-
-> **Tip:** The command above generates a random admin password. Record it somewhere
-> safe — you will not need it at runtime (the app connects as the `unshelvd` user),
-> but you will need it if you ever connect manually as `postgres`.
-
-### 7.3 Create the primary instance (takes ~5 minutes)
-
-```bash
-gcloud alloydb instances create "$ALLOYDB_INSTANCE" \
-  --cluster="$ALLOYDB_CLUSTER" \
-  --region="$REGION" \
-  --instance-type=PRIMARY \
-  --cpu-count=2
-```
-
-### 7.4 Get the AlloyDB private IP
-
-```bash
-gcloud alloydb instances describe "$ALLOYDB_INSTANCE" \
-  --cluster="$ALLOYDB_CLUSTER" \
-  --region="$REGION" \
-  --format='value(ipAddress)'
-```
-
-Save the output — you need it for the `DATABASE_URL` secret in §9.
-
-> The default admin user for AlloyDB is `postgres`. Create a dedicated
-> `unshelvd` user by connecting to the instance and running SQL:
->
-> ```sql
-> CREATE USER unshelvd WITH PASSWORD 'CHANGE_ME_DB_USER_PASSWORD';
-> CREATE DATABASE unshelvd OWNER unshelvd;
-> GRANT ALL PRIVILEGES ON DATABASE unshelvd TO unshelvd;
-> ```
-
-### 7.5 Create the Serverless VPC Access connector
-
-This allows Cloud Run services and jobs to reach AlloyDB's private IP.
-
-```bash
-gcloud compute networks vpc-access connectors create "$VPC_CONNECTOR" \
-  --region="$REGION" \
-  --network=default \
-  --range=10.8.0.0/28
-```
-
----
-
-## 8. IAM roles (one time)
-
-```bash
-export PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
-```
-
-```bash
-export COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-```
-
-```bash
-export CLOUDBUILD_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
-```
-
-Grant Cloud Run the AlloyDB client role:
-
-```bash
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:${COMPUTE_SA}" \
-  --role="roles/alloydb.client"
-```
-
-Grant Cloud Build the AlloyDB client role (needed for migrate/seed jobs):
-
-```bash
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:${CLOUDBUILD_SA}" \
-  --role="roles/alloydb.client"
-```
-
-Allow Cloud Build to deploy Cloud Run as the Compute service account:
-
-```bash
-gcloud iam service-accounts add-iam-policy-binding "$COMPUTE_SA" \
-  --member="serviceAccount:${CLOUDBUILD_SA}" \
-  --role="roles/iam.serviceAccountUser"
-```
-
-Grant both SAs access to the VPC connector:
-
-```bash
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:${COMPUTE_SA}" \
-  --role="roles/vpcaccess.user"
-```
-
-```bash
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:${CLOUDBUILD_SA}" \
-  --role="roles/vpcaccess.user"
-```
-
----
-
-## 9. Secrets (one time)
-
-First, save your AlloyDB private IP and DB user password as shell variables (using the IP from §7.4):
-
-```bash
-export ALLOYDB_IP=PASTE_ALLOYDB_PRIVATE_IP_FROM_ABOVE
-```
-
-```bash
-export DB_PASSWORD=CHANGE_ME_DB_USER_PASSWORD
-```
-
-### 9.1 Database URL
-
-```bash
-echo -n "postgresql://unshelvd:${DB_PASSWORD}@${ALLOYDB_IP}:5432/unshelvd" | \
-  gcloud secrets create DATABASE_URL --replication-policy=automatic --data-file=-
-```
-
-### 9.2 Session secret
-
-```bash
-openssl rand -hex 32 | tr -d '\n' | \
-  gcloud secrets create SESSION_SECRET --replication-policy=automatic --data-file=-
-```
-
-### 9.3 Stripe keys (where to find each value)
-
-1. Open `https://dashboard.stripe.com/`
-2. Go to **Developers → API keys**:
-   - **Secret key** (`sk_live_...`) → paste as `STRIPE_SECRET_KEY`
-   - **Publishable key** (`pk_live_...`) → used in the deploy command in §13 (`_STRIPE_PK`)
-3. Go to **Developers → Webhooks → Add endpoint**:
-   - Endpoint URL: `https://unshelvd.koshkikode.com/api/webhooks/stripe`
-   - Events: `payment_intent.succeeded,payment_intent.payment_failed,account.updated,transfer.failed,charge.refunded`
-   - Save, copy **Signing secret** (`whsec_...`) → paste as `STRIPE_WEBHOOK_SECRET`
-
-```bash
-echo -n 'PASTE_sk_live_SECRET_KEY' | \
-  gcloud secrets create STRIPE_SECRET_KEY --replication-policy=automatic --data-file=-
-```
-
-```bash
-echo -n 'PASTE_whsec_WEBHOOK_SECRET' | \
-  gcloud secrets create STRIPE_WEBHOOK_SECRET --replication-policy=automatic --data-file=-
-```
-
-### 9.4 Admin credentials (optional — recommended)
-
-```bash
-echo -n 'admin@koshkikode.com' | \
-  gcloud secrets create ADMIN_EMAIL --replication-policy=automatic --data-file=-
-```
-
-```bash
-echo -n 'admin' | \
-  gcloud secrets create ADMIN_USERNAME --replication-policy=automatic --data-file=-
-```
-
-```bash
-openssl rand -base64 24 | tr -d '\n' | \
-  gcloud secrets create ADMIN_PASSWORD --replication-policy=automatic --data-file=-
-```
-
-### 9.5 Grant Secret Manager access to both service accounts
-
-```bash
-for SECRET in DATABASE_URL SESSION_SECRET STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET ADMIN_EMAIL ADMIN_USERNAME ADMIN_PASSWORD; do
-  gcloud secrets add-iam-policy-binding "$SECRET" --member="serviceAccount:${COMPUTE_SA}" --role="roles/secretmanager.secretAccessor"
-  gcloud secrets add-iam-policy-binding "$SECRET" --member="serviceAccount:${CLOUDBUILD_SA}" --role="roles/secretmanager.secretAccessor"
-done
-```
-
----
-
-## 10. Cloud Storage — profile images (optional)
-
-Skip this section to run in data-URI fallback mode (not recommended for production).
-
-```bash
-gsutil mb -l "$REGION" "gs://${PROJECT_ID}-unshelvd-uploads"
-```
-
-```bash
-gcloud storage buckets add-iam-policy-binding "gs://${PROJECT_ID}-unshelvd-uploads" \
-  --member=allUsers \
-  --role=roles/storage.objectViewer
-```
-
-```bash
-gcloud storage buckets add-iam-policy-binding "gs://${PROJECT_ID}-unshelvd-uploads" \
-  --member="serviceAccount:${COMPUTE_SA}" \
-  --role=roles/storage.objectCreator
-```
-
----
-
-## 11. `cloudbuild.yaml` — AlloyDB VPC connector + Firebase Hosting
-
-`cloudbuild.yaml` in this repository is already configured for AlloyDB and Firebase Hosting:
-
-- All three steps (migrate job, seed job, Cloud Run service deploy) use `--vpc-connector=${_VPC_CONNECTOR}` and `--vpc-egress=private-ranges-only` so that Cloud Run reaches AlloyDB's private IP through the Serverless VPC Access connector created in §7.5.
-- `DATABASE_URL` in Secret Manager must be the AlloyDB TCP connection string (`postgresql://user:pass@PRIVATE_IP:5432/db`), not a Cloud SQL socket path.
-- The Vite frontend is built into `dist/public` and deployed to Firebase Hosting separately (§14). Firebase Hosting rewrites `/api/**` to the Cloud Run service — so the web app and native apps both use `https://unshelvd.koshkikode.com` as their single endpoint.
-
-**Admin account is created automatically on the first deploy.** The seed job prints the generated username, email, and password to Cloud Logging once. On every subsequent deploy the seed job is a no-op for admin credentials — it does not rotate them.
-
-No manual edits to `cloudbuild.yaml` are needed before the first deploy.
-
----
-
-## 13. First deploy
-
-This command builds, migrates, seeds, and deploys the backend to Cloud Run.
-Run it before §14 (Firebase Hosting deploy) on first setup.
-
-```bash
-gcloud builds submit \
-  --config=cloudbuild.yaml \
-  --substitutions=_REGION="$REGION",_SERVICE_NAME="$SERVICE_NAME",_REPO="$REPO_NAME",_VPC_CONNECTOR="$VPC_CONNECTOR",_API_URL='https://unshelvd.koshkikode.com',_GCS_BUCKET="${PROJECT_ID}-unshelvd-uploads"
-```
-
-> **`_STRIPE_PK` is not needed here.** The admin dashboard (**Admin → Integrations → Stripe**) accepts the publishable key at runtime without a redeploy. Set it there after the first deploy.
-
-### 13.1 Find your admin credentials (first-deploy only)
-
-After the build completes, read the admin credentials from the seed job log:
-
-```bash
-gcloud logging read \
-  "resource.type=cloud_run_job AND resource.labels.job_name=${SERVICE_NAME}-seed" \
-  --limit=50 \
-  --format='value(textPayload)' \
-  --project="$PROJECT_ID" | grep -A 5 "ADMIN CREDENTIALS"
-```
-
-> **Save the printed username, email, and password somewhere secure (password manager).** They will never be printed again unless you explicitly request a rotation (see §20 — Credential recovery).
-
-### 13.2 Post-deploy admin dashboard setup (no redeploy needed)
-
-Log in at `https://unshelvd.koshkikode.com/#/admin` and configure the following from the dashboard:
-
-| Dashboard section | What to configure |
+| Secret | Value |
 |---|---|
-| **Admin → My Account** | Change username, email, and password to your preferred values |
-| **Admin → Integrations → Stripe** | Paste Stripe publishable key, secret key, webhook secret; enable Stripe |
-| **Admin → Integrations → PayPal** | Paste PayPal client ID, secret, webhook ID (if using PayPal) |
-| **Admin → Integrations → Email** | Configure SMTP host, port, credentials, from address |
-| **Admin → Integrations → Platform Settings** | Set platform fee %, toggle maintenance mode, registrations |
+| `AWS_DEPLOY_ROLE_ARN` | `arn:aws:iam::<ACCOUNT_ID>:role/unshelvd-github-deploy` |
+| `APPRUNNER_SERVICE_ARN` | The App Runner service ARN from step 8 |
 
-Everything above takes effect immediately — no redeploy required.
+**Settings → Secrets and variables → Actions → Variables**:
 
----
-
-## 14. Deploy frontend to Firebase Hosting
-
-Build the frontend and deploy:
-
-```bash
-VITE_API_URL=https://unshelvd.koshkikode.com SKIP_ENV_VERIFY=true npm run build
-```
-
-```bash
-firebase deploy --only hosting
-```
+| Variable | Value |
+|---|---|
+| `AWS_REGION` | `us-east-1` (or your region) |
+| `ECR_REPOSITORY` | `unshelvd` |
+| `DATABASE_URL_SECRET_ID` | `unshelvd/DATABASE_URL` |
+| `STRIPE_PUBLISHABLE_KEY` | `pk_live_…` (baked into the Vite client at build time) |
+| `THRIFTBOOKS_AFF_ID` | *(optional)* |
+| `ADSENSE_CLIENT` | *(optional)* AdSense publisher ID |
 
 ---
 
-## 15. Custom domain — Firebase Hosting + Route 53 DNS
+## 11. AWS Amplify Hosting — frontend + custom domain
 
-### 15.1 Add custom domain in Firebase Hosting
+1. **Amplify Console → Host web app → GitHub** → pick this repo, branch `main`.
+2. Amplify auto-detects `amplify.yml`. Confirm the build settings.
+3. Set the same Vite-prefixed env vars as build-time variables in the Amplify console:
+   - `VITE_STRIPE_PUBLISHABLE_KEY`
+   - `VITE_THRIFTBOOKS_AFF_ID` *(optional)*
+   - `VITE_ADSENSE_CLIENT` *(optional)*
+   - Leave `VITE_API_URL` unset so the SPA uses same-origin requests.
+4. **Rewrites and redirects** — Amplify replaces the old Firebase Hosting `/api/**` rewrite. Add these rules in order:
 
-```bash
-firebase hosting:sites:create unshelvd
-```
+   | Source | Target | Type |
+   |---|---|---|
+   | `/api/<*>` | `https://<APP_RUNNER_URL>.awsapprunner.com/api/<*>` | `200 (Rewrite)` |
+   | `/<*>` | `/index.html` | `200 (Rewrite)` |
 
-Open the Firebase Console → **Hosting → Add custom domain** → enter `unshelvd.koshkikode.com`.
-
-Firebase will display DNS records to verify ownership and point the domain.
-
-### 15.2 Add DNS records in Route 53
-
-1. Open Route 53 → Hosted Zones → `koshkikode.com`
-2. Add exactly the records Firebase shows (typically):
-   - **TXT** record for domain ownership verification
-   - **A** records (two IPs) for the apex domain `unshelvd.koshkikode.com`
-   - **CNAME** `www.unshelvd.koshkikode.com` → Firebase-provided target (if using `www`)
-
-3. Wait for DNS propagation (usually under 10 minutes for Route 53)
-4. Firebase provisions a managed SSL certificate automatically
+   Order matters — the API rule must be **above** the SPA fallback.
+5. **Custom domain** → add `unshelvd.koshkikode.com`. Amplify will issue an ACM certificate and give you the CNAME(s) to add in Route 53. Point the apex (`koshkikode.com`) and `www` redirects in the same wizard if desired.
 
 ---
 
-## 16. Set up Cloud Build trigger (auto-deploy on push)
+## 12. First deploy
+
+The `Deploy` workflow runs on every push to `main`. Trigger the first one manually from the Actions tab to confirm the OIDC role and ECR push work end-to-end.
 
 ```bash
-gcloud builds triggers create github \
-  --repo-name=unshelvd \
-  --repo-owner=KoshkiKode \
-  --branch-pattern='^main$' \
-  --build-config=cloudbuild.yaml \
-  --substitutions=_REGION="${REGION}",_SERVICE_NAME="${SERVICE_NAME}",_REPO="${REPO_NAME}",_VPC_CONNECTOR="${VPC_CONNECTOR}",_API_URL='https://unshelvd.koshkikode.com',_GCS_BUCKET="${PROJECT_ID}-unshelvd-uploads" \
-  --name=deploy-on-push-to-main
+git commit --allow-empty -m "ci: trigger first AWS deploy"
+git push origin main
 ```
 
-Connect the GitHub repository in the Cloud Build console at `https://console.cloud.google.com/cloud-build/triggers` if not already connected.
+The workflow:
+1. Builds the Docker image with the Vite client baked in.
+2. Pushes `:<sha>` and `:latest` tags to ECR.
+3. Calls `aws apprunner start-deployment` against the service ARN.
+4. Runs `node script/migrate.js` against RDS using a temporary DATABASE_URL pulled from Secrets Manager.
+
+App Runner will pull the new `:latest` image and roll the service.
 
 ---
 
-## 17. Cloud Monitoring — uptime checks and alerting
-
-### 17.1 Create an uptime check
+## 13. Post-deploy verification
 
 ```bash
-gcloud monitoring uptime-checks create \
-  --display-name="Unshelv'd health check" \
-  --http-check-path="/api/health" \
-  --http-check-port=443 \
-  --http-check-use-ssl \
-  --resource=uptime_url \
-  --http-check-host="$DOMAIN" \
-  --period=60s \
-  --timeout=10s
+curl -fsS https://$DOMAIN/api/health | jq .
+curl -fsS https://$DOMAIN/                 # SPA HTML
 ```
 
-### 17.2 Create a notification channel (email)
-
-```bash
-gcloud beta monitoring channels create \
-  --display-name="Unshelv'd alerts" \
-  --type=email \
-  --channel-labels=email_address=admin@koshkikode.com
-```
-
-### 17.3 View logs in Cloud Logging
-
-```bash
-gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=${SERVICE_NAME}" \
-  --limit=50 \
-  --format='table(timestamp, severity, textPayload)'
-```
-
-All `console.log` / `console.error` output from the app is automatically captured in Cloud Logging.
+CloudWatch Logs are at:
+- `/aws/apprunner/<service>/<service-id>/application` — app stdout/stderr
+- `/aws/apprunner/<service>/<service-id>/service`     — App Runner platform events
 
 ---
 
-## 18. Verification checklist (after deploy)
+## Rollbacks
 
-```bash
-curl -si https://unshelvd.koshkikode.com/api/health
-```
+App Runner keeps the previous container image around. To roll back:
 
-```bash
-curl -si https://unshelvd.koshkikode.com/
-```
-
-Confirm all of these:
-
-- [ ] `https://unshelvd.koshkikode.com/` loads the SPA (served from Firebase Hosting CDN)
-- [ ] `https://unshelvd.koshkikode.com/api/health` returns 200 (proxied to Cloud Run)
-- [ ] Stripe webhook endpoint is configured in Stripe Dashboard
-- [ ] Admin login works at `https://unshelvd.koshkikode.com/#/admin`
-- [ ] Profile image upload works (if GCS bucket is configured)
-- [ ] Firebase Hosting SSL certificate is active (green padlock in browser)
-- [ ] Cloud Monitoring uptime check is green in the console
+1. **Console** → App Runner → service → **Deployments** tab → pick a previous deployment → **Redeploy**.
+2. Or push a new commit that resets the image tag — the deploy workflow always tags `:latest`, so rolling forward is the usual path.
 
 ---
 
-## 19. Native app builds
+## Local dev parity
 
-Always build native apps pointing to the production server:
-
-```bash
-VITE_API_URL=https://unshelvd.koshkikode.com npm run build
-```
-
-```bash
-API_URL=https://unshelvd.koshkikode.com npm run cap:build:android
-```
-
-```bash
-API_URL=https://unshelvd.koshkikode.com npm run cap:build:ios
-```
-
----
-
-## 20. Re-deploy (updates)
-
-### Backend + frontend (full deploy via Cloud Build)
-
-```bash
-gcloud builds submit \
-  --config=cloudbuild.yaml \
-  --substitutions=_REGION="$REGION",_SERVICE_NAME="$SERVICE_NAME",_REPO="$REPO_NAME",_VPC_CONNECTOR="$VPC_CONNECTOR",_API_URL='https://unshelvd.koshkikode.com',_GCS_BUCKET="${PROJECT_ID}-unshelvd-uploads"
-```
-
-> Admin credentials are **not** changed by a redeploy. All API keys and settings survive redeployment — they are stored in AlloyDB, not in the image.
-
-### Frontend only (Firebase Hosting)
-
-```bash
-VITE_API_URL=https://unshelvd.koshkikode.com SKIP_ENV_VERIFY=true npm run build
-```
-
-```bash
-firebase deploy --only hosting
-```
-
-### Rotate Secret Manager secrets
-
-```bash
-echo -n 'PASTE_NEW_sk_live' | gcloud secrets versions add STRIPE_SECRET_KEY --data-file=-
-```
-
-```bash
-echo -n 'PASTE_NEW_whsec' | gcloud secrets versions add STRIPE_WEBHOOK_SECRET --data-file=-
-```
-
-```bash
-openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add SESSION_SECRET --data-file=-
-```
-
-> **Stripe and PayPal keys can also be rotated from the admin dashboard** (Admin → Integrations) without touching Secret Manager or redeploying.
-
-### Credential recovery (lost admin password)
-
-If you can no longer log in to the admin account:
-
-1. Create a secret in Secret Manager:
-   ```bash
-   echo -n "true" | gcloud secrets create ADMIN_FORCE_ROTATE --replication-policy=automatic --data-file=-
-   ```
-2. Grant Cloud Build access:
-   ```bash
-   gcloud secrets add-iam-policy-binding ADMIN_FORCE_ROTATE \
-     --member="serviceAccount:${CLOUDBUILD_SA}" \
-     --role="roles/secretmanager.secretAccessor"
-   ```
-3. Add `ADMIN_FORCE_ROTATE=ADMIN_FORCE_ROTATE:latest` to the `--set-secrets` line of the seed step in `cloudbuild.yaml`, then run a deploy.
-4. Read the new credentials from Cloud Logging (same command as §13.1).
-5. **Remove the `ADMIN_FORCE_ROTATE` secret and the `--set-secrets` entry.** Leaving it in would rotate credentials on every future deploy.
-
----
-
-## 21. Runtime admin management (no redeploy needed)
-
-The admin dashboard at `https://unshelvd.koshkikode.com/#/admin` is the single place to manage the platform after the first deploy.
-
-| Tab | What you can do |
-|-----|-----------------|
-| **Overview** | Live stats — users, listings, revenue, pending payouts, disputes |
-| **Transactions** | View all transactions; filter by status; issue refunds; resolve disputes |
-| **Users** | Browse all accounts; suspend / unsuspend users |
-| **Revenue** | Monthly revenue breakdown; platform fees earned; pending seller payouts |
-| **Integrations → Stripe** | Enable/disable; set publishable key, secret key, webhook secret |
-| **Integrations → PayPal** | Enable/disable; set client ID, client secret, webhook ID, sandbox/live mode |
-| **Integrations → Email** | Enable/disable; configure SMTP host, port, credentials, from address |
-| **Integrations → Platform Settings** | Platform fee %; enable/disable new registrations; toggle maintenance mode |
-| **Catalog Seeder** | Import books from Open Library by query |
-| **My Account** | Change admin username, email, and password |
-
-> Keep canonical production Stripe/PayPal keys in Secret Manager as a backup reference. Use the admin dashboard for routine rotation and changes.
-
----
-
-## 22. Local development (`docker-compose`)
-
-```bash
-docker-compose up -d
-```
-
-The `docker-compose.yml` starts a local PostgreSQL instance on port 5432.
-Set `DATABASE_URL=postgresql://unshelvd:unshelvd_dev@localhost:5432/unshelvd` in your `.env`.
-
-Full reference: `.env.example` in the project root.
+Local development continues to use Docker Compose for Postgres and the data-URI fallback for image uploads (no S3 needed). See `README.md` for the local setup walkthrough.

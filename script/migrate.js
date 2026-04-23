@@ -1,5 +1,5 @@
 /**
- * Standalone migration runner for Cloud Run Jobs and CI/CD pipelines.
+ * Standalone migration runner for CI/CD pipelines and one-off jobs.
  *
  * Uses only production runtime deps (drizzle-orm + pg) — no drizzle-kit needed.
  * Reads SQL migration files from the ./migrations folder and applies any that

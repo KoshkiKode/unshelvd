@@ -1,0 +1,124 @@
+name: Deploy
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Unshelv'd — AWS Deploy Pipeline
+#
+# Builds the production Docker image, pushes to Amazon ECR, then triggers an
+# App Runner deployment. Database migrations are run as a separate job before
+# the new image goes live.
+#
+# Auth: uses GitHub OIDC to assume an IAM role — no long-lived AWS keys are
+# stored as secrets. Set up the trust policy following:
+#   https://docs.aws.amazon.com/AmazonECR/latest/userguide/getting-started-cli.html
+#   https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services
+#
+# Required GitHub repository secrets:
+#   AWS_DEPLOY_ROLE_ARN         — IAM role ARN with ecr:* + apprunner:* + (for
+#                                 the migrate job) iam:PassRole on the App
+#                                 Runner instance role
+#   APPRUNNER_SERVICE_ARN       — ARN of the App Runner service to update
+#
+# Required GitHub repository variables (Settings → Variables → Actions):
+#   AWS_REGION                  — e.g. us-east-1
+#   ECR_REPOSITORY              — e.g. unshelvd
+#
+# Triggers: pushes to main, plus manual dispatch.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - 'android/**'
+      - 'ios/**'
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build → ECR → App Runner
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push Docker image
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          REPO: ${{ vars.ECR_REPOSITORY }}
+          SHA: ${{ github.sha }}
+        run: |
+          IMAGE="$REGISTRY/$REPO:$SHA"
+          docker build \
+            --build-arg VITE_THRIFTBOOKS_AFF_ID="${{ vars.THRIFTBOOKS_AFF_ID }}" \
+            --build-arg VITE_ADSENSE_CLIENT="${{ vars.ADSENSE_CLIENT }}" \
+            --build-arg VITE_STRIPE_PUBLISHABLE_KEY="${{ vars.STRIPE_PUBLISHABLE_KEY }}" \
+            --build-arg VITE_API_URL="" \
+            -t "$IMAGE" \
+            -t "$REGISTRY/$REPO:latest" \
+            .
+          docker push "$IMAGE"
+          docker push "$REGISTRY/$REPO:latest"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Trigger App Runner deployment
+        run: |
+          aws apprunner start-deployment \
+            --service-arn "${{ secrets.APPRUNNER_SERVICE_ARN }}"
+
+  migrate:
+    name: Drizzle migrate (Amazon RDS)
+    runs-on: ubuntu-latest
+    needs: build-and-deploy
+    environment: production
+    # Migrations are intentionally idempotent — Drizzle skips already-applied
+    # ones automatically. This job runs against RDS using a short-lived
+    # connection string fetched from Secrets Manager via OIDC.
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies (production only is enough for migrate)
+        run: npm ci
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Fetch DATABASE_URL from Secrets Manager
+        id: db-url
+        run: |
+          VALUE=$(aws secretsmanager get-secret-value \
+            --secret-id "${{ vars.DATABASE_URL_SECRET_ID }}" \
+            --query SecretString --output text)
+          echo "::add-mask::$VALUE"
+          echo "DATABASE_URL=$VALUE" >> "$GITHUB_ENV"
+
+      - name: Run migrations
+        run: node script/migrate.js

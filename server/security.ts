@@ -23,7 +23,7 @@ const RESEND_WINDOW_MS = 60 * 1000;     // 1 minute
 /**
  * PostgreSQL-backed rate limit store for express-rate-limit.
  * Stores hit counters in the database so limits are correctly enforced
- * across multiple Cloud Run instances.
+ * across multiple server instances.
  */
 export class PgRateLimitStore implements Store {
   private pool: Pool;
@@ -169,7 +169,7 @@ const productionCspDirectives = {
 /**
  * Apply all security middleware to the Express app.
  * In production a shared PostgreSQL store is used for rate limiting so
- * limits are enforced correctly across all Cloud Run instances.
+ * limits are enforced correctly across all server instances.
  */
 export function applySecurityMiddleware(app: Express, pgPool?: Pool) {
   const isProduction = process.env.NODE_ENV === "production";
@@ -236,7 +236,7 @@ export function applySecurityMiddleware(app: Express, pgPool?: Pool) {
 
   // ═══ Rate Limiters ═══
   // In production: use the shared PostgreSQL store so limits are enforced
-  // across all Cloud Run instances (prevents 10× bypass with N instances).
+  // across all server instances (prevents N× bypass with N instances).
   // In development: use the default in-memory store (no DB required).
 
   const makeStore = (windowMs: number) =>

@@ -1,7 +1,7 @@
 /**
  * Database Migration Runner
  *
- * Runs Drizzle migrations on startup so Cloud Run deployments always
+ * Runs Drizzle migrations on startup so deployments always
  * have up-to-date schema without a manual step.
  *
  * Strategy:
@@ -34,7 +34,7 @@ export async function runMigrations(): Promise<void> {
     return;
   }
 
-  // Unix socket connections (Cloud SQL) don't use SSL
+  // Unix socket connections don't use SSL
   const isUnixSocket = (process.env.DATABASE_URL || "").includes("host=/");
   const pool = new Pool({ 
     connectionString: process.env.DATABASE_URL,
@@ -54,7 +54,7 @@ export async function runMigrations(): Promise<void> {
     console.log("✅ Migrations complete.");
   } catch (err: any) {
     // Log the full error for debugging, but do NOT process.exit().
-    // On Cloud Run, the schema may already exist from a previous deploy.
+    // The schema may already exist from a previous deploy.
     // Crashing here prevents the container from ever binding to PORT,
     // which triggers the "container failed to start" loop.
     console.error("❌ Migration failed (non-fatal, server will attempt to start):", err.message);

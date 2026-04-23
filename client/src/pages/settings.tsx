@@ -40,7 +40,7 @@ export default function Settings() {
 
   const [deletePassword, setDeletePassword] = useState("");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  // Holds the uploaded GCS URL (or data URI in dev/no-bucket mode) for preview
+  // Holds the uploaded S3 URL (or data URI in dev/no-bucket mode) for preview
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
 

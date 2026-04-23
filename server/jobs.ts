@@ -9,8 +9,8 @@
  *   • expireOffers              — marks pending offers as "expired" after
  *     OFFER_EXPIRY_DAYS (default 7).
  *
- * Cloud Run safety:
- *   Multiple Cloud Run instances can run simultaneously.  Each job acquires
+ * Multi-instance safety:
+ *   Multiple App Runner instances can run simultaneously.  Each job acquires
  *   a PostgreSQL advisory lock before executing so only one instance
  *   processes the job at a time — the others skip that run silently.
  *
@@ -255,7 +255,7 @@ async function expireAbandonedTransactions(): Promise<void> {
  * Runs each job once immediately on startup (to catch anything that missed
  * the last run), then repeats every JOB_INTERVAL_MS.
  *
- * Call this AFTER httpServer.listen() so Cloud Run binds to PORT on time.
+ * Call this AFTER httpServer.listen() so App Runner binds to PORT on time.
  */
 export async function startJobs(): Promise<void> {
   console.log(
