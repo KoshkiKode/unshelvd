@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Unshelv\'d</string>
     <string name="title_activity_main">Unshelv\'d</string>
-    <string name="package_name">com.unshelvd.app</string>
-    <string name="custom_url_scheme">com.unshelvd.app</string>
+    <string name="package_name">com.koshkikode.unshelvd</string>
+    <string name="custom_url_scheme">com.koshkikode.unshelvd</string>
 </resources>

@@ -8,6 +8,32 @@ This is the single deployment reference for this repository.
 https://unshelvd.koshkikode.com/
 ```
 
+The apex domain `koshkikode.com` (and its `www.` host) is also operated by the
+same team on AWS Amplify Hosting. The backend's CORS allow-list includes both
+`https://koshkikode.com` and `https://www.koshkikode.com` so a sibling marketing
+site on the apex domain can call the Unshelv'd API without extra configuration.
+
+---
+
+## Inputs you'll need before you start
+
+Have these values ready — the rest of the doc is copy/paste once they're in
+your shell:
+
+| Input | Where it comes from | Used in |
+|---|---|---|
+| AWS account ID | `aws sts get-caller-identity` | IAM, ECR, secrets ARNs |
+| AWS region | Your choice (e.g. `us-east-1`) | Every `aws` command |
+| Production domain | `unshelvd.koshkikode.com` | Amplify, App Runner env, CORS |
+| RDS master password | You generate (`openssl rand -base64 24`) | RDS, Secrets Manager |
+| Stripe **test** keys (publishable + secret) | Stripe dashboard → Developers | Build args, Secrets Manager |
+| Stripe webhook signing secret (test) | Stripe dashboard → Webhooks | Secrets Manager |
+| PayPal sandbox credentials *(optional)* | PayPal developer dashboard | Secrets Manager |
+
+> 💡 This guide assumes **test-mode payments** for first launch. Swap in
+> `pk_live_…` / `sk_live_…` Stripe keys (and PayPal live credentials) only
+> after the platform has been reviewed and you're ready to take real money.
+
 ---
 
 ## Stack
@@ -355,6 +381,14 @@ curl -fsS https://$DOMAIN/api/health | jq .
 curl -fsS https://$DOMAIN/                 # SPA HTML
 ```
 
+Then click through these in the browser to confirm wiring end to end:
+
+1. `https://$DOMAIN/` loads the SPA (served by Amplify).
+2. `https://$DOMAIN/api/health` returns JSON (Amplify rewrite is hitting App Runner).
+3. Sign in with the seeded admin account at `/#/login`.
+4. Open `/#/admin` — confirms session cookie survived the cross-origin
+   Amplify → App Runner hop (`SameSite=None; Secure` is set in production).
+
 CloudWatch Logs are at:
 - `/aws/apprunner/<service>/<service-id>/application` — app stdout/stderr
 - `/aws/apprunner/<service>/<service-id>/service`     — App Runner platform events
@@ -373,3 +407,29 @@ App Runner keeps the previous container image around. To roll back:
 ## Local dev parity
 
 Local development continues to use Docker Compose for Postgres and the data-URI fallback for image uploads (no S3 needed). See `README.md` for the local setup walkthrough.
+
+---
+
+## Common failure modes
+
+A short troubleshooting checklist for the issues that bite first-time
+deployers. Work top-down — most "the site is broken" symptoms come from one of
+these.
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Amplify build fails on `npm run build` | Missing `VITE_*` env var in Amplify console | Add `VITE_STRIPE_PUBLISHABLE_KEY` (and any optional ones) under **App settings → Environment variables**, then redeploy |
+| `https://$DOMAIN/` loads, `/api/health` returns the SPA HTML | Amplify rewrites are in the wrong order — the SPA fallback is matching first | In Amplify rewrites, the `/api/<*>` rule must appear **above** the `/<*>` → `/index.html` rule |
+| `/api/health` returns 502 / "Service Unavailable" | App Runner instance role can't read secrets, so the container crashes on boot | Confirm the inline policy attached to the App Runner instance role grants `secretsmanager:GetSecretValue` on `arn:aws:secretsmanager:*:*:secret:unshelvd/*` |
+| App Runner health check stuck on "Operation in progress" | Health check path or port mismatch | App Runner service settings → Health check: `HTTP`, path `/api/health`, port `8080` |
+| App Runner logs: `ECONNREFUSED` to RDS | Security group on the RDS instance doesn't allow the App Runner egress IP | Add the App Runner outbound IP (or VPC connector) to the RDS security group, or temporarily flip RDS to `--publicly-accessible` to confirm |
+| Login works on web but not in the mobile app | CORS rejected the Capacitor origin, or the session cookie isn't crossing origins | Confirm `CORS_ALLOWED_ORIGINS` includes the production domain (Capacitor origins are allowed by default in `server/index.ts`); confirm `NODE_ENV=production` so cookies are issued as `SameSite=None; Secure` |
+| Stripe webhooks rejected with `signature verification failed` | The webhook signing secret in Secrets Manager doesn't match the one Stripe is sending | Re-copy the signing secret from the Stripe dashboard for the **specific endpoint** (test vs live secrets are different) and update `unshelvd/STRIPE_WEBHOOK_SECRET` |
+| `npm run check` fails in CI but passes locally | Node version drift | Pin Node 20+ in CI; the deploy migrate job uses Node 24 — keep that aligned with `.nvmrc`/your local env |
+| GitHub Actions OIDC step fails: `not authorized to perform sts:AssumeRoleWithWebIdentity` | The role's trust policy `sub` condition doesn't match this repo's branch/ref | Update the trust policy `StringLike` to `repo:KoshkiKode/unshelvd:*` (or scope it tighter to `:ref:refs/heads/main` once stable) |
+
+If something else breaks, the fastest signal is usually:
+
+```bash
+aws logs tail /aws/apprunner/$APPRUNNER_SERVICE/<service-id>/application --follow
+```

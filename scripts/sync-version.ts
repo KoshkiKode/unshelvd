@@ -5,17 +5,20 @@ type SemverParts = {
   major: number;
   minor: number;
   patch: number;
+  prerelease: string | null;
 };
 
 function parseSemver(version: string): SemverParts {
-  const match = version.match(/^(\d+)\.(\d+)\.(\d+)/);
+  // Accepts e.g. "1.2.3" or "0.1.0-beta" or "0.1.0-beta.2".
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/);
   if (!match) {
-    throw new Error(`Unsupported package version "${version}". Expected semver (x.y.z).`);
+    throw new Error(`Unsupported package version "${version}". Expected semver (x.y.z[-prerelease]).`);
   }
   return {
     major: Number.parseInt(match[1], 10),
     minor: Number.parseInt(match[2], 10),
     patch: Number.parseInt(match[3], 10),
+    prerelease: match[4] ?? null,
   };
 }
 
@@ -53,25 +56,38 @@ async function run() {
 
   if (!packageVersion) throw new Error("package.json is missing a version field.");
 
-  const { major, minor, patch } = parseSemver(packageVersion);
+  const { major, minor, patch, prerelease } = parseSemver(packageVersion);
   const buildNumber = major * 10000 + minor * 100 + patch;
+
+  // Android `versionName` allows arbitrary strings, so we keep the full semver
+  // including any prerelease tag (e.g. "0.1.0-beta") for visibility in the
+  // Play Console internal track.
+  const androidVersionName = packageVersion;
+
+  // iOS `MARKETING_VERSION` (CFBundleShortVersionString) MUST be three numeric
+  // segments separated by periods — Apple rejects values like "0.1.0-beta" at
+  // App Store Connect upload time. Strip the prerelease tag for iOS only and
+  // use `CURRENT_PROJECT_VERSION` (CFBundleVersion) to differentiate beta
+  // builds via the integer build number.
+  const iosMarketingVersion = `${major}.${minor}.${patch}`;
 
   const androidPath = path.join(rootDir, "android/app/build.gradle");
   const iosPbxprojPath = path.join(rootDir, "ios/App/App.xcodeproj/project.pbxproj");
 
   const androidUpdated = await updateFile(androidPath, [
     [/versionCode\s+\d+/g, `versionCode ${buildNumber}`],
-    [/versionName\s+"[^"]+"/g, `versionName "${packageVersion}"`],
+    [/versionName\s+"[^"]+"/g, `versionName "${androidVersionName}"`],
   ]);
 
   const iosUpdated = await updateFile(iosPbxprojPath, [
     [/CURRENT_PROJECT_VERSION = [^;]+;/g, `CURRENT_PROJECT_VERSION = ${buildNumber};`],
-    [/MARKETING_VERSION = [^;]+;/g, `MARKETING_VERSION = ${packageVersion};`],
+    [/MARKETING_VERSION = [^;]+;/g, `MARKETING_VERSION = ${iosMarketingVersion};`],
   ]);
 
   if (androidUpdated || iosUpdated) {
+    const prereleaseNote = prerelease ? ` (iOS marketing version "${iosMarketingVersion}" — prerelease tag stripped for App Store Connect compatibility)` : "";
     console.log(
-      `Synchronized platform versions from package.json (${packageVersion}, build ${buildNumber}).`,
+      `Synchronized platform versions from package.json (${packageVersion}, build ${buildNumber})${prereleaseNote}.`,
     );
     return;
   }
