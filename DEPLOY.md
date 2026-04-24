@@ -1,6 +1,8 @@
-# Unshelv'd — Deployment Guide (AWS)
+# Unshelv'd — Full Production Deployment Guide (AWS)
 
-This is the single deployment reference for this repository.
+This is the single, complete deployment reference for this repository.
+Follow every step in order — sections marked **(one time)** only need to be
+done on the very first deploy.
 
 ## Production URL (canonical)
 
@@ -8,17 +10,56 @@ This is the single deployment reference for this repository.
 https://unshelvd.koshkikode.com/
 ```
 
-The apex domain `koshkikode.com` (and its `www.` host) is also operated by the
-same team on AWS Amplify Hosting. The backend's CORS allow-list includes both
-`https://koshkikode.com` and `https://www.koshkikode.com` so a sibling marketing
-site on the apex domain can call the Unshelv'd API without extra configuration.
+The apex domain `koshkikode.com` (and its `www.` host) is also operated by
+the same team on AWS Amplify Hosting. The backend's CORS allow-list includes
+both `https://koshkikode.com` and `https://www.koshkikode.com` so a sibling
+marketing site on the apex domain can call the Unshelv'd API without extra
+configuration.
+
+---
+
+## Quick-reference: what you will build
+
+```
+Route 53 (DNS)
+  └── koshkikode.com / unshelvd.koshkikode.com
+        │
+        ├── /            → Amplify Hosting (SPA on CloudFront global CDN)
+        ├── /api/**      → Amplify rewrite → AWS App Runner (Express API)
+        └── /ws/**       → Amplify rewrite → AWS App Runner (WebSocket chat)
+
+App Runner container
+  ├── reads secrets from AWS Secrets Manager on startup
+  ├── connects to Amazon RDS for PostgreSQL (database)
+  └── writes profile / cover images to Amazon S3
+
+GitHub Actions
+  ├── ci.yml         — type-check + build + test on every PR / push
+  └── deploy.yml     — migrate DB → build Docker image → push ECR → App Runner
+```
+
+| Service | Role |
+|---------|------|
+| **GitHub Actions** | CI/CD |
+| **Amazon ECR** | Docker image registry |
+| **AWS App Runner** | Backend API + WebSocket server (containerised) |
+| **Amazon RDS for PostgreSQL** | Managed database |
+| **AWS Secrets Manager** | Runtime secrets (database URL, session key, Stripe, PayPal) |
+| **Amazon S3** | Profile image and cover uploads |
+| **AWS Amplify Hosting** | SPA CDN, custom domain, managed TLS, `/api/**` and `/ws/**` rewrite proxy |
+| **Amazon CloudWatch** | Logs, metrics, alarms |
+| **Amazon Route 53** | DNS host for `koshkikode.com` |
+
+> 💡 This guide uses **test-mode Stripe/PayPal credentials** for first launch.
+> Swap in live keys only after the platform has been reviewed and you're ready
+> to accept real money.
 
 ---
 
 ## Inputs you'll need before you start
 
 Have these values ready — the rest of the doc is copy/paste once they're in
-your shell:
+your shell.
 
 | Input | Where it comes from | Used in |
 |---|---|---|
@@ -26,81 +67,141 @@ your shell:
 | AWS region | Your choice (e.g. `us-east-1`) | Every `aws` command |
 | Production domain | `unshelvd.koshkikode.com` | Amplify, App Runner env, CORS |
 | RDS master password | You generate (`openssl rand -base64 24`) | RDS, Secrets Manager |
+| Admin email + password | You choose | First-login credentials |
+| SMTP credentials | Your email provider | Transactional email |
 | Stripe **test** keys (publishable + secret) | Stripe dashboard → Developers | Build args, Secrets Manager |
 | Stripe webhook signing secret (test) | Stripe dashboard → Webhooks | Secrets Manager |
-| PayPal sandbox credentials *(optional)* | PayPal developer dashboard | Secrets Manager |
-
-> 💡 This guide assumes **test-mode payments** for first launch. Swap in
-> `pk_live_…` / `sk_live_…` Stripe keys (and PayPal live credentials) only
-> after the platform has been reviewed and you're ready to take real money.
+| PayPal sandbox credentials *(optional)* | PayPal developer portal | Secrets Manager |
 
 ---
 
-## Stack
+## Step 0 — Pre-deploy code changes (REQUIRED before first deploy)
 
-| Service | Role |
-|---------|------|
-| **GitHub Actions** | CI/CD — type-check/build/test on every PR; deploy to ECR + App Runner on `main` |
-| **Amazon ECR** | Docker image registry |
-| **AWS App Runner** | Backend API + WebSocket server (containerised) |
-| **Amazon RDS for PostgreSQL** | Managed database |
-| **AWS Secrets Manager** | Runtime secrets (database URL, session key, Stripe, PayPal) |
-| **Amazon S3** | Profile image / cover uploads |
-| **AWS Amplify Hosting** | SPA CDN, custom domain (`unshelvd.koshkikode.com`), managed TLS, `/api/**` rewrite proxy |
-| **Amazon CloudWatch** | Logs, metrics, alarms |
-| **Amazon Route 53** | DNS host for `koshkikode.com` |
+These are code changes that **must be made in the repository before any
+deployment will work**. Do them on a branch, get them merged to `main`, and
+then continue with the infrastructure steps.
 
-### Request routing
+### 0a. Remove the maintenance mode block
 
-```
-Route 53 (DNS) → Amplify Hosting (unshelvd.koshkikode.com)
-                     │
-                     ├── /          → SPA static files (Amplify global CDN)
-                     └── /api/**    → App Runner service (rewrite proxy)
+`server/index.ts` contains a middleware that returns HTTP 503 for every API
+call. This was added as a temporary hold during maintenance and **must be
+removed** before going live.
+
+Open `server/index.ts` and delete these three lines (around line 141):
+
+```ts
+// ── Maintenance mode — all API endpoints temporarily disabled ──────────────
+app.use("/api", (_req, res) => {
+  res.status(503).json({ message: "Service temporarily unavailable. Please try again later." });
+});
 ```
 
-### Why Amplify Hosting + App Runner (not App Runner alone)
+After deleting them, the `app.use` request-logging middleware immediately
+below becomes the first thing that runs for every request, and
+`registerRoutes()` (called shortly after) registers all the API handlers.
 
-Unshelv'd is a global peer-to-peer marketplace. The two services serve completely different workloads:
+### 0b. Re-enable the CI workflow
 
-| Traffic type | Served by | Cost model |
-|---|---|---|
-| SPA shell, JS/CSS bundles, static assets | Amplify Hosting CDN | Per-GB egress (very cheap) |
-| API calls — listings, auth, Stripe | App Runner | Per-vCPU-second + memory |
+`.github/workflows/ci.yml` has `if: false` on the `test` job, which disables
+type-checking, building, and testing on every push. Remove that line so CI
+runs normally:
 
-A user in Tokyo, Lagos, or São Paulo gets the frontend from the nearest CloudFront edge node fronting Amplify — no cold-start latency on browse pages. App Runner only handles actual API traffic.
+```yaml
+  test:
+    name: Type-check, Build & Test
+    # if: false   ← delete this line
+    runs-on: ubuntu-latest
+```
 
-**Route 53 role:** authoritative DNS for `koshkikode.com`. It delegates to Amplify Hosting via the records Amplify provides during the custom-domain wizard. It does not proxy traffic.
+### 0c. Re-enable the Deploy workflow
 
----
+`.github/workflows/deploy.yml` has `if: false` on both the `migrate` and
+`build-and-deploy` jobs. Remove both:
 
-## 1. Prerequisites
+```yaml
+  migrate:
+    name: Drizzle migrate (Amazon RDS)
+    # if: false   ← delete this line
+    runs-on: ubuntu-latest
+
+  build-and-deploy:
+    name: Build → ECR → App Runner
+    # if: false   ← delete this line
+    runs-on: ubuntu-latest
+```
+
+### 0d. Uncomment `S3_BUCKET_NAME` in `apprunner.yaml`
+
+`apprunner.yaml` has the `S3_BUCKET_NAME` environment variable commented out.
+Uncomment it so App Runner passes it to the container:
+
+```yaml
+    - name: S3_BUCKET_NAME
+      value: unshelvd-uploads
+```
+
+### 0e. Commit and push
 
 ```bash
-node --version   # 20+
-npm --version    # 10+
-docker --version # 24+
-aws --version    # AWS CLI v2
+git add server/index.ts .github/workflows/ci.yml .github/workflows/deploy.yml apprunner.yaml
+git commit -m "chore: remove maintenance mode, re-enable CI/deploy workflows, enable S3"
+git push origin main
 ```
-
-You'll also need an AWS account with permission to create IAM roles, ECR repos, App Runner services, RDS instances, S3 buckets, and Secrets Manager secrets.
 
 ---
 
-## 2. Clone, install, verify locally
+## Step 1 — Prerequisites
+
+Install these tools on your workstation before running any AWS CLI commands.
+
+```bash
+node --version   # 20 or higher
+npm --version    # 10 or higher
+docker --version # 24 or higher
+aws --version    # AWS CLI v2 — https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+psql --version   # PostgreSQL client — used once to create the database
+jq --version     # JSON processor — used in the verification steps
+```
+
+Authenticate the AWS CLI with an IAM user or role that has permission to
+create IAM roles, ECR repositories, App Runner services, RDS instances, S3
+buckets, and Secrets Manager secrets:
+
+```bash
+aws configure
+# AWS Access Key ID:     <your key>
+# AWS Secret Access Key: <your secret>
+# Default region name:   us-east-1
+# Default output format: json
+```
+
+Verify it works:
+
+```bash
+aws sts get-caller-identity
+```
+
+---
+
+## Step 2 — Clone, install, and verify locally
 
 ```bash
 git clone https://github.com/KoshkiKode/unshelvd.git
 cd unshelvd
 npm install
-npm run check
-npm test
-npm run build
+npm run check    # TypeScript type-check
+npm test         # unit tests
+npm run build    # full production build
 ```
+
+All three commands must succeed before continuing.
 
 ---
 
-## 3. Set shell variables (copy/paste once per session)
+## Step 3 — Set shell variables (copy/paste once per terminal session)
+
+These variables are referenced by every AWS CLI command in this guide.
+Run them all in the same terminal before continuing.
 
 ```bash
 export AWS_REGION=us-east-1
@@ -110,24 +211,44 @@ export APPRUNNER_SERVICE=unshelvd
 export S3_BUCKET=unshelvd-uploads
 export RDS_INSTANCE=unshelvd-db
 export DOMAIN=unshelvd.koshkikode.com
+
+echo "Account: $AWS_ACCOUNT_ID  Region: $AWS_REGION"
 ```
 
 ---
 
-## 4. Amazon ECR — image registry (one time)
+## Step 4 — Amazon ECR — Docker image registry (one time)
+
+Create the repository that will hold the production Docker images. ECR
+vulnerability scanning is enabled so every pushed image is scanned
+automatically.
 
 ```bash
 aws ecr create-repository \
   --repository-name "$ECR_REPO" \
   --region "$AWS_REGION" \
-  --image-scanning-configuration scanOnPush=true
+  --image-scanning-configuration scanOnPush=true \
+  --image-tag-mutability MUTABLE
 ```
+
+Note the repository URI printed in the output — it looks like:
+`<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/unshelvd`.
+You will use this URI when creating the App Runner service in Step 7.
 
 ---
 
-## 5. Amazon RDS — PostgreSQL (one time)
+## Step 5 — Amazon RDS — PostgreSQL database (one time)
 
-Create a small Postgres instance in the same region. Adjust storage/instance class to taste.
+### 5a. Generate and save the master password
+
+```bash
+export RDS_PASSWORD="$(openssl rand -base64 24)"
+echo "RDS master password: $RDS_PASSWORD"
+# Save this somewhere safe (1Password, AWS Secrets Manager, etc.)
+# You cannot retrieve it from AWS after this point.
+```
+
+### 5b. Create the RDS instance
 
 ```bash
 aws rds create-db-instance \
@@ -138,72 +259,147 @@ aws rds create-db-instance \
   --allocated-storage 20 \
   --storage-type gp3 \
   --master-username unshelvd \
-  --master-user-password "$(openssl rand -base64 24)" \
+  --master-user-password "$RDS_PASSWORD" \
   --publicly-accessible \
   --backup-retention-period 7 \
+  --deletion-protection \
   --region "$AWS_REGION"
 ```
 
-> ⚠️  `--publicly-accessible` is the simplest option for a single-region setup; lock it down with a security group that only allows your App Runner egress + your laptop. For production hardening, put App Runner and RDS in the same VPC and use a VPC Connector instead.
+> ⚠️ `--publicly-accessible` is the simplest option for a first deploy. To
+> harden for production, see **Step 5e** below.
 
-After the instance is `available`, grab the endpoint:
+### 5c. Wait for the instance to become available
+
+This takes 5–10 minutes. Poll until the status is `available`:
 
 ```bash
-aws rds describe-db-instances \
+watch -n 30 "aws rds describe-db-instances \
+  --db-instance-identifier $RDS_INSTANCE \
+  --query 'DBInstances[0].DBInstanceStatus' --output text"
+# Press Ctrl-C when it shows "available"
+```
+
+### 5d. Grab the endpoint and create the application database
+
+```bash
+export RDS_ENDPOINT="$(aws rds describe-db-instances \
   --db-instance-identifier "$RDS_INSTANCE" \
-  --query 'DBInstances[0].Endpoint.Address' --output text
-```
+  --query 'DBInstances[0].Endpoint.Address' --output text)"
+echo "RDS endpoint: $RDS_ENDPOINT"
 
-Build the connection string:
-
-```
-postgresql://unshelvd:<MASTER_PASSWORD>@<ENDPOINT>:5432/unshelvd?sslmode=require
-```
-
-Create the database:
-
-```bash
-psql "postgresql://unshelvd:<PASSWORD>@<ENDPOINT>:5432/postgres?sslmode=require" \
+# Connect to the default "postgres" database and create the app database
+psql "postgresql://unshelvd:${RDS_PASSWORD}@${RDS_ENDPOINT}:5432/postgres?sslmode=require" \
   -c "CREATE DATABASE unshelvd;"
 ```
 
+The full connection string for subsequent steps is:
+
+```
+postgresql://unshelvd:<PASSWORD>@<RDS_ENDPOINT>:5432/unshelvd?sslmode=require
+```
+
+### 5e. (Recommended) Lock down the RDS security group
+
+By default, `--publicly-accessible` exposes the database to the internet on
+port 5432. Restrict it to your IP and the App Runner NAT range:
+
+1. **AWS Console → EC2 → Security Groups** — find the security group attached
+   to the RDS instance (named something like `default` or `rds-launch-wizard`).
+2. **Inbound rules → Edit → Add rule**:
+   - Type: `PostgreSQL`  Port: `5432`  Source: **My IP** (your workstation)
+3. After creating the App Runner service (Step 7), add a second inbound rule
+   with the App Runner NAT gateway IP shown in the service's **Networking** tab.
+4. For a fully private setup, create a VPC with private subnets, place both
+   App Runner (via a VPC Connector) and RDS in it, and remove public
+   accessibility from RDS altogether.
+
 ---
 
-## 6. AWS Secrets Manager — runtime secrets (one time)
+## Step 6 — AWS Secrets Manager — runtime secrets (one time)
 
-Create one secret per value. The deploy workflow expects to look these up by name.
+Create one secret per sensitive value. The deploy workflow reads
+`DATABASE_URL` from Secrets Manager during migrations; App Runner reads all
+of them at startup as environment variable references.
+
+Replace every `<PLACEHOLDER>` with real values before running.
 
 ```bash
-aws secretsmanager create-secret --name unshelvd/DATABASE_URL \
-  --secret-string "postgresql://unshelvd:<PASSWORD>@<ENDPOINT>:5432/unshelvd?sslmode=require"
+# Database URL (built from Step 5)
+aws secretsmanager create-secret \
+  --name unshelvd/DATABASE_URL \
+  --region "$AWS_REGION" \
+  --secret-string "postgresql://unshelvd:${RDS_PASSWORD}@${RDS_ENDPOINT}:5432/unshelvd?sslmode=require"
 
-aws secretsmanager create-secret --name unshelvd/SESSION_SECRET \
+# Session secret — must be a long random hex string
+aws secretsmanager create-secret \
+  --name unshelvd/SESSION_SECRET \
+  --region "$AWS_REGION" \
   --secret-string "$(openssl rand -hex 32)"
 
-# Stripe (only if payments are enabled)
-aws secretsmanager create-secret --name unshelvd/STRIPE_SECRET_KEY     --secret-string "sk_live_..."
-aws secretsmanager create-secret --name unshelvd/STRIPE_WEBHOOK_SECRET --secret-string "whsec_..."
+# Stripe (required if payments are enabled)
+aws secretsmanager create-secret \
+  --name unshelvd/STRIPE_SECRET_KEY \
+  --region "$AWS_REGION" \
+  --secret-string "sk_test_..."   # replace with sk_live_... for production
 
-# PayPal (optional)
-aws secretsmanager create-secret --name unshelvd/PAYPAL_CLIENT_SECRET --secret-string "..."
+aws secretsmanager create-secret \
+  --name unshelvd/STRIPE_WEBHOOK_SECRET \
+  --region "$AWS_REGION" \
+  --secret-string "whsec_..."    # signing secret from Stripe dashboard → Webhooks
+
+# PayPal (optional — only needed if PayPal checkout is enabled)
+aws secretsmanager create-secret \
+  --name unshelvd/PAYPAL_CLIENT_SECRET \
+  --region "$AWS_REGION" \
+  --secret-string "EFgh..."      # from PayPal Developer → My Apps & Credentials
+
+# SMTP password (required for transactional email)
+aws secretsmanager create-secret \
+  --name unshelvd/SMTP_PASS \
+  --region "$AWS_REGION" \
+  --secret-string "your-smtp-password"
+```
+
+To update a secret later (e.g. rotating the session key):
+
+```bash
+aws secretsmanager put-secret-value \
+  --secret-id unshelvd/SESSION_SECRET \
+  --secret-string "$(openssl rand -hex 32)"
 ```
 
 ---
 
-## 7. Amazon S3 — profile image bucket (one time)
+## Step 7 — Amazon S3 — profile image and cover bucket (one time)
+
+### 7a. Create the bucket
 
 ```bash
-aws s3api create-bucket \
-  --bucket "$S3_BUCKET" \
-  --region "$AWS_REGION" \
-  $( [ "$AWS_REGION" != "us-east-1" ] && echo --create-bucket-configuration LocationConstraint="$AWS_REGION" )
+# us-east-1 does not accept a LocationConstraint parameter
+if [ "$AWS_REGION" = "us-east-1" ]; then
+  aws s3api create-bucket \
+    --bucket "$S3_BUCKET" \
+    --region "$AWS_REGION"
+else
+  aws s3api create-bucket \
+    --bucket "$S3_BUCKET" \
+    --region "$AWS_REGION" \
+    --create-bucket-configuration LocationConstraint="$AWS_REGION"
+fi
+```
 
-# Disable Block Public Access for this bucket so the public-read policy below can take effect.
+### 7b. Enable public read for avatar and cover prefixes only
+
+```bash
+# Remove the account-level Block Public Access override so the bucket
+# policy below can take effect.
 aws s3api put-public-access-block \
   --bucket "$S3_BUCKET" \
-  --public-access-block-configuration "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
+  --public-access-block-configuration \
+    "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
 
-# Allow anonymous GET on the avatar/cover prefixes only.
+# Write the policy allowing anonymous GET on avatars/* and covers/* only
 cat > /tmp/bucket-policy.json <<EOF
 {
   "Version": "2012-10-17",
@@ -214,8 +410,8 @@ cat > /tmp/bucket-policy.json <<EOF
       "Principal": "*",
       "Action": "s3:GetObject",
       "Resource": [
-        "arn:aws:s3:::$S3_BUCKET/avatars/*",
-        "arn:aws:s3:::$S3_BUCKET/covers/*"
+        "arn:aws:s3:::${S3_BUCKET}/avatars/*",
+        "arn:aws:s3:::${S3_BUCKET}/covers/*"
       ]
     }
   ]
@@ -224,62 +420,213 @@ EOF
 aws s3api put-bucket-policy --bucket "$S3_BUCKET" --policy file:///tmp/bucket-policy.json
 ```
 
-> Prefer to keep the bucket private? Front it with CloudFront and configure a CloudFront Origin Access Control (OAC) — then update `server/s3.ts` `publicUrl()` to return the CloudFront URL instead.
+### 7c. Enable versioning (recommended for production)
+
+```bash
+aws s3api put-bucket-versioning \
+  --bucket "$S3_BUCKET" \
+  --versioning-configuration Status=Enabled
+```
+
+> **Private bucket alternative:** Keep `BlockPublicPolicy=true`, create a
+> CloudFront distribution with Origin Access Control (OAC) pointing at this
+> bucket, and update `server/s3.ts` `publicUrl()` to return the CloudFront
+> domain instead of the S3 virtual-hosted URL.
 
 ---
 
-## 8. AWS App Runner — backend service (one time)
+## Step 8 — AWS App Runner — backend service (one time)
 
-The simplest path is the Console wizard:
+### 8a. Create the App Runner instance IAM role
 
-1. Open **App Runner → Create service**.
-2. Source: **Container registry → Amazon ECR**, image `…dkr.ecr.<region>.amazonaws.com/unshelvd:latest`.
-3. Deployment trigger: **Manual** (the GitHub Actions workflow calls `start-deployment` after each image push).
-4. Let App Runner create a new **ECR access role** (it needs `AmazonEC2ContainerRegistryReadOnly`).
-5. Service settings:
+The App Runner container needs permission to read Secrets Manager and write
+to S3. Create a role it can assume at runtime.
+
+```bash
+# Save the trust policy
+cat > /tmp/apprunner-trust.json <<'EOF'
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": { "Service": "tasks.apprunner.amazonaws.com" },
+    "Action": "sts:AssumeRole"
+  }]
+}
+EOF
+
+aws iam create-role \
+  --role-name unshelvd-apprunner-instance \
+  --assume-role-policy-document file:///tmp/apprunner-trust.json
+
+# Attach the permissions policy
+cat > /tmp/apprunner-policy.json <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadSecrets",
+      "Effect": "Allow",
+      "Action": ["secretsmanager:GetSecretValue"],
+      "Resource": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:unshelvd/*"
+    },
+    {
+      "Sid": "WriteS3",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::${S3_BUCKET}/*"
+    }
+  ]
+}
+EOF
+aws iam put-role-policy \
+  --role-name unshelvd-apprunner-instance \
+  --policy-name unshelvd-apprunner-permissions \
+  --policy-document file:///tmp/apprunner-policy.json
+
+export INSTANCE_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/unshelvd-apprunner-instance"
+echo "Instance role ARN: $INSTANCE_ROLE_ARN"
+```
+
+### 8b. Create the service via the AWS Console
+
+The Console wizard is the fastest path for a first-time setup:
+
+1. Open **AWS Console → App Runner → Create service**.
+2. **Source**: Container registry → **Amazon ECR** →
+   image `<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/unshelvd:latest`.
+3. **ECR access**: let App Runner create a new ECR access role
+   (needs `AmazonEC2ContainerRegistryReadOnly`).
+4. **Deployment trigger**: **Manual** (CI calls `start-deployment` after
+   each image push, so automatic ECR polling is unnecessary).
+5. **Service settings**:
+   - Service name: `unshelvd`
    - Port: `8080`
-   - CPU/Memory: 1 vCPU / 2 GB (start small — App Runner scales horizontally automatically)
-   - **Instance role**: create one with this inline policy so the service can read secrets and write to S3:
-     ```json
-     {
-       "Version": "2012-10-17",
-       "Statement": [
-         {
-           "Effect": "Allow",
-           "Action": ["secretsmanager:GetSecretValue"],
-           "Resource": "arn:aws:secretsmanager:*:*:secret:unshelvd/*"
-         },
-         {
-           "Effect": "Allow",
-           "Action": ["s3:PutObject", "s3:DeleteObject"],
-           "Resource": "arn:aws:s3:::unshelvd-uploads/*"
-         }
-       ]
-     }
-     ```
-6. **Environment variables** (non-secret) — match `apprunner.yaml`:
-   - `NODE_ENV=production`
-   - `PORT=8080`
-   - `APP_URL=https://unshelvd.koshkikode.com`
-   - `PUBLIC_APP_URL=https://unshelvd.koshkikode.com`
-   - `WEB_BASE_URL=https://unshelvd.koshkikode.com`
-   - `CORS_ALLOWED_ORIGINS=https://unshelvd.koshkikode.com`
-   - `S3_BUCKET_NAME=unshelvd-uploads`
-7. **Environment variable references** (from Secrets Manager) — choose "Reference" type for each:
-   - `DATABASE_URL`         → `arn:aws:secretsmanager:…:secret:unshelvd/DATABASE_URL-…`
-   - `SESSION_SECRET`       → `…unshelvd/SESSION_SECRET-…`
-   - `STRIPE_SECRET_KEY`    → `…unshelvd/STRIPE_SECRET_KEY-…` *(only if enabled)*
-   - `STRIPE_WEBHOOK_SECRET`→ `…unshelvd/STRIPE_WEBHOOK_SECRET-…` *(only if enabled)*
-   - `PAYPAL_CLIENT_SECRET` → `…unshelvd/PAYPAL_CLIENT_SECRET-…` *(optional)*
-8. Health check path: `/api/health` (HTTP, port 8080).
+   - CPU: `1 vCPU`  Memory: `2 GB`
+   - Instance role: select `unshelvd-apprunner-instance` (created above)
+6. **Environment variables** — add these as plain (non-secret) values:
 
-After the service is created, copy the **service ARN** and the default `*.awsapprunner.com` URL — you'll need both shortly.
+   | Key | Value |
+   |-----|-------|
+   | `NODE_ENV` | `production` |
+   | `PORT` | `8080` |
+   | `APP_URL` | `https://unshelvd.koshkikode.com` |
+   | `PUBLIC_APP_URL` | `https://unshelvd.koshkikode.com` |
+   | `WEB_BASE_URL` | `https://unshelvd.koshkikode.com` |
+   | `CORS_ALLOWED_ORIGINS` | `https://unshelvd.koshkikode.com` |
+   | `S3_BUCKET_NAME` | `unshelvd-uploads` |
+   | `SMTP_HOST` | `smtp.your-provider.com` |
+   | `SMTP_PORT` | `587` |
+   | `SMTP_USER` | `your-smtp-user` |
+   | `EMAIL_FROM` | `Unshelv'd <noreply@koshkikode.com>` |
+   | `PAYPAL_CLIENT_ID` | `Aabc...` *(only if PayPal is enabled)* |
+   | `PAYPAL_WEBHOOK_ID` | `xxxxx` *(only if PayPal is enabled)* |
+
+7. **Environment variable references** (from Secrets Manager) — choose
+   **"Reference"** type for each and paste the full secret ARN:
+
+   | Key | Secret name |
+   |-----|-------------|
+   | `DATABASE_URL` | `unshelvd/DATABASE_URL` |
+   | `SESSION_SECRET` | `unshelvd/SESSION_SECRET` |
+   | `STRIPE_SECRET_KEY` | `unshelvd/STRIPE_SECRET_KEY` *(if Stripe enabled)* |
+   | `STRIPE_WEBHOOK_SECRET` | `unshelvd/STRIPE_WEBHOOK_SECRET` *(if Stripe enabled)* |
+   | `PAYPAL_CLIENT_SECRET` | `unshelvd/PAYPAL_CLIENT_SECRET` *(if PayPal enabled)* |
+   | `SMTP_PASS` | `unshelvd/SMTP_PASS` |
+
+   To get a secret ARN:
+   ```bash
+   aws secretsmanager describe-secret --secret-id unshelvd/DATABASE_URL \
+     --query ARN --output text
+   ```
+
+8. **Health check**:
+   - Protocol: `HTTP`
+   - Path: `/api/health`
+   - Port: `8080`
+   - Healthy threshold: `1`
+   - Unhealthy threshold: `5`
+   - Interval: `10` seconds
+   - Timeout: `5` seconds
+
+9. Click **Create and deploy**. The first deployment will fail with
+   "ImageNotFoundException" until you push an image in Step 11. That is
+   expected — the service and its ARN are what you need right now.
+
+10. After the service is created, copy:
+    - The **Service ARN** (e.g. `arn:aws:apprunner:…:service/unshelvd/…`)
+    - The **Default domain** (e.g. `abc123.us-east-1.awsapprunner.com`)
+
+    You'll use both in the next steps.
 
 ---
 
-## 9. GitHub OIDC role — let CI deploy without long-lived keys (one time)
+## Step 9 — Configure email (SMTP)
 
-Add GitHub as an OIDC identity provider in IAM (only needed once per AWS account):
+Unshelv'd sends transactional email for password resets, offer
+notifications, shipping updates, delivery confirmations, and new messages.
+
+### 9a. Choose an SMTP provider
+
+Recommended options (all have free tiers that cover a new marketplace):
+
+| Provider | Free tier | Notes |
+|---|---|---|
+| **Amazon SES** | 62,000/month from EC2/App Runner | Best cost; requires domain verification |
+| **Resend** | 3,000/month | Developer-friendly API; has SMTP relay |
+| **SendGrid** | 100/day | Well-known; good deliverability |
+| **Mailgun** | 100/day | Good API + SMTP |
+| **Brevo (Sendinblue)** | 300/day | Generous free tier |
+
+### 9b. Verify your domain (for SES)
+
+If you use Amazon SES, you must verify the sending domain and request
+production access (SES starts in sandbox mode):
+
+```bash
+# Verify the domain (SES will give you CNAME/TXT records to add to Route 53)
+aws sesv2 create-email-identity \
+  --email-identity koshkikode.com \
+  --region "$AWS_REGION"
+
+# List the DKIM tokens to add as CNAME records in Route 53
+aws sesv2 get-email-identity \
+  --email-identity koshkikode.com \
+  --region "$AWS_REGION" \
+  --query 'DkimAttributes.Tokens'
+```
+
+To get out of SES sandbox mode, open a **Service Quotas → SES → Sending
+limits → Request increase** ticket in the AWS Console.
+
+### 9c. Configure via the admin panel (recommended)
+
+After deploying the app, go to `https://$DOMAIN/#/admin` → **Settings →
+Email** and enter SMTP credentials there. This lets you test without
+redeploying.
+
+Alternatively, set them as App Runner environment variables:
+`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER` (plain) and `SMTP_PASS` (from Secrets
+Manager as shown in Step 8).
+
+### 9d. Add SPF and DKIM records in Route 53
+
+Your SMTP provider will give you specific DNS records. Add them in Route 53
+under the `koshkikode.com` hosted zone so emails don't land in spam.
+
+At minimum, add:
+- **SPF** (TXT record on `koshkikode.com`): `"v=spf1 include:your-provider.com ~all"`
+- **DKIM** CNAME records (given by your provider)
+- **DMARC** (TXT on `_dmarc.koshkikode.com`): `"v=DMARC1; p=none; rua=mailto:dmarc@koshkikode.com"`
+
+---
+
+## Step 10 — GitHub OIDC role — CI/CD without long-lived keys (one time)
+
+This lets GitHub Actions assume an IAM role to push images and trigger
+deployments without storing any AWS access keys in GitHub secrets.
+
+### 10a. Register GitHub as an OIDC identity provider (once per AWS account)
 
 ```bash
 aws iam create-open-id-connect-provider \
@@ -288,166 +635,508 @@ aws iam create-open-id-connect-provider \
   --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
 ```
 
-Create the deploy role (`unshelvd-github-deploy`) with this trust policy:
+If you get "EntityAlreadyExists", the provider is already registered — skip
+this command.
 
-```json
+### 10b. Create the deploy role trust policy
+
+```bash
+cat > /tmp/github-trust-policy.json <<EOF
 {
   "Version": "2012-10-17",
   "Statement": [{
     "Effect": "Allow",
-    "Principal": { "Federated": "arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com" },
+    "Principal": {
+      "Federated": "arn:aws:iam::${AWS_ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"
+    },
     "Action": "sts:AssumeRoleWithWebIdentity",
     "Condition": {
-      "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
-      "StringLike":   { "token.actions.githubusercontent.com:sub": "repo:KoshkiKode/unshelvd:*" }
+      "StringEquals": {
+        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+      },
+      "StringLike": {
+        "token.actions.githubusercontent.com:sub": "repo:KoshkiKode/unshelvd:*"
+      }
     }
   }]
 }
+EOF
 ```
 
-Attach an inline policy granting:
-- `ecr:GetAuthorizationToken`, `ecr:Batch*`, `ecr:Put*`, `ecr:Initiate*`, `ecr:Upload*`, `ecr:Complete*` on the repository
-- `apprunner:StartDeployment` on the service ARN
-- `secretsmanager:GetSecretValue` on `unshelvd/DATABASE_URL` (used by the migrate job)
+### 10c. Create the role
+
+```bash
+aws iam create-role \
+  --role-name unshelvd-github-deploy \
+  --assume-role-policy-document file:///tmp/github-trust-policy.json
+
+export DEPLOY_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/unshelvd-github-deploy"
+echo "Deploy role ARN: $DEPLOY_ROLE_ARN"
+```
+
+### 10d. Attach the deploy permissions policy
+
+Replace `<APPRUNNER_SERVICE_ARN>` with the ARN you copied in Step 8.
+
+```bash
+cat > /tmp/github-deploy-policy.json <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ECRAuth",
+      "Effect": "Allow",
+      "Action": ["ecr:GetAuthorizationToken"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ECRPush",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:CompleteLayerUpload",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:InitiateLayerUpload",
+        "ecr:PutImage",
+        "ecr:UploadLayerPart"
+      ],
+      "Resource": "arn:aws:ecr:${AWS_REGION}:${AWS_ACCOUNT_ID}:repository/${ECR_REPO}"
+    },
+    {
+      "Sid": "AppRunnerDeploy",
+      "Effect": "Allow",
+      "Action": ["apprunner:StartDeployment"],
+      "Resource": "<APPRUNNER_SERVICE_ARN>"
+    },
+    {
+      "Sid": "ReadDatabaseUrl",
+      "Effect": "Allow",
+      "Action": ["secretsmanager:GetSecretValue"],
+      "Resource": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:unshelvd/DATABASE_URL*"
+    }
+  ]
+}
+EOF
+
+aws iam put-role-policy \
+  --role-name unshelvd-github-deploy \
+  --policy-name unshelvd-deploy-permissions \
+  --policy-document file:///tmp/github-deploy-policy.json
+```
 
 ---
 
-## 10. Configure the GitHub repository
+## Step 11 — Configure the GitHub repository
 
-**Settings → Secrets and variables → Actions → Secrets**:
+### 11a. Repository secrets
 
-| Secret | Value |
+Go to **GitHub → Settings → Secrets and variables → Actions → Secrets** and
+add:
+
+| Secret name | Value |
 |---|---|
-| `AWS_DEPLOY_ROLE_ARN` | `arn:aws:iam::<ACCOUNT_ID>:role/unshelvd-github-deploy` |
-| `APPRUNNER_SERVICE_ARN` | The App Runner service ARN from step 8 |
+| `AWS_DEPLOY_ROLE_ARN` | The deploy role ARN from Step 10 (`arn:aws:iam::<ACCOUNT_ID>:role/unshelvd-github-deploy`) |
+| `APPRUNNER_SERVICE_ARN` | The App Runner service ARN from Step 8 |
 
-**Settings → Secrets and variables → Actions → Variables**:
+### 11b. Repository variables
 
-| Variable | Value |
+Go to **GitHub → Settings → Secrets and variables → Actions → Variables** and
+add:
+
+| Variable name | Value |
 |---|---|
 | `AWS_REGION` | `us-east-1` (or your region) |
 | `ECR_REPOSITORY` | `unshelvd` |
 | `DATABASE_URL_SECRET_ID` | `unshelvd/DATABASE_URL` |
-| `STRIPE_PUBLISHABLE_KEY` | `pk_live_…` (baked into the Vite client at build time) |
-| `THRIFTBOOKS_AFF_ID` | *(optional)* |
-| `ADSENSE_CLIENT` | *(optional)* AdSense publisher ID |
+| `STRIPE_PUBLISHABLE_KEY` | `pk_test_…` (baked into the Vite client at build time; swap to `pk_live_…` for production) |
+| `THRIFTBOOKS_AFF_ID` | Your ThriftBooks Impact affiliate ID *(optional)* |
+| `ADSENSE_CLIENT` | Your AdSense publisher ID, e.g. `ca-pub-XXXXXXXXXX` *(optional)* |
 
 ---
 
-## 11. AWS Amplify Hosting — frontend + custom domain
+## Step 12 — AWS Amplify Hosting — frontend + custom domain (one time)
 
-1. **Amplify Console → Host web app → GitHub** → pick this repo, branch `main`.
-2. Amplify auto-detects `amplify.yml`. Confirm the build settings.
-3. Set the same Vite-prefixed env vars as build-time variables in the Amplify console:
-   - `VITE_STRIPE_PUBLISHABLE_KEY`
-   - `VITE_THRIFTBOOKS_AFF_ID` *(optional)*
-   - `VITE_ADSENSE_CLIENT` *(optional)*
-   - Leave `VITE_API_URL` unset so the SPA uses same-origin requests.
-4. **Rewrites and redirects** — Amplify replaces the old Firebase Hosting `/api/**` rewrite. Add these rules in order:
+### 12a. Connect the repository
 
-   | Source | Target | Type |
-   |---|---|---|
-   | `/api/<*>` | `https://<APP_RUNNER_URL>.awsapprunner.com/api/<*>` | `200 (Rewrite)` |
-   | `/ws/<*>` | `https://<APP_RUNNER_URL>.awsapprunner.com/ws/<*>` | `200 (Rewrite)` |
-   | `/<*>` | `/index.html` | `200 (Rewrite)` |
+1. Open **AWS Console → AWS Amplify → Host web app**.
+2. Source: **GitHub** → authorize Amplify → pick the `KoshkiKode/unshelvd`
+   repository, branch `main`.
+3. Amplify auto-detects `amplify.yml`. Confirm the build settings look correct
+   (build command: `SKIP_ENV_VERIFY=true npm run build`, artifacts: `dist/public`).
 
-   The `/ws/<*>` rule is what allows the real-time messaging WebSocket
-   (`wss://unshelvd.koshkikode.com/ws`) to be proxied through to App Runner so
-   that web users get instant message delivery. Without it, the request falls
-   through to the SPA fallback and the upgrade never happens — messaging
-   silently degrades to the 5-second polling fallback.
+### 12b. Set build-time environment variables
 
-   Order matters — the API rule must be **above** the SPA fallback.
-5. **Custom domain** → add `unshelvd.koshkikode.com`. Amplify will issue an ACM certificate and give you the CNAME(s) to add in Route 53. Point the apex (`koshkikode.com`) and `www` redirects in the same wizard if desired.
+In **App settings → Environment variables** add:
+
+| Key | Value |
+|---|---|
+| `VITE_STRIPE_PUBLISHABLE_KEY` | `pk_test_…` (same as the GitHub variable) |
+| `VITE_THRIFTBOOKS_AFF_ID` | affiliate ID *(optional)* |
+| `VITE_ADSENSE_CLIENT` | `ca-pub-…` *(optional)* |
+
+Leave `VITE_API_URL` **unset** so the SPA makes same-origin API calls and
+Amplify's rewrite rule proxies them to App Runner.
+
+### 12c. Configure rewrites and redirects
+
+In **App settings → Rewrites and redirects** add the following rules **in
+this exact order** (order matters — the SPA fallback must be last):
+
+| # | Source pattern | Target | Rewrite type |
+|---|---|---|---|
+| 1 | `/api/<*>` | `https://<APP_RUNNER_DEFAULT_URL>/api/<*>` | `200 (Rewrite)` |
+| 2 | `/ws/<*>` | `https://<APP_RUNNER_DEFAULT_URL>/ws/<*>` | `200 (Rewrite)` |
+| 3 | `/<*>` | `/index.html` | `200 (Rewrite)` |
+
+Replace `<APP_RUNNER_DEFAULT_URL>` with the `abc123.us-east-1.awsapprunner.com`
+URL from Step 8.
+
+**Why rule 2 matters:** without the `/ws/<*>` rewrite, WebSocket upgrade
+requests from web browsers are swallowed by the SPA fallback. Messaging then
+silently falls back to 5-second HTTP polling instead of instant push delivery.
+
+### 12d. Add the custom domain
+
+1. In **Domain management → Add domain** enter `unshelvd.koshkikode.com`.
+2. Amplify issues an ACM certificate and shows you CNAME records to add in
+   Route 53. Copy them.
+3. Open **Route 53 → Hosted zones → koshkikode.com** and add each CNAME
+   record. ACM validation usually completes within 5 minutes.
+4. Once the certificate is validated and the domain is active, Amplify
+   serves the SPA over HTTPS with automatic certificate renewal.
+5. *(Optional)* Add `koshkikode.com` and `www.koshkikode.com` redirects in
+   the same wizard.
 
 ---
 
-## 12. First deploy
+## Step 13 — Set the admin account credentials (one time)
 
-The `Deploy` workflow runs on every push to `main`. Trigger the first one manually from the Actions tab to confirm the OIDC role and ECR push work end-to-end.
+The first time the container starts it runs `auto-seed`, which creates an
+admin user. Set predictable credentials by adding environment variables to
+the App Runner service **before** the first successful deploy.
+
+In the App Runner console → your service → **Configuration → Environment
+variables**, add:
+
+| Key | Value |
+|---|---|
+| `ADMIN_USERNAME` | `admin` (or your preferred username) |
+| `ADMIN_EMAIL` | `your-email@koshkikode.com` |
+| `ADMIN_PASSWORD` | A strong password (12+ chars, upper/lower/number/symbol) |
+
+If these are not set, `auto-seed` generates random credentials and prints
+them in the App Runner application log. You can find them at:
+
+```
+CloudWatch → Log groups → /aws/apprunner/unshelvd/<service-id>/application
+```
+
+Search for the line starting with `Admin credentials:`.
+
+---
+
+## Step 14 — First deploy
+
+Now trigger the first deploy by pushing to `main`. The CI + Deploy workflows
+you re-enabled in Step 0 will run automatically.
 
 ```bash
+git push origin main
+# Or, if you haven't changed any code:
 git commit --allow-empty -m "ci: trigger first AWS deploy"
 git push origin main
 ```
 
-The workflow:
-1. Runs `node script/migrate.js` against RDS using a temporary DATABASE_URL
-   pulled from Secrets Manager. **Migrations run first** so a release that
-   adds a new column doesn't crash the new container before the schema
-   catches up. Drizzle migrations are idempotent — re-running on a no-op
-   deploy is safe.
-2. Builds the Docker image with the Vite client baked in.
-3. Pushes `:<sha>` and `:latest` tags to ECR.
-4. Calls `aws apprunner start-deployment` against the service ARN.
+Watch progress in **GitHub → Actions**. The workflow:
 
-App Runner will pull the new `:latest` image and roll the service.
+1. **`migrate` job** — checks out the code, installs Node 24, fetches
+   `DATABASE_URL` from Secrets Manager, and runs `node script/migrate.js`.
+   This creates all database tables. Migrations are idempotent — safe to
+   re-run on subsequent deploys.
+2. **`build-and-deploy` job** (runs after `migrate` succeeds) — builds the
+   Docker image with the Vite client baked in, pushes `:<sha>` and `:latest`
+   tags to ECR, then calls `apprunner start-deployment`.
+3. App Runner pulls the new `:latest` image, runs the health-check against
+   `/api/health`, and rolls the service when it passes.
+
+The first deploy takes 10–15 minutes end to end. Subsequent deploys are
+typically 5–8 minutes.
 
 ---
 
-## 13. Post-deploy verification
+## Step 15 — Post-deploy verification checklist
+
+Run these checks from top to bottom. Fix any failure before proceeding to
+the next item.
+
+### 15a. API health
 
 ```bash
-curl -fsS https://$DOMAIN/api/health | jq .
-curl -fsS https://$DOMAIN/                 # SPA HTML
+curl -fsS "https://$DOMAIN/api/health" | jq .
+# Expected: { "status": "ok", ... }
 ```
 
-Then click through these in the browser to confirm wiring end to end:
+### 15b. SPA loads
 
-1. `https://$DOMAIN/` loads the SPA (served by Amplify).
-2. `https://$DOMAIN/api/health` returns JSON (Amplify rewrite is hitting App Runner).
-3. Sign in with the seeded admin account at `/#/login`.
-4. Open `/#/admin` — confirms session cookie survived the cross-origin
-   Amplify → App Runner hop (`SameSite=None; Secure` is set in production).
-5. **Cross-device handoff** — sign in as the same user on the website and
-   on the installed Android/iOS build. Open a conversation in `/#/messages`
-   on both. Send a message from one device; it should appear on the other
-   within ~1 second (WebSocket push, not the 5s polling fallback). If you
-   instead see a 5s delay, the `/ws/<*>` Amplify rewrite is missing — see
-   step 4 above.
+```bash
+curl -fsS "https://$DOMAIN/" | grep -c "<html"
+# Expected: 1
+```
 
-CloudWatch Logs are at:
-- `/aws/apprunner/<service>/<service-id>/application` — app stdout/stderr
-- `/aws/apprunner/<service>/<service-id>/service`     — App Runner platform events
+### 15c. Admin login (web)
+
+1. Open `https://$DOMAIN/#/login` in a browser.
+2. Sign in with the admin email and password from Step 13.
+3. Open `https://$DOMAIN/#/admin` — the admin dashboard must load.
+4. *(Confirms the session cookie is crossing the Amplify → App Runner origin
+   boundary with `SameSite=None; Secure` correctly.)*
+
+### 15d. Real-time messaging (WebSocket)
+
+1. Register two test user accounts (or use admin + a demo account).
+2. Open a conversation in `/#/messages` on one browser tab.
+3. Open the same conversation in a second tab or incognito window.
+4. Send a message from one tab — it must appear on the other **within ~1
+   second**. A 5-second delay means the `/ws/<*>` Amplify rewrite is not set
+   (see Step 12c).
+
+### 15e. Image upload (S3)
+
+1. Go to `/#/settings` and upload a profile avatar.
+2. The avatar URL in the page source must start with
+   `https://unshelvd-uploads.s3.us-east-1.amazonaws.com/avatars/`.
+   (If it starts with `data:image/`, S3 is not configured — check that
+   `S3_BUCKET_NAME` is set in the App Runner environment variables.)
+
+### 15f. Email delivery
+
+1. Go to `/#/login` → **Forgot password** → enter the admin email.
+2. A password-reset email must arrive within 60 seconds.
+3. If it doesn't arrive, check the App Runner logs for SMTP errors:
+   ```bash
+   aws logs tail /aws/apprunner/unshelvd/<service-id>/application \
+     --filter-pattern "SMTP" --follow
+   ```
+
+### 15g. Stripe webhook (if payments are enabled)
+
+1. In the Stripe dashboard → **Webhooks** → add an endpoint:
+   `https://$DOMAIN/api/webhooks/stripe`
+   Events: `payment_intent.succeeded`, `payment_intent.payment_failed`,
+   `account.updated`, `transfer.failed`, `charge.refunded`.
+2. Copy the signing secret (`whsec_…`) and update it in Secrets Manager:
+   ```bash
+   aws secretsmanager put-secret-value \
+     --secret-id unshelvd/STRIPE_WEBHOOK_SECRET \
+     --secret-string "whsec_..."
+   ```
+3. Use the **Send test event** button in the Stripe dashboard. The App Runner
+   logs should show `200` for the webhook delivery.
+
+### 15h. CloudWatch logs (confirm App Runner is healthy)
+
+```bash
+# Application logs (stdout/stderr from the Node.js process)
+aws logs tail /aws/apprunner/unshelvd/<service-id>/application --follow
+
+# Platform events (deployments, health checks, scaling)
+aws logs tail /aws/apprunner/unshelvd/<service-id>/service --follow
+```
+
+---
+
+## Step 16 — CloudWatch alarms (recommended)
+
+Set up basic alarms so you are notified before customers notice problems.
+
+### 16a. Create an SNS topic for alert emails
+
+```bash
+export ALERT_TOPIC_ARN="$(aws sns create-topic \
+  --name unshelvd-alerts \
+  --region "$AWS_REGION" \
+  --query TopicArn --output text)"
+
+aws sns subscribe \
+  --topic-arn "$ALERT_TOPIC_ARN" \
+  --protocol email \
+  --notification-endpoint "your-email@koshkikode.com"
+
+echo "Topic ARN: $ALERT_TOPIC_ARN"
+# Check your email and confirm the subscription before continuing.
+```
+
+### 16b. App Runner 5xx error rate alarm
+
+```bash
+aws cloudwatch put-metric-alarm \
+  --alarm-name "unshelvd-5xx-rate" \
+  --alarm-description "More than 5% of App Runner responses are 5xx" \
+  --namespace "AWS/AppRunner" \
+  --metric-name "5xxStatusResponses" \
+  --dimensions Name=ServiceName,Value=unshelvd \
+  --statistic Sum \
+  --period 60 \
+  --threshold 10 \
+  --comparison-operator GreaterThanOrEqualToThreshold \
+  --evaluation-periods 2 \
+  --alarm-actions "$ALERT_TOPIC_ARN" \
+  --region "$AWS_REGION"
+```
+
+### 16c. RDS free storage alarm
+
+```bash
+aws cloudwatch put-metric-alarm \
+  --alarm-name "unshelvd-rds-low-storage" \
+  --alarm-description "RDS free storage below 2 GB" \
+  --namespace "AWS/RDS" \
+  --metric-name "FreeStorageSpace" \
+  --dimensions Name=DBInstanceIdentifier,Value="$RDS_INSTANCE" \
+  --statistic Average \
+  --period 300 \
+  --threshold 2147483648 \
+  --comparison-operator LessThanThreshold \
+  --evaluation-periods 1 \
+  --alarm-actions "$ALERT_TOPIC_ARN" \
+  --region "$AWS_REGION"
+```
+
+---
+
+## Step 17 — Mobile app production builds
+
+See [MOBILE.md](./MOBILE.md) for the full Android and iOS build guide. Here
+is the summary for the production web-connected builds.
+
+### Android release AAB (Play Store)
+
+```bash
+# Build the web app pointing at production API
+VITE_API_URL=https://unshelvd.koshkikode.com npm run build
+npx cap sync android
+
+cd android
+./gradlew bundleRelease   # produces .aab for Play Store upload
+# or:
+./gradlew assembleRelease # produces .apk for direct install / testers
+```
+
+The GitHub Actions `release.yml` workflow does this automatically when you
+push a version tag:
+
+```bash
+# Bump version in package.json, then:
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+### iOS release IPA (App Store / TestFlight)
+
+```bash
+VITE_API_URL=https://unshelvd.koshkikode.com npm run build
+npx cap sync ios
+# Open Xcode, set the team + signing certificate, then Product → Archive
+npx cap open ios
+```
+
+For automated iOS builds, see the `build-ios.yml` and `release.yml` workflows
+and the secrets listed in `MOBILE.md`.
+
+---
+
+## Step 18 — Going live with real payments
+
+When you're ready to accept real money (after the app has been reviewed and
+tested end to end in test mode):
+
+1. **Stripe** — replace test keys with live keys in Secrets Manager:
+   ```bash
+   aws secretsmanager put-secret-value \
+     --secret-id unshelvd/STRIPE_SECRET_KEY \
+     --secret-string "sk_live_..."
+   aws secretsmanager put-secret-value \
+     --secret-id unshelvd/STRIPE_WEBHOOK_SECRET \
+     --secret-string "whsec_..."  # live endpoint signing secret
+   ```
+2. **Amplify build variable** — update `VITE_STRIPE_PUBLISHABLE_KEY` to
+   `pk_live_…` (App settings → Environment variables) and redeploy.
+3. **GitHub variable** — update `STRIPE_PUBLISHABLE_KEY` to `pk_live_…` so
+   future CI deploys bake the live key into the client.
+4. **PayPal** — in the admin panel (`/#/admin` → Settings → Payments), flip
+   PayPal mode from `sandbox` to `live` and update the live client ID and
+   secret.
+5. **Stripe Connect** — complete Stripe's platform review and set your
+   payout schedule and platform fee in the admin panel.
 
 ---
 
 ## Rollbacks
 
-App Runner keeps the previous container image around. To roll back:
+### App Runner rollback
 
-1. **Console** → App Runner → service → **Deployments** tab → pick a previous deployment → **Redeploy**.
-2. Or push a new commit that resets the image tag — the deploy workflow always tags `:latest`, so rolling forward is the usual path.
+App Runner keeps previous images. To roll back without a code change:
+
+1. **Console → App Runner → service → Deployments** tab → pick a previous
+   deployment → **Redeploy**.
+2. Or redeploy the old image tag directly:
+   ```bash
+   aws apprunner start-deployment \
+     --service-arn "$APPRUNNER_SERVICE_ARN"
+   # (App Runner always deploys :latest — re-tag the old SHA as :latest first)
+   REGISTRY="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+   docker pull "$REGISTRY/$ECR_REPO:<OLD_SHA>"
+   docker tag  "$REGISTRY/$ECR_REPO:<OLD_SHA>" "$REGISTRY/$ECR_REPO:latest"
+   docker push "$REGISTRY/$ECR_REPO:latest"
+   aws apprunner start-deployment --service-arn "$APPRUNNER_SERVICE_ARN"
+   ```
+
+### Database rollback
+
+Drizzle migrations are forward-only by design. To undo a schema change,
+write a new migration that reverses it and deploy normally.
 
 ---
 
 ## Local dev parity
 
-Local development continues to use Docker Compose for Postgres and the data-URI fallback for image uploads (no S3 needed). See `README.md` for the local setup walkthrough.
+Local development uses Docker Compose for Postgres and data-URI fallback for
+image uploads (no S3 needed). See `README.md` for the full local setup.
+
+```bash
+docker-compose up -d db   # starts local PostgreSQL
+cp .env.example .env      # copy and fill in local values
+npm run db:setup          # run migrations + seed
+npm run dev               # start the dev server at http://localhost:5000
+```
 
 ---
 
 ## Common failure modes
 
-A short troubleshooting checklist for the issues that bite first-time
-deployers. Work top-down — most "the site is broken" symptoms come from one of
-these.
+Work top-down. Most "the site is broken" symptoms come from one of these.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Amplify build fails on `npm run build` | Missing `VITE_*` env var in Amplify console | Add `VITE_STRIPE_PUBLISHABLE_KEY` (and any optional ones) under **App settings → Environment variables**, then redeploy |
-| `https://$DOMAIN/` loads, `/api/health` returns the SPA HTML | Amplify rewrites are in the wrong order — the SPA fallback is matching first | In Amplify rewrites, the `/api/<*>` rule must appear **above** the `/<*>` → `/index.html` rule |
-| `/api/health` returns 502 / "Service Unavailable" | App Runner instance role can't read secrets, so the container crashes on boot | Confirm the inline policy attached to the App Runner instance role grants `secretsmanager:GetSecretValue` on `arn:aws:secretsmanager:*:*:secret:unshelvd/*` |
-| App Runner health check stuck on "Operation in progress" | Health check path or port mismatch | App Runner service settings → Health check: `HTTP`, path `/api/health`, port `8080` |
-| App Runner logs: `ECONNREFUSED` to RDS | Security group on the RDS instance doesn't allow the App Runner egress IP | Add the App Runner outbound IP (or VPC connector) to the RDS security group, or temporarily flip RDS to `--publicly-accessible` to confirm |
-| Login works on web but not in the mobile app | CORS rejected the Capacitor origin, or the session cookie isn't crossing origins | Confirm `CORS_ALLOWED_ORIGINS` includes the production domain (Capacitor origins are allowed by default in `server/index.ts`); confirm `NODE_ENV=production` so cookies are issued as `SameSite=None; Secure` |
-| Messages take 5s to arrive instead of being instant | The WebSocket isn't connecting — either the Amplify `/ws/<*>` rewrite is missing (web) or the native client tried `ws://` against an HTTPS host (native) | Add the `/ws/<*>` rewrite (see step 4); confirm the native build was produced after this fix landed (the client now derives the WS scheme from `VITE_API_URL`, not `window.location.protocol`) |
-| Stripe webhooks rejected with `signature verification failed` | The webhook signing secret in Secrets Manager doesn't match the one Stripe is sending | Re-copy the signing secret from the Stripe dashboard for the **specific endpoint** (test vs live secrets are different) and update `unshelvd/STRIPE_WEBHOOK_SECRET` |
-| `npm run check` fails in CI but passes locally | Node version drift | Pin Node 20+ in CI; the deploy migrate job uses Node 24 — keep that aligned with `.nvmrc`/your local env |
-| GitHub Actions OIDC step fails: `not authorized to perform sts:AssumeRoleWithWebIdentity` | The role's trust policy `sub` condition doesn't match this repo's branch/ref | Update the trust policy `StringLike` to `repo:KoshkiKode/unshelvd:*` (or scope it tighter to `:ref:refs/heads/main` once stable) |
+| Every API call returns `503 Service temporarily unavailable` | The maintenance mode block in `server/index.ts` is still present | Delete the three maintenance mode lines — see **Step 0a** |
+| GitHub Actions deploy workflow does nothing (jobs show as skipped) | `if: false` is still on the job definitions in `deploy.yml` | Remove `if: false` from the `migrate` and `build-and-deploy` jobs — see **Step 0c** |
+| Amplify build fails on `npm run build` | Missing `VITE_*` env var in Amplify console | Add `VITE_STRIPE_PUBLISHABLE_KEY` under **App settings → Environment variables** and redeploy |
+| `https://$DOMAIN/` loads, but `/api/health` returns the SPA HTML | Amplify rewrites are in the wrong order | Ensure `/api/<*>` rewrite rule is **above** the `/<*>` → `/index.html` rule |
+| `/api/health` returns 502 or "Service Unavailable" | App Runner container is crashing on startup — usually a missing secret | Check App Runner application logs; confirm the instance role can read all `unshelvd/*` secrets |
+| App Runner health check stuck on "Operation in progress" | Health check path or port mismatch | Set health check to HTTP, path `/api/health`, port `8080` |
+| App Runner logs: `ECONNREFUSED` connecting to RDS | RDS security group doesn't allow the App Runner egress IP | Add the App Runner outbound IP to the RDS security group inbound rules |
+| Login works on web but not in the mobile app | CORS rejected the Capacitor origin, or session cookie not crossing origins | Confirm `NODE_ENV=production` so cookies are `SameSite=None; Secure`; Capacitor origins are allowed by default |
+| Images upload but show broken in the browser | `S3_BUCKET_NAME` env var not set in App Runner, or bucket policy blocks public reads | Confirm `S3_BUCKET_NAME=unshelvd-uploads` is set; verify the bucket policy allows anonymous GET on `avatars/*` and `covers/*` |
+| Messages take 5s to arrive instead of instant | WebSocket not connecting — Amplify `/ws/<*>` rewrite is missing (web) | Add the `/ws/<*>` rewrite rule pointing to App Runner (see Step 12c) |
+| Password-reset emails not delivered | SMTP not configured, or sending domain not verified | Set SMTP env vars in App Runner; check App Runner logs for SMTP errors; verify SPF/DKIM records in Route 53 |
+| Stripe webhooks rejected with `signature verification failed` | Webhook signing secret mismatch | Re-copy the signing secret from the Stripe dashboard for the **specific endpoint** and update `unshelvd/STRIPE_WEBHOOK_SECRET` in Secrets Manager |
+| `npm run check` fails in CI but passes locally | Node version drift | CI uses Node 24; keep your local Node 20+ and ensure `.nvmrc` is consistent |
+| GitHub Actions OIDC fails: `not authorized to perform sts:AssumeRoleWithWebIdentity` | Trust policy `sub` condition doesn't match the repo | Update the trust policy `StringLike` to `repo:KoshkiKode/unshelvd:*` |
+| App Runner shows `ImageNotFoundException` on first deploy | No Docker image has been pushed to ECR yet | Let the GitHub Actions deploy workflow run first (it pushes the image before calling `start-deployment`) |
 
-If something else breaks, the fastest signal is usually:
+For any other issue, the fastest signal is:
 
 ```bash
-aws logs tail /aws/apprunner/$APPRUNNER_SERVICE/<service-id>/application --follow
+aws logs tail /aws/apprunner/unshelvd/<service-id>/application --follow
 ```
