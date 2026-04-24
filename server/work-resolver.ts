@@ -75,7 +75,7 @@ export async function resolveWork(input: {
         coverUrl: olWork.coverUrl || input.coverUrl || null,
         genre: input.genre || null,
         description: olWork.description || null,
-        editionCount: olWork.editionCount || 1,
+        editionCount: olWork.editionCount,
         source: "open_library",
       }).returning();
 
@@ -103,7 +103,7 @@ export async function resolveWork(input: {
         coverUrl: olWork.coverUrl || input.coverUrl || null,
         genre: input.genre || null,
         description: olWork.description || null,
-        editionCount: olWork.editionCount || 1,
+        editionCount: olWork.editionCount,
         source: "open_library",
       }).returning();
 
@@ -119,7 +119,9 @@ export async function resolveWork(input: {
     const matches = await db.select().from(works).where(
       and(
         ilike(works.title, `%${normTitle.substring(0, 30)}%`),
-        ilike(works.author, `%${normAuthor.split(" ").pop() || normAuthor}%`)
+        // normAuthor is non-empty (guarded by `if (normTitle && normAuthor)` above)
+        // and normalizeAuthor() always trims, so split(" ").pop() is never undefined.
+        ilike(works.author, `%${normAuthor.split(" ").pop()!}%`)
       )
     );
 

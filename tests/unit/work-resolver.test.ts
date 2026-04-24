@@ -1288,3 +1288,140 @@ describe("resolveWork — guard and branch path coverage", () => {
     expect(result).toEqual({ workId: 703, isNew: true, confidence: "created" });
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────
+// resolveWork — editionCount propagation (no defensive || 1 in resolveWork)
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("resolveWork — editionCount propagated directly from OL helpers", () => {
+  beforeEach(() => {
+    dbResults.length = 0;
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("Strategy 1 — preserves the exact editionCount returned by resolveViaOpenLibrary", async () => {
+    // OL work endpoint returns a specific edition_count; resolveWork should
+    // store it verbatim (no extra || 1 truncation).
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ title: "Dune", works: [{ key: "/works/OL123W" }] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            title: "Dune",
+            authors: [{ author: { key: "/authors/OL1A" } }],
+            covers: [],
+            first_publish_date: "1965",
+            edition_count: 42,
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ name: "Frank Herbert" }),
+        }),
+    );
+
+    // No existing work → insert new one
+    dbResults.push(
+      [],
+      [{ id: 10, title: "Dune", author: "Frank Herbert" }],
+    );
+
+    const result = await resolveWork({
+      title: "Dune",
+      author: "Frank Herbert",
+      isbn: "9780441013593",
+    });
+
+    expect(result.isNew).toBe(true);
+    expect(result.confidence).toBe("exact");
+    expect((db as any).values).toHaveBeenCalledWith(
+      expect.objectContaining({ editionCount: 42 }),
+    );
+  });
+
+  it("Strategy 2 — preserves the exact editionCount returned by searchOpenLibraryWork", async () => {
+    // OL search returns a specific edition_count; resolveWork should store it verbatim.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          docs: [
+            {
+              key: "/works/OL456W",
+              title: "Foundation",
+              author_name: ["Isaac Asimov"],
+              first_publish_year: 1951,
+              edition_count: 30,
+            },
+          ],
+        }),
+      }),
+    );
+
+    // No existing work → insert new one
+    dbResults.push(
+      [],
+      [{ id: 20, title: "Foundation", author: "Isaac Asimov" }],
+    );
+
+    const result = await resolveWork({ title: "Foundation", author: "Isaac Asimov" });
+
+    expect(result.isNew).toBe(true);
+    expect(result.confidence).toBe("high");
+    expect((db as any).values).toHaveBeenCalledWith(
+      expect.objectContaining({ editionCount: 30 }),
+    );
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// resolveWork — Strategy 3: author last-word extraction (single-word author)
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("resolveWork — Strategy 3: fuzzy author last-word extraction", () => {
+  beforeEach(() => {
+    dbResults.length = 0;
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("uses a single-word author name directly when it has no spaces after normalisation", async () => {
+    // Author "Tolstoy" normalises to "tolstoy" — split(" ").pop() returns "tolstoy" directly.
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network error")));
+
+    dbResults.push([{ id: 50, title: "War and Peace", author: "Tolstoy" }]);
+
+    const result = await resolveWork({ title: "War and Peace", author: "Tolstoy" });
+
+    // Exact normalised match → high confidence
+    expect(result.isNew).toBe(false);
+    expect(result.workId).toBe(50);
+    expect(result.confidence).toBe("high");
+  });
+
+  it("uses the last word of a multi-word author name for the ilike query", async () => {
+    // Author "Leo Tolstoy" — last word is "tolstoy"; the match should still be found.
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network error")));
+
+    dbResults.push([{ id: 51, title: "War and Peace", author: "Leo Tolstoy" }]);
+
+    const result = await resolveWork({ title: "War and Peace", author: "Leo Tolstoy" });
+
+    expect(result.isNew).toBe(false);
+    expect(result.workId).toBe(51);
+    expect(result.confidence).toBe("high");
+  });
+});
