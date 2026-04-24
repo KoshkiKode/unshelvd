@@ -24,6 +24,19 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Split heavy third-party libraries into separate cached chunks so that
+        // changes to application code don't bust the cache for unrelated deps.
+        manualChunks(id) {
+          if (/node_modules\/(recharts|d3-)/.test(id)) return "vendor-charts";
+          if (/node_modules\/framer-motion\//.test(id)) return "vendor-motion";
+          if (/node_modules\/@stripe\//.test(id)) return "vendor-stripe";
+          if (/node_modules\/@radix-ui\//.test(id)) return "vendor-radix";
+          if (/node_modules\/(react|react-dom)\//.test(id)) return "vendor-react";
+        },
+      },
+    },
   },
   server: {
     fs: {

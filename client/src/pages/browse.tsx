@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch, Link } from "wouter";
 import BookCard from "@/components/book-card";
@@ -43,12 +43,15 @@ export default function Browse() {
   });
   const genres = dynamicGenres && dynamicGenres.length > 0 ? dynamicGenres : fallbackGenres;
 
-  const queryParams = new URLSearchParams();
-  if (search) queryParams.set("search", search);
-  if (genre) queryParams.set("genre", genre);
-  if (condition) queryParams.set("condition", condition);
-  if (status) queryParams.set("status", status);
-  if (sort && sort !== "newest") queryParams.set("sort", sort === "price-low" ? "price-asc" : sort === "price-high" ? "price-desc" : "");
+  const queryParams = useMemo(() => {
+    const p = new URLSearchParams();
+    if (search) p.set("search", search);
+    if (genre) p.set("genre", genre);
+    if (condition) p.set("condition", condition);
+    if (status) p.set("status", status);
+    if (sort && sort !== "newest") p.set("sort", sort === "price-low" ? "price-asc" : sort === "price-high" ? "price-desc" : "");
+    return p;
+  }, [search, genre, condition, status, sort]);
 
   const { data: books, isLoading } = useQuery<Book[]>({
     queryKey: [`/api/books?${queryParams.toString()}`],

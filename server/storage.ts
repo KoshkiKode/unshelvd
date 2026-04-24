@@ -17,6 +17,10 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: isUnixSocket ? false : (process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false),
   connectionTimeoutMillis: 10_000,
+  // Cap pool size and recycle idle connections to avoid leaking file descriptors
+  // under low-traffic periods.
+  max: 20,
+  idleTimeoutMillis: 30_000,
 });
 
 // Prevent unhandled pool errors from crashing the process

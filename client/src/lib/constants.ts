@@ -73,10 +73,8 @@ export const languageGroups: Record<string, string[]> = {
   ],
 };
 
-// Flat list for simple dropdowns
-export const languages = Object.values(languageGroups).flat().filter(
-  (v, i, a) => a.indexOf(v) === i // deduplicate
-);
+// Flat list for simple dropdowns (Set dedup is O(n) vs O(n²) indexOf)
+export const languages = [...new Set(Object.values(languageGroups).flat())];
 
 // ═══════════════════════════════════════════════════════════════
 // COUNTRIES — current + historical, grouped
