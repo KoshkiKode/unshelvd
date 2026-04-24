@@ -22,7 +22,7 @@ import {
   blockRecords,
   TERMINAL_TX_STATUSES,
 } from "@shared/schema";
-import { eq, and, or, ilike, desc, asc, sql, isNull, inArray, notInArray } from "drizzle-orm";
+import { eq, and, or, ilike, desc, asc, sql, isNull, inArray, notInArray, type SQL } from "drizzle-orm";
 import { resolveWork, getWorkEditions, updateWorkStats } from "./work-resolver";
 import {
   createPaymentIntent,
@@ -182,6 +182,37 @@ function parsePagination(
     ? Math.max(0, parsedOffset)
     : defaults.offset;
   return { limit, offset };
+}
+
+/**
+ * Build a shared array of Drizzle WHERE conditions for the book catalog.
+ * Used by both /api/catalog and /api/catalog/search to avoid duplicated logic.
+ * Accepts `q` as `string | string[] | undefined` to safely handle Express query
+ * params that may arrive as arrays; only the first string value is used.
+ */
+function buildCatalogConditions(
+  q?: string | string[],
+  lang?: string,
+  country?: string,
+): SQL<unknown>[] {
+  const conds: SQL<unknown>[] = [];
+  // Normalise q: if it arrived as an array (e.g. ?q[]=foo), take first element
+  const qStr = Array.isArray(q) ? q[0] : q;
+  if (qStr && qStr.length >= 2) {
+    const term = `%${sanitizeLikeInput(qStr)}%`;
+    conds.push(
+      or(
+        ilike(bookCatalog.title, term),
+        ilike(bookCatalog.titleNative, term),
+        ilike(bookCatalog.author, term),
+        ilike(bookCatalog.authorNative, term),
+        eq(bookCatalog.isbn13, qStr.replace(/[^0-9X]/gi, "")),
+      ) as SQL<unknown>,
+    );
+  }
+  if (lang) conds.push(ilike(bookCatalog.language, `%${sanitizeLikeInput(lang)}%`) as SQL<unknown>);
+  if (country) conds.push(ilike(bookCatalog.countryOfOrigin, `%${sanitizeLikeInput(country)}%`) as SQL<unknown>);
+  return conds;
 }
 
 export async function registerRoutes(
@@ -691,58 +722,38 @@ export async function registerRoutes(
         page: pageStr,
         lang,
         country,
-      } = req.query as { [key: string]: string };
-      const parsedLimit = Number.parseInt(limitStr ?? "", 10);
+      } = req.query as { [key: string]: string | string[] | undefined };
+      const parsedLimit = Number.parseInt((Array.isArray(limitStr) ? limitStr[0] : limitStr) ?? "", 10);
       const limit = Number.isFinite(parsedLimit)
         ? Math.max(1, Math.min(parsedLimit, 100))
         : 24;
       // Support both offset and page-based pagination
-      const parsedPage = Number.parseInt(pageStr ?? "", 10);
+      const parsedPage = Number.parseInt((Array.isArray(pageStr) ? pageStr[0] : pageStr) ?? "", 10);
       const page = Number.isFinite(parsedPage) ? Math.max(1, parsedPage) : 1;
       const pageOffset = (page - 1) * limit;
-      const parsedOffset = Number.parseInt(offsetStr ?? "", 10);
+      const parsedOffset = Number.parseInt((Array.isArray(offsetStr) ? offsetStr[0] : offsetStr) ?? "", 10);
       const offset = Number.isFinite(parsedOffset)
         ? Math.max(0, parsedOffset)
         : pageOffset;
+      const langStr = Array.isArray(lang) ? lang[0] : lang;
+      const countryStr = Array.isArray(country) ? country[0] : country;
 
-      const conditions = [];
-      if (q && q.length >= 2) {
-        const term = `%${sanitizeLikeInput(q)}%`;
-        conditions.push(
-          or(
-            ilike(bookCatalog.title, term),
-            ilike(bookCatalog.titleNative, term),
-            ilike(bookCatalog.author, term),
-            ilike(bookCatalog.authorNative, term),
-            eq(bookCatalog.isbn13, q.replace(/[^0-9X]/gi, "")),
-          ),
-        );
-      }
-      if (lang)
-        conditions.push(
-          ilike(bookCatalog.language, `%${sanitizeLikeInput(lang)}%`),
-        );
-      if (country)
-        conditions.push(
-          ilike(bookCatalog.countryOfOrigin, `%${sanitizeLikeInput(country)}%`),
-        );
+      const conds = buildCatalogConditions(q, langStr, countryStr);
 
       let query = db.select().from(bookCatalog);
-      if (conditions.length > 0) query = query.where(and(...conditions)) as any;
+      if (conds.length > 0) query = query.where(and(...conds)) as any;
       query = query
         .orderBy(desc(bookCatalog.id))
         .limit(limit)
         .offset(offset) as any;
 
-      const results = await query;
-
-      // Also get total count for pagination
       let countQuery = db
         .select({ count: sql<number>`count(*)::int` })
         .from(bookCatalog);
-      if (conditions.length > 0)
-        countQuery = countQuery.where(and(...conditions)) as any;
-      const [{ count: total }] = await countQuery;
+      if (conds.length > 0)
+        countQuery = countQuery.where(and(...conds)) as any;
+
+      const [results, [{ count: total }]] = await Promise.all([query, countQuery]);
 
       return res.json({ books: results, total });
     } catch (err) {
@@ -904,52 +915,31 @@ export async function registerRoutes(
   // === BOOK CATALOG (proprietary master database) ===
   app.get("/api/catalog/search", async (req, res) => {
     try {
-      const q = req.query.q as string;
-      const lang = req.query.language as string;
-      const country = req.query.countryOfOrigin as string;
+      // Pass raw query values — buildCatalogConditions normalises string | string[] safely
+      const q = req.query.q;
+      const lang = req.query.language as string | undefined;
+      const country = req.query.countryOfOrigin as string | undefined;
       const { limit, offset } = parsePagination(
         req.query.limit as string | undefined,
         req.query.offset as string | undefined,
       );
 
-      const conditions = [];
-      if (q && q.length >= 2) {
-        const term = `%${sanitizeLikeInput(q)}%`;
-        conditions.push(
-          or(
-            ilike(bookCatalog.title, term),
-            ilike(bookCatalog.titleNative, term),
-            ilike(bookCatalog.author, term),
-            ilike(bookCatalog.authorNative, term),
-            eq(bookCatalog.isbn13, q.replace(/[^0-9X]/gi, "")),
-          ),
-        );
-      }
-      if (lang)
-        conditions.push(
-          ilike(bookCatalog.language, `%${sanitizeLikeInput(lang)}%`),
-        );
-      if (country)
-        conditions.push(
-          ilike(bookCatalog.countryOfOrigin, `%${sanitizeLikeInput(country)}%`),
-        );
+      const conds = buildCatalogConditions(q as string | string[] | undefined, lang, country);
 
       let query = db.select().from(bookCatalog);
-      if (conditions.length > 0) query = query.where(and(...conditions)) as any;
+      if (conds.length > 0) query = query.where(and(...conds)) as any;
       query = query
         .orderBy(desc(bookCatalog.id))
         .limit(limit)
         .offset(offset) as any;
 
-      const results = await query;
-
-      // Count total for pagination
       let countQuery = db
         .select({ count: sql<number>`count(*)::int` })
         .from(bookCatalog);
-      if (conditions.length > 0)
-        countQuery = countQuery.where(and(...conditions)) as any;
-      const [{ count: total }] = await countQuery;
+      if (conds.length > 0)
+        countQuery = countQuery.where(and(...conds)) as any;
+
+      const [results, [{ count: total }]] = await Promise.all([query, countQuery]);
 
       return res.json({ results, total, limit, offset });
     } catch (err) {
@@ -960,13 +950,13 @@ export async function registerRoutes(
 
   app.get("/api/catalog/stats", async (_req, res) => {
     try {
-      const [{ count: total }] = await db
-        .select({ count: sql<number>`count(*)::int` })
+      // Combine total + verified counts in a single query using FILTER
+      const [{ total, verified }] = await db
+        .select({
+          total: sql<number>`count(*)::int`,
+          verified: sql<number>`count(*) FILTER (WHERE ${bookCatalog.verified} = true)::int`,
+        })
         .from(bookCatalog);
-      const [{ count: verified }] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(bookCatalog)
-        .where(eq(bookCatalog.verified, true));
 
       // Language distribution
       const langDist = await db

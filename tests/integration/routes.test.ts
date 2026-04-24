@@ -1069,9 +1069,8 @@ describe("GET /api/catalog/stats", () => {
   });
 
   it("returns total, verified, and language distribution", async () => {
-    pushDbResults([{ count: 42 }]);         // total count
-    pushDbResults([{ count: 10 }]);         // verified count
-    pushDbResults([                         // language distribution
+    pushDbResults([{ total: 42, verified: 10 }]); // combined total + verified count
+    pushDbResults([                               // language distribution
       { language: "English", count: 30 },
       { language: "Russian", count: 12 },
     ]);
