@@ -17,6 +17,7 @@ export default defineConfig({
         "server/email.ts",
         "server/paypal.ts",
         "server/jobs.ts",
+        "server/payments.ts",
       ],
       exclude: ["**/*.test.ts"],
     },
