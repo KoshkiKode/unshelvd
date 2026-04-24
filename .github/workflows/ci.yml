@@ -15,6 +15,7 @@ on:
 jobs:
   test:
     name: Type-check, Build & Test
+    if: false  # Temporarily disabled — re-enable when services are restored
     runs-on: ubuntu-latest
     permissions:
       contents: read
