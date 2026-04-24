@@ -119,6 +119,8 @@ export async function resolveWork(input: {
     const matches = await db.select().from(works).where(
       and(
         ilike(works.title, `%${normTitle.substring(0, 30)}%`),
+        // normAuthor is non-empty (guarded by `if (normTitle && normAuthor)` above)
+        // and normalizeAuthor() always trims, so split(" ").pop() is never undefined.
         ilike(works.author, `%${normAuthor.split(" ").pop()!}%`)
       )
     );
