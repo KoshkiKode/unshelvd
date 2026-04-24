@@ -123,6 +123,36 @@ describe("isPayPalEnabled", () => {
     const { isPayPalEnabled } = await importPaypal();
     await expect(isPayPalEnabled()).resolves.toBe(true);
   });
+
+  it("defaults mode to 'sandbox' when paypal_mode setting is empty", async () => {
+    // Set up credentials but leave mode as empty string so the || "sandbox" fallback is used
+    paypalState.enabled = true;
+    paypalState.clientId = "CLIENT_ID";
+    paypalState.clientSecret = "CLIENT_SECRET";
+    paypalState.mode = "" as any; // empty → falsy → falls back to "sandbox"
+
+    mockToken();
+    mockApiOk({
+      id: "ORDER1",
+      links: [{ rel: "payer-action", href: "https://sandbox.paypal.com/approve" }],
+    });
+    const { createPayPalOrder } = await importPaypal();
+    const params = {
+      bookId: 1,
+      buyerId: 2,
+      sellerId: 3,
+      amount: 10.0,
+      returnUrl: "https://app.com/return",
+      cancelUrl: "https://app.com/cancel",
+    };
+    const result = await createPayPalOrder(params);
+    // Falls back to sandbox, so the sandbox API URL is called
+    const sandboxCall = fetchMock.mock.calls.find((c) =>
+      /sandbox\.paypal\.com/.test(c[0] as string),
+    );
+    expect(sandboxCall).toBeDefined();
+    expect(result.orderId).toBe("ORDER1");
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -526,5 +556,48 @@ describe("OAuth token caching", () => {
       /\/v1\/oauth2\/token$/.test(c[0] as string),
     );
     expect(tokenCalls).toHaveLength(1);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// OAuth token error handling
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("OAuth token error handling", () => {
+  it("throws a descriptive error when the token endpoint returns a non-ok response", async () => {
+    setCredentials();
+
+    // Make the token fetch fail with a 401 response
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      text: async () => "Unauthorized",
+    });
+
+    const { authorizePayPalOrder } = await importPaypal();
+    await expect(authorizePayPalOrder("ORDER1234567")).rejects.toThrow(
+      /PayPal token error 401/,
+    );
+  });
+
+  it("includes the response body text in the token error message", async () => {
+    setCredentials();
+
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      text: async () => "invalid_client",
+    });
+
+    const { createPayPalOrder } = await importPaypal();
+    const params = {
+      bookId: 1,
+      buyerId: 2,
+      sellerId: 3,
+      amount: 10.0,
+      returnUrl: "https://app.com/return",
+      cancelUrl: "https://app.com/cancel",
+    };
+    await expect(createPayPalOrder(params)).rejects.toThrow(/invalid_client/);
   });
 });

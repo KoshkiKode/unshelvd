@@ -292,6 +292,82 @@ describe("autoCompleteTransactions", () => {
     expect(errSpy).toHaveBeenCalledWith("[jobs] email error (seller auto-complete):", sellerErr);
     errSpy.mockRestore();
   });
+
+  it("uses 'Unknown book' as title when the book row is not found", async () => {
+    acquireOnlyLock(8301);
+
+    dbResults.push(
+      [{ id: 50, buyerId: 1, sellerId: 2, bookId: 99, sellerPayout: 5.0 }],
+      [],                           // book lookup returns nothing → fallback title
+      [{ email: "buyer@x.com" }],
+      [{ email: "seller@x.com" }],
+    );
+
+    startJobs();
+    await flushPromises();
+    await flushPromises();
+
+    expect(vi.mocked(sendAutoCompleted)).toHaveBeenCalledWith(
+      "buyer@x.com",
+      "buyer",
+      "Unknown book",
+    );
+    expect(vi.mocked(sendAutoCompleted)).toHaveBeenCalledWith(
+      "seller@x.com",
+      "seller",
+      "Unknown book",
+    );
+  });
+
+  it("skips buyer email when the buyer row has no email", async () => {
+    acquireOnlyLock(8301);
+
+    dbResults.push(
+      [{ id: 51, buyerId: 1, sellerId: 2, bookId: 5, sellerPayout: 8.0 }],
+      [{ title: "Dune" }],
+      [],                           // buyer lookup returns nothing → no buyer email
+      [{ email: "seller@x.com" }],
+    );
+
+    startJobs();
+    await flushPromises();
+    await flushPromises();
+
+    const buyerCalls = vi.mocked(sendAutoCompleted).mock.calls.filter(
+      (c) => c[1] === "buyer",
+    );
+    expect(buyerCalls).toHaveLength(0);
+    expect(vi.mocked(sendAutoCompleted)).toHaveBeenCalledWith(
+      "seller@x.com",
+      "seller",
+      "Dune",
+    );
+  });
+
+  it("skips seller email when the seller row has no email", async () => {
+    acquireOnlyLock(8301);
+
+    dbResults.push(
+      [{ id: 52, buyerId: 1, sellerId: 2, bookId: 5, sellerPayout: 8.0 }],
+      [{ title: "Dune" }],
+      [{ email: "buyer@x.com" }],
+      [],                           // seller lookup returns nothing → no seller email
+    );
+
+    startJobs();
+    await flushPromises();
+    await flushPromises();
+
+    expect(vi.mocked(sendAutoCompleted)).toHaveBeenCalledWith(
+      "buyer@x.com",
+      "buyer",
+      "Dune",
+    );
+    const sellerCalls = vi.mocked(sendAutoCompleted).mock.calls.filter(
+      (c) => c[1] === "seller",
+    );
+    expect(sellerCalls).toHaveLength(0);
+  });
 });
 
 describe("expireOffers", () => {
@@ -305,6 +381,20 @@ describe("expireOffers", () => {
 
     expect(vi.mocked(db).execute).toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalledWith("[jobs] Expired 2 stale offer(s)");
+    logSpy.mockRestore();
+  });
+
+  it("does not log when rowCount is null (falls back to 0 via ?? operator)", async () => {
+    acquireOnlyLock(8302);
+    vi.mocked(db).execute.mockResolvedValueOnce({ rowCount: null } as any);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    startJobs();
+    await flushPromises();
+
+    expect(vi.mocked(db).execute).toHaveBeenCalled();
+    // count = null ?? 0 → 0, so no log should be emitted
+    expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining("Expired"));
     logSpy.mockRestore();
   });
 });
@@ -389,6 +479,44 @@ describe("expireAbandonedTransactions", () => {
     );
     expect(vi.mocked(sendOrderCancelled)).not.toHaveBeenCalled();
     errSpy.mockRestore();
+  });
+
+  it("skips the cancellation email when the buyer row is missing", async () => {
+    acquireOnlyLock(8303);
+
+    dbResults.push(
+      [{ id: 100, buyerId: 5, bookId: 10 }],
+      [],   // cancel tx update
+      [],   // re-list book update
+      [],   // buyer lookup returns nothing
+      [{ title: "Brave New World" }],
+    );
+
+    startJobs();
+    await flushPromises();
+    await flushPromises();
+
+    expect(vi.mocked(db).update).toHaveBeenCalled();
+    expect(vi.mocked(sendOrderCancelled)).not.toHaveBeenCalled();
+  });
+
+  it("skips the cancellation email when the book row is missing", async () => {
+    acquireOnlyLock(8303);
+
+    dbResults.push(
+      [{ id: 101, buyerId: 5, bookId: 10 }],
+      [],   // cancel tx update
+      [],   // re-list book update
+      [{ email: "buyer@x.com" }],
+      [],   // book lookup returns nothing
+    );
+
+    startJobs();
+    await flushPromises();
+    await flushPromises();
+
+    expect(vi.mocked(db).update).toHaveBeenCalled();
+    expect(vi.mocked(sendOrderCancelled)).not.toHaveBeenCalled();
   });
 });
 

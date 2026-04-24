@@ -160,6 +160,15 @@ describe("sendEmail — SMTP configured", () => {
     const nodemailer = await import("nodemailer");
     expect(vi.mocked(nodemailer.default.createTransport)).toHaveBeenCalledTimes(1);
   });
+
+  it("falls back to port 587 when the configured SMTP port is non-numeric", async () => {
+    smtpState.port = "invalid_port";
+    const nodemailer = await import("nodemailer");
+    await sendEmail("t@t.com", "S", "<p>Hi</p>");
+    expect(vi.mocked(nodemailer.default.createTransport)).toHaveBeenCalledWith(
+      expect.objectContaining({ port: 587 }),
+    );
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -312,6 +321,13 @@ describe("sendOfferUpdated", () => {
     const { html } = sendMailMock.mock.calls[0][0];
     expect(html).toContain("15.50");
   });
+
+  it("falls back to the raw status string when status is not in the labels map", async () => {
+    await sendOfferUpdated("b@t.com", "withdrawn" as any, "Dune");
+    const { subject } = sendMailMock.mock.calls[0][0];
+    // label falls back to the raw status value via the ?? operator
+    expect(subject).toContain("withdrawn");
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -344,6 +360,13 @@ describe("sendBookShipped", () => {
     const { html } = sendMailMock.mock.calls[0][0];
     expect(html).toContain("FedEx");
     expect(html).not.toContain("Tracking:");
+  });
+
+  it("includes tracking number only when carrier is null but trackingNumber is provided", async () => {
+    await sendBookShipped("b@t.com", "Seller", "Dune", null, "9400111899220175657");
+    const { html } = sendMailMock.mock.calls[0][0];
+    expect(html).toContain("9400111899220175657");
+    expect(html).not.toContain("Carrier:");
   });
 });
 
