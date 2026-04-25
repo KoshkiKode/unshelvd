@@ -4,6 +4,13 @@
 
 A peer-to-peer book marketplace for every language, every country, every era. Buy, sell, trade, and discover books from fellow readers worldwide.
 
+| | |
+|---|---|
+| **Production URL** | https://unshelvd.koshkikode.com |
+| **Mobile bundle / application ID** | `com.koshkikode.unshelvd` |
+| **Deployment guide** | [DEPLOY.md](./DEPLOY.md) — full AWS runbook |
+| **Pre-launch checklist** | [DEPLOY.md → Step 0](./DEPLOY.md#step-0--pre-deploy-code-changes-required-before-first-deploy) and the launch-day go/no-go appendix |
+
 ## What Makes It Different
 
 - **150+ languages**, 30+ writing systems, 17 calendar systems
@@ -22,7 +29,7 @@ A peer-to-peer book marketplace for every language, every country, every era. Bu
 | Database | PostgreSQL + Drizzle ORM |
 | Desktop | Tauri v2 (optional — see [DESKTOP.md](./DESKTOP.md)) |
 | Mobile | Capacitor (Android + iOS) |
-| Hosting | AWS App Runner + Amazon RDS for PostgreSQL |
+| Hosting | AWS Amplify Hosting (SPA + CDN) → AWS App Runner (API + WebSocket) → Amazon RDS for PostgreSQL → Amazon S3 (uploads) |
 | Catalog | Open Library API + proprietary database |
 
 ## Complete Local Setup (Web + API + Database + Admin + Mobile)
@@ -108,7 +115,7 @@ npm run catalog:mass-seed:py
 This pulls a much larger Open Library dataset (typically 12,000-15,000 catalog books, depending on Open Library response volume, deduplication, and temporary API throttling).
 Expect ~5-10 minutes on a typical connection; completion is indicated when the command exits successfully and returns to your shell prompt.
 
-### 7) Start the app
+### 6) Start the app
 
 ```bash
 npm run dev
