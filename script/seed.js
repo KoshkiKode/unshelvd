@@ -93,6 +93,11 @@ function loadCatalogEntriesFromCsv(workIds) {
     const isbn13 = getValue('isbn13');
     const isbn10 = getValue('isbn10');
     const coverUrl = getValue('cover_url') ?? (isbn13 ? cover(isbn13) : null);
+    // Unshelv'd catalog IDs (added to the CSV by the build script).
+    // Fall back to null when running against the legacy CSV format so
+    // older tests / fixtures still work.
+    const unshelvdEditionId = getValue('unshelvd_edition_id') ?? null;
+    const unshelvdWorkId = getValue('unshelvd_work_id') ?? null;
 
     catalogEntries.push([
       title,
@@ -106,7 +111,12 @@ function loadCatalogEntriesFromCsv(workIds) {
       coverUrl,
       getValue('original_language'),
       getValue('country_of_origin'),
-      workTitle && workAuthor ? workIds[`${workTitle}|${workAuthor}`] ?? null : null,
+      // Prefer linkage by Unshelv'd work ID (stable across regenerations);
+      // fall back to (workTitle, workAuthor) for the hand-curated path.
+      unshelvdWorkId
+        ? workIds[`uid:${unshelvdWorkId}`] ?? null
+        : (workTitle && workAuthor ? workIds[`${workTitle}|${workAuthor}`] ?? null : null),
+      unshelvdEditionId,
     ]);
   }
 
@@ -154,6 +164,9 @@ function loadCatalogRowsForWorks() {
       genre: getValue('genre'),
       coverUrl: getValue('cover_url'),
       originalLanguage: getValue('original_language'),
+      // Unshelv'd catalog work ID (e.g. "UN00000042W"). May be empty
+      // when reading the legacy CSV format.
+      unshelvdWorkId: getValue('unshelvd_work_id') ?? null,
     });
   }
   return out;
@@ -340,57 +353,115 @@ async function seed() {
         ['Season of Migration to the North', 'Tayeb Salih', 'Arabic', 1966, 'Fiction', 'https://covers.openlibrary.org/b/isbn/9780894108501-L.jpg'],
       ];
 
-      // Insert works and collect IDs
+      // Detect whether the comprehensive CSV is available. When it is,
+      // it contains every hand-curated work (CURATED_WORKS bootstrap)
+      // plus thousands of additional works WITH stable Unshelv'd
+      // catalog IDs — so we let the bulk-insert path own everything
+      // and skip the row-by-row hardcoded inserts. The hardcoded data
+      // remains as a safety net for environments without the CSV.
+      const csvAvailable = [
+        join(__dirname, '..', 'dataconnect', 'catalog.csv'),
+        join(__dirname, '..', 'database', 'catalog.csv'),
+      ].some((p) => existsSync(p));
+
+      // Insert works and collect IDs (skipped when the CSV is present).
       const workIds = {};
-      for (const [title, author, origLang, year, genre, coverUrl] of worksData) {
-        const r = await client.query(
-          `INSERT INTO works (title, author, original_language, first_published_year, genre, cover_url, source, verified)
-           VALUES ($1, $2, $3, $4, $5, $6, 'manual', true)
-           ON CONFLICT DO NOTHING RETURNING id`,
-          [title, author, origLang, year, genre, coverUrl]
-        );
-        if (r.rows[0]) {
-          workIds[`${title}|${author}`] = r.rows[0].id;
+      if (!csvAvailable) {
+        for (const [title, author, origLang, year, genre, coverUrl] of worksData) {
+          const r = await client.query(
+            `INSERT INTO works (title, author, original_language, first_published_year, genre, cover_url, source, verified)
+             VALUES ($1, $2, $3, $4, $5, $6, 'manual', true)
+             ON CONFLICT DO NOTHING RETURNING id`,
+            [title, author, origLang, year, genre, coverUrl]
+          );
+          if (r.rows[0]) {
+            workIds[`${title}|${author}`] = r.rows[0].id;
+          }
         }
       }
 
-      // Re-fetch IDs for any that already existed
-      const existingWorks = await client.query('SELECT id, title, author FROM works');
+      // Re-fetch IDs for any that already existed (also caches by
+      // unshelvd_id for the bulk-insert path below).
+      const existingWorks = await client.query(
+        'SELECT id, unshelvd_id, title, author FROM works'
+      );
       for (const w of existingWorks.rows) {
         workIds[`${w.title}|${w.author}`] = w.id;
+        if (w.unshelvd_id) workIds[`uid:${w.unshelvd_id}`] = w.id;
       }
 
       const wid = (title, author) => workIds[`${title}|${author}`] || null;
 
       // Auto-create `works` rows for any CSV entries whose work isn't
-      // already in workIds (the hardcoded curated list only covers ~126
-      // works; the CSV may contain 10k+). Done BEFORE loading catalog
-      // entries so the workIds map is fully populated for the lookup.
+      // already in workIds. Uses BULK multi-row INSERTs in batches so
+      // 33k+ works seed in seconds rather than minutes. Done BEFORE
+      // loading catalog entries so the workIds map is fully populated.
       const csvWorkRows = loadCatalogRowsForWorks();
       if (csvWorkRows.length) {
-        const newWorks = new Map();
+        // Dedup new works by (title, author); skip ones already inserted.
+        const newWorks = [];
+        const seenKeys = new Set();
         for (const row of csvWorkRows) {
           const key = `${row.workTitle}|${row.workAuthor}`;
-          if (workIds[key]) continue;
-          if (!newWorks.has(key)) newWorks.set(key, row);
+          if (workIds[key] || seenKeys.has(key)) continue;
+          seenKeys.add(key);
+          newWorks.push(row);
         }
 
+        const BATCH = 500;
         let createdWorks = 0;
-        for (const row of newWorks.values()) {
-          const r = await client.query(
-            `INSERT INTO works (title, author, original_language, first_published_year, genre, cover_url, source, verified)
-             VALUES ($1, $2, $3, $4, $5, $6, 'manual', true)
-             RETURNING id`,
-            [row.workTitle, row.workAuthor, row.originalLanguage || row.language || null,
-             row.publicationYear, row.genre || null, row.coverUrl || null]
-          );
-          if (r.rows[0]) {
-            workIds[`${row.workTitle}|${row.workAuthor}`] = r.rows[0].id;
+        for (let start = 0; start < newWorks.length; start += BATCH) {
+          const chunk = newWorks.slice(start, start + BATCH);
+          // Build one parameterized multi-row INSERT.
+          const placeholders = [];
+          const values = [];
+          chunk.forEach((row, idx) => {
+            const base = idx * 7;
+            placeholders.push(
+              `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, ` +
+              `$${base + 5}, $${base + 6}, $${base + 7}, 'manual', true)`
+            );
+            values.push(
+              row.unshelvdWorkId || null,
+              row.workTitle,
+              row.workAuthor,
+              row.originalLanguage || row.language || null,
+              row.publicationYear,
+              row.genre || null,
+              row.coverUrl || null
+            );
+          });
+          const sql =
+            `INSERT INTO works (unshelvd_id, title, author, original_language,
+                                first_published_year, genre, cover_url, source, verified)
+             VALUES ${placeholders.join(', ')}
+             ON CONFLICT (unshelvd_id) DO NOTHING
+             RETURNING id, unshelvd_id, title, author`;
+          const r = await client.query(sql, values);
+          for (const w of r.rows) {
+            workIds[`${w.title}|${w.author}`] = w.id;
+            if (w.unshelvd_id) workIds[`uid:${w.unshelvd_id}`] = w.id;
             createdWorks += 1;
           }
         }
+
+        // Backfill workIds for any rows that already existed (e.g. when
+        // the seeder is re-run against a partially-populated DB). One
+        // SELECT keyed on the unshelvd_id values we just tried to insert.
+        const wantedUids = newWorks.map((row) => row.unshelvdWorkId).filter(Boolean);
+        if (wantedUids.length) {
+          const uidRes = await client.query(
+            `SELECT id, unshelvd_id, title, author FROM works WHERE unshelvd_id = ANY($1::text[])`,
+            [wantedUids]
+          );
+          for (const w of uidRes.rows) {
+            workIds[`${w.title}|${w.author}`] = w.id;
+            workIds[`uid:${w.unshelvd_id}`] = w.id;
+          }
+        }
+
         if (createdWorks > 0) {
-          console.log(`Auto-created ${createdWorks} additional works from CSV`);
+          console.log(`Auto-created ${createdWorks} additional works from CSV (bulk)`);
         }
       }
 
@@ -571,14 +642,39 @@ async function seed() {
             null,
             null,
             workId,
+            null, // unshelvdEditionId — unknown for the hardcoded fallback path
           ]);
 
-      for (const [title, author, isbn10, isbn13, language, publisher, pubYear, genre, coverUrl, originalLanguage, countryOfOrigin, workId] of searchableCatalogEntries) {
+      // Bulk-insert catalog editions in batches. Idempotent via the
+      // unique unshelvd_id index added by migration 0010 (when an
+      // unshelvd_edition_id is available); falls back to ON CONFLICT
+      // DO NOTHING on the legacy open_library_id path otherwise.
+      const ED_BATCH = 500;
+      for (let start = 0; start < searchableCatalogEntries.length; start += ED_BATCH) {
+        const chunk = searchableCatalogEntries.slice(start, start + ED_BATCH);
+        const placeholders = [];
+        const values = [];
+        chunk.forEach((entry, idx) => {
+          // entry: [title, author, isbn10, isbn13, language, publisher,
+          //         pubYear, genre, coverUrl, originalLanguage,
+          //         countryOfOrigin, workId, unshelvdEditionId]
+          const base = idx * 13;
+          placeholders.push(
+            `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, ` +
+            `$${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, ` +
+            `$${base + 11}, $${base + 12}, $${base + 13}, 'manual', true)`
+          );
+          values.push(...entry);
+        });
         await client.query(
-          `INSERT INTO book_catalog (title, author, isbn_10, isbn_13, language, publisher, publication_year, genre, cover_url, original_language, country_of_origin, work_id, source, verified)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'manual', true)
-           ON CONFLICT DO NOTHING`,
-          [title, author, isbn10, isbn13, language, publisher, pubYear, genre, coverUrl, originalLanguage, countryOfOrigin, workId]
+          `INSERT INTO book_catalog (
+             title, author, isbn_10, isbn_13, language, publisher,
+             publication_year, genre, cover_url, original_language,
+             country_of_origin, work_id, unshelvd_id, source, verified
+           )
+           VALUES ${placeholders.join(', ')}
+           ON CONFLICT (unshelvd_id) DO NOTHING`,
+          values
         );
       }
 
@@ -592,7 +688,10 @@ async function seed() {
         WHERE w.id = sub.work_id
       `);
 
-      console.log(`✅ Seeded ${Object.keys(workIds).length} works and ${searchableCatalogEntries.length} catalog entries.`);
+      // Count distinct works (workIds is keyed by both title|author
+      // and uid:UN…W, so naive Object.keys() would double-count).
+      const distinctWorkIds = new Set(Object.values(workIds));
+      console.log(`✅ Seeded ${distinctWorkIds.size} works and ${searchableCatalogEntries.length} catalog entries.`);
     }
 
     // ── STEP 2: Ensure/rotate admin credentials on every seed run ──

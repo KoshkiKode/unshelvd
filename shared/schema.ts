@@ -11,6 +11,12 @@ import { z } from "zod";
 
 export const works = pgTable("works", {
   id: serial("id").primaryKey(),
+  // Unshelv'd catalog ID — stable human-readable identifier for the work,
+  // e.g. "UN00000042W". Editions of this work all carry IDs of the form
+  // "UN00000042W-E001", "UN00000042W-E002", ... so the relationship is
+  // visible without a join. Assigned deterministically by the seed
+  // generator (scripts/build-seed-from-goodbooks.py).
+  unshelvdId: text("unshelvd_id").unique(),
   // Canonical identity
   title: text("title").notNull(),               // canonical English title
   titleOriginal: text("title_original"),         // title in original language
@@ -113,6 +119,11 @@ export const books = pgTable("books", {
 
 export const bookCatalog = pgTable("book_catalog", {
   id: serial("id").primaryKey(),
+  // Unshelv'd catalog edition ID — stable identifier of the form
+  // "<workUnshelvdId>-E<NNN>", e.g. "UN00000042W-E003" for the third
+  // edition of work UN00000042W. Lets clients reference editions
+  // without exposing the integer surrogate keys.
+  unshelvdId: text("unshelvd_id").unique(),
   // Core identity
   title: text("title").notNull(),
   titleNative: text("title_native"),        // title in original script (e.g. 戦争と平和)
