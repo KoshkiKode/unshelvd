@@ -67,7 +67,7 @@ Key settings to customize:
     }]
   },
   "bundle": {
-    "identifier": "com.unshelvd.desktop",
+    "identifier": "com.koshkikode.unshelvd.desktop",
     "icon": ["icons/icon.png"]
   }
 }

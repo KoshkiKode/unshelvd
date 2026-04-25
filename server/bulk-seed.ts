@@ -146,7 +146,7 @@ async function main() {
     const lastName = LAST_NAMES[Math.floor(i / FIRST_NAMES.length) % LAST_NAMES.length];
     const username = `${firstName.toLowerCase()}${lastName.toLowerCase()}${idx}`;
     const displayName = `${firstName} ${lastName}`;
-    const email = `${username}@demo.unshelvd.com`;
+    const email = `${username}@demo.koshkikode.com`;
     const location = pick(LOCATIONS);
 
     const [user] = await db

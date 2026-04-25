@@ -4,6 +4,24 @@ This is the single, complete deployment reference for this repository.
 Follow every step in order — sections marked **(one time)** only need to be
 done on the very first deploy.
 
+## Canonical identifiers (do not drift)
+
+| | |
+|---|---|
+| **Production URL** | `https://unshelvd.koshkikode.com` |
+| **Mobile bundle / application ID** | `com.koshkikode.unshelvd` (Android `applicationId` + iOS `PRODUCT_BUNDLE_IDENTIFIER` + Capacitor `appId`) |
+| **Desktop bundle ID (Tauri)** | `com.koshkikode.unshelvd.desktop` |
+| **AWS App Runner service name** | `unshelvd` |
+| **Amazon ECR repository** | `unshelvd` |
+| **Amazon RDS instance** | `unshelvd-db` |
+| **Amazon S3 uploads bucket** | `unshelvd-uploads` |
+| **Sender email** | `noreply@koshkikode.com` |
+
+These values appear throughout this guide, in `apprunner.yaml`,
+`capacitor.config.ts`, `android/app/build.gradle`, the iOS Xcode project,
+`server/index.ts` (CORS allow-list), and `client/index.html` (canonical /
+Open Graph tags). If you change one, change them all.
+
 ## Production URL (canonical)
 
 ```
@@ -1140,3 +1158,133 @@ For any other issue, the fastest signal is:
 ```bash
 aws logs tail /aws/apprunner/unshelvd/<service-id>/application --follow
 ```
+
+---
+
+## Appendix A — Launch-day go/no-go checklist
+
+A single signoff list to walk top-to-bottom on launch day. Every box must
+be checked before flipping public DNS to the production CDN. Each item
+links back to the section that explains how to satisfy it.
+
+### Identifiers and references
+- [ ] Production URL is `https://unshelvd.koshkikode.com` everywhere
+      (`apprunner.yaml`, `server/index.ts` CORS allow-list,
+      `client/index.html` canonical + OG tags, `.env.example`,
+      `README.md`, `MOBILE.md`, `CONNECTIVITY.md`).
+- [ ] Mobile bundle / application ID is `com.koshkikode.unshelvd` in
+      `capacitor.config.ts`, `android/app/build.gradle`,
+      `android/app/src/main/res/values/strings.xml`, and the iOS Xcode
+      project (`PRODUCT_BUNDLE_IDENTIFIER`).
+- [ ] Sender email is `noreply@koshkikode.com` and SPF / DKIM / DMARC
+      records exist in Route 53 (Step 9d).
+
+### Phase 1 — Pre-deploy code changes (Step 0)
+- [ ] Maintenance-mode 503 middleware removed from `server/index.ts` (0a).
+- [ ] `.github/workflows/ci.yml` `test` job is enabled (no `if: false`) (0b).
+- [ ] `.github/workflows/deploy.yml` `migrate` and `build-and-deploy` jobs
+      are enabled (no `if: false`) (0c).
+- [ ] `S3_BUCKET_NAME` is uncommented in `apprunner.yaml` (0d).
+- [ ] Changes merged to `main` (0e).
+
+### Phase 2 — AWS infrastructure (one-time)
+- [ ] Amazon ECR repository `unshelvd` created with `scanOnPush=true` (Step 4).
+- [ ] Amazon RDS PostgreSQL `unshelvd-db` available, master password stored,
+      `unshelvd` database created, security group locked down (Step 5).
+- [ ] AWS Secrets Manager entries created for `DATABASE_URL`,
+      `SESSION_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+      `PAYPAL_CLIENT_SECRET` (if used), `SMTP_PASS` (Step 6).
+- [ ] Amazon S3 bucket `unshelvd-uploads` created with versioning enabled
+      and bucket policy allowing public GET on `avatars/*` and `covers/*`
+      only (Step 7).
+- [ ] App Runner instance IAM role `unshelvd-apprunner-instance` created
+      with read access to `unshelvd/*` secrets and write access to
+      `unshelvd-uploads` (Step 8a).
+- [ ] App Runner service `unshelvd` exists, port 8080, health check
+      `/api/health`, all plain env vars and secret references attached
+      (Step 8b).
+
+### Phase 3 — CI / CD and frontend
+- [ ] GitHub OIDC provider registered and `unshelvd-github-deploy` role
+      scoped to `repo:KoshkiKode/unshelvd:*` (Step 10).
+- [ ] GitHub repo secrets `AWS_DEPLOY_ROLE_ARN` and
+      `APPRUNNER_SERVICE_ARN` set (Step 11a).
+- [ ] GitHub repo variables `AWS_REGION`, `ECR_REPOSITORY=unshelvd`,
+      `DATABASE_URL_SECRET_ID=unshelvd/DATABASE_URL`,
+      `STRIPE_PUBLISHABLE_KEY` set (Step 11b).
+- [ ] Amplify Hosting connected to `KoshkiKode/unshelvd` `main` branch and
+      detects `amplify.yml` (Step 12a).
+- [ ] Amplify build env `VITE_STRIPE_PUBLISHABLE_KEY` set;
+      `VITE_API_URL` left **unset** so SPA uses same-origin (Step 12b).
+- [ ] Amplify rewrites configured **in this exact order**:
+      `/api/<*>` → App Runner, `/ws/<*>` → App Runner,
+      `/<*>` → `/index.html` (Step 12c).
+- [ ] Custom domain `unshelvd.koshkikode.com` added in Amplify, ACM
+      certificate validated, Route 53 CNAME records live (Step 12d).
+- [ ] First deploy succeeded — most recent GitHub Actions run on `main` is
+      green and App Runner shows the new image as `Running` (Step 14).
+
+### Phase 4 — Functional verification (Step 15)
+- [ ] `curl -fsS https://unshelvd.koshkikode.com/api/health` returns
+      `{ "status": "ok" }` (15a).
+- [ ] `https://unshelvd.koshkikode.com/` serves the SPA (15b).
+- [ ] Admin login works on the web at `/#/login` and `/#/admin` loads (15c).
+- [ ] Real-time messaging round-trips in under 1 second between two
+      browsers — proves the `/ws/<*>` Amplify rewrite is in place (15d).
+- [ ] Avatar upload returns an `https://unshelvd-uploads.s3.…` URL (not a
+      `data:image/` fallback) (15e).
+- [ ] Password-reset email arrives within 60 seconds (15f).
+- [ ] Stripe **test** webhook from the dashboard returns 200 in App
+      Runner logs (15g).
+
+### Phase 5 — Observability and safety nets (Step 16)
+- [ ] SNS topic `unshelvd-alerts` exists and the operator email
+      subscription is **confirmed** (16a).
+- [ ] CloudWatch alarm `unshelvd-5xx-rate` armed against the App Runner
+      `5xxStatusResponses` metric (16b).
+- [ ] CloudWatch alarm `unshelvd-rds-low-storage` armed against
+      `FreeStorageSpace` (16c).
+- [ ] CloudWatch log retention set on `/aws/apprunner/unshelvd/*`
+      (recommended: 30 days).
+- [ ] One-time manual RDS snapshot taken immediately before launch.
+
+### Phase 6 — Mobile readiness (Step 17 + MOBILE.md)
+- [ ] Android signed AAB built with
+      `VITE_API_URL=https://unshelvd.koshkikode.com` and uploaded to
+      Play Console internal testing (package `com.koshkikode.unshelvd`).
+- [ ] iOS archive uploaded to TestFlight (bundle id
+      `com.koshkikode.unshelvd`).
+- [ ] Play Console privacy policy URL set to
+      `https://unshelvd.koshkikode.com/#/privacy`.
+- [ ] App Store Connect privacy policy URL set to
+      `https://unshelvd.koshkikode.com/#/privacy`.
+
+### Phase 7 — Going live with real money (Step 18)
+*Defer until the platform has been reviewed and you are ready to accept
+real payments.*
+- [ ] `unshelvd/STRIPE_SECRET_KEY` rotated to `sk_live_…` in Secrets
+      Manager.
+- [ ] `unshelvd/STRIPE_WEBHOOK_SECRET` rotated to the **live** endpoint
+      signing secret.
+- [ ] Amplify env `VITE_STRIPE_PUBLISHABLE_KEY` set to `pk_live_…` and
+      site redeployed.
+- [ ] GitHub variable `STRIPE_PUBLISHABLE_KEY` set to `pk_live_…`.
+- [ ] PayPal flipped from `sandbox` to `live` in `/#/admin → Settings →
+      Payments` with live client id + secret entered.
+- [ ] Stripe Connect platform review completed and payout schedule +
+      platform fee set in admin.
+
+### Phase 8 — Recommended hardening (post-launch, not blocking)
+- [ ] Move RDS into a private VPC; remove `--publicly-accessible`; attach
+      App Runner via a VPC Connector.
+- [ ] Switch S3 to a private bucket fronted by CloudFront with Origin
+      Access Control; update `server/s3.ts` `publicUrl()` accordingly.
+- [ ] Add AWS WAF in front of Amplify with
+      `AWSManagedRulesCommonRuleSet` and
+      `AWSManagedRulesAmazonIpReputationList`.
+- [ ] Enable Amazon GuardDuty and AWS Security Hub.
+- [ ] Add a CloudWatch Synthetics canary that hits `/api/health` and `/`
+      every 5 minutes from at least two regions.
+- [ ] Stand up a separate App Runner service from a `staging` branch for
+      pre-production testing.
+
