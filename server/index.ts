@@ -137,11 +137,6 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
-// ── Maintenance mode — all API endpoints temporarily disabled ──────────────
-app.use("/api", (_req, res) => {
-  res.status(503).json({ message: "Service temporarily unavailable. Please try again later." });
-});
-
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
