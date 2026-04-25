@@ -46,7 +46,6 @@ concurrency:
 jobs:
   migrate:
     name: Drizzle migrate (Amazon RDS)
-    if: false  # Temporarily disabled — re-enable when services are restored
     runs-on: ubuntu-latest
     environment: production
     # Migrations must run BEFORE the new container is deployed — otherwise a
@@ -86,7 +85,6 @@ jobs:
 
   build-and-deploy:
     name: Build → ECR → App Runner
-    if: false  # Temporarily disabled — re-enable when services are restored
     runs-on: ubuntu-latest
     needs: migrate
     environment: production

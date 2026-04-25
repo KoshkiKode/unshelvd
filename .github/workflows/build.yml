@@ -61,7 +61,6 @@ jobs:
   # ── Android — signed APK + AAB ──────────────────────────────────────────────
   android:
     name: Android (APK + AAB)
-    if: false  # Temporarily disabled — re-enable when services are restored
     runs-on: ubuntu-latest
     env:
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
@@ -156,7 +155,6 @@ jobs:
   # ── iOS — signed IPA ────────────────────────────────────────────────────────
   ios:
     name: iOS (IPA)
-    if: false  # Temporarily disabled — re-enable when services are restored
     runs-on: macos-latest
     permissions:
       contents: read
@@ -284,7 +282,7 @@ jobs:
     name: Create GitHub Release
     needs: [android, ios]
     # Only run on tag pushes; skip for manual workflow_dispatch runs
-    if: false  # Temporarily disabled — re-enable when services are restored
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
 
     steps:

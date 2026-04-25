@@ -45,5 +45,5 @@ run:
     # - name: AWS_REGION
     #   value: us-east-1
     # S3_BUCKET_NAME for profile image uploads — set to your bucket name.
-    # - name: S3_BUCKET_NAME
-    #   value: unshelvd-uploads
+    - name: S3_BUCKET_NAME
+      value: unshelvd-uploads
