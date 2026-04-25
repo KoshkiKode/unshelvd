@@ -114,6 +114,51 @@ function loadCatalogEntriesFromCsv(workIds) {
   return catalogEntries;
 }
 
+// Returns the same CSV rows as objects keyed by friendly names, used to
+// auto-create `works` rows for entries the hardcoded curated list
+// doesn't cover. Walking the file twice keeps loadCatalogEntriesFromCsv
+// signature unchanged.
+function loadCatalogRowsForWorks() {
+  const candidatePaths = [
+    join(__dirname, '..', 'dataconnect', 'catalog.csv'),
+    join(__dirname, '..', 'database', 'catalog.csv'),
+  ];
+  const csvPath = candidatePaths.find((candidatePath) => existsSync(candidatePath));
+  if (!csvPath) return [];
+
+  const lines = readFileSync(csvPath, 'utf8')
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
+  if (lines.length < 2) return [];
+
+  const headers = parseCsvLine(lines[0]).map((header) => header.trim());
+  const headerIndex = new Map(headers.map((header, index) => [header, index]));
+  const out = [];
+
+  for (const line of lines.slice(1)) {
+    const cells = parseCsvLine(line);
+    const getValue = (header) => normalizeCsvValue(cells[headerIndex.get(header)] ?? '');
+    const workTitle = getValue('work_title');
+    const workAuthor = getValue('work_author');
+    if (!workTitle || !workAuthor) continue;
+    const publicationYearRaw = getValue('publication_year');
+    const publicationYear = publicationYearRaw ? Number(publicationYearRaw) : null;
+    out.push({
+      workTitle,
+      workAuthor,
+      title: getValue('title'),
+      author: getValue('author'),
+      language: getValue('language'),
+      publisher: getValue('publisher'),
+      publicationYear: Number.isFinite(publicationYear) ? publicationYear : null,
+      genre: getValue('genre'),
+      coverUrl: getValue('cover_url'),
+      originalLanguage: getValue('original_language'),
+    });
+  }
+  return out;
+}
+
 function printAdminCredentials(username, email, password, action) {
   const actionLine = `  ACTION: ${action.toUpperCase()}`;
   console.log('╔══════════════════════════════════════════════════════╗');
@@ -316,6 +361,39 @@ async function seed() {
       }
 
       const wid = (title, author) => workIds[`${title}|${author}`] || null;
+
+      // Auto-create `works` rows for any CSV entries whose work isn't
+      // already in workIds (the hardcoded curated list only covers ~126
+      // works; the CSV may contain 10k+). Done BEFORE loading catalog
+      // entries so the workIds map is fully populated for the lookup.
+      const csvWorkRows = loadCatalogRowsForWorks();
+      if (csvWorkRows.length) {
+        const newWorks = new Map();
+        for (const row of csvWorkRows) {
+          const key = `${row.workTitle}|${row.workAuthor}`;
+          if (workIds[key]) continue;
+          if (!newWorks.has(key)) newWorks.set(key, row);
+        }
+
+        let createdWorks = 0;
+        for (const row of newWorks.values()) {
+          const r = await client.query(
+            `INSERT INTO works (title, author, original_language, first_published_year, genre, cover_url, source, verified)
+             VALUES ($1, $2, $3, $4, $5, $6, 'manual', true)
+             RETURNING id`,
+            [row.workTitle, row.workAuthor, row.originalLanguage || row.language || null,
+             row.publicationYear, row.genre || null, row.coverUrl || null]
+          );
+          if (r.rows[0]) {
+            workIds[`${row.workTitle}|${row.workAuthor}`] = r.rows[0].id;
+            createdWorks += 1;
+          }
+        }
+        if (createdWorks > 0) {
+          console.log(`Auto-created ${createdWorks} additional works from CSV`);
+        }
+      }
+
       const csvCatalogEntries = loadCatalogEntriesFromCsv(workIds);
 
       // Insert catalog entries
@@ -504,7 +582,17 @@ async function seed() {
         );
       }
 
-      console.log(`✅ Seeded ${worksData.length} works and ${searchableCatalogEntries.length} catalog entries.`);
+      // Refresh denormalized edition_count on works.
+      await client.query(`
+        UPDATE works w SET edition_count = sub.cnt
+        FROM (
+          SELECT work_id, COUNT(*) AS cnt FROM book_catalog
+          WHERE work_id IS NOT NULL GROUP BY work_id
+        ) sub
+        WHERE w.id = sub.work_id
+      `);
+
+      console.log(`✅ Seeded ${Object.keys(workIds).length} works and ${searchableCatalogEntries.length} catalog entries.`);
     }
 
     // ── STEP 2: Ensure/rotate admin credentials on every seed run ──
