@@ -8,8 +8,11 @@ vite.config.ts.*
 *.db
 *.db-shm
 *.db-wal
-.env
-.env.local
+*.env
+*.env.local
+*.env.production
+*.pem
+
 
 # (Removed Cloud SQL proxy and Firebase local-state ignores after AWS migration.)
 
@@ -48,3 +51,4 @@ coverage/
 # Python bytecode cache
 __pycache__/
 *.pyc
+global-bundle.pem
