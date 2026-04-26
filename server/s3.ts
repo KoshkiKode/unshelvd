@@ -24,7 +24,7 @@ import {
 import crypto from "crypto";
 
 const BUCKET_NAME = process.env.S3_BUCKET_NAME ?? "";
-const REGION = process.env.AWS_REGION ?? "us-east-1";
+const REGION = process.env.AWS_REGION ?? "ca-central-1";
 // Optional CloudFront (or any CDN) base URL fronting the bucket, e.g.
 // "https://cdn.koshkikode.com". When set, newly-uploaded object URLs are
 // returned through the CDN. Trailing slashes are stripped so callers don't

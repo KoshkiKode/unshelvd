@@ -18,7 +18,7 @@ name: Deploy
 #                                 unshelvd/DATABASE_URL
 #
 # Required GitHub repository variables (Settings → Variables → Actions):
-#   AWS_REGION                  — e.g. us-east-1
+#   AWS_REGION                  — e.g. ca-central-1
 #   ECR_REPOSITORY              — e.g. unshelvd
 #   ECS_CLUSTER                 — e.g. unshelvd
 #   ECS_SERVICE                 — e.g. unshelvd

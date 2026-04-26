@@ -8,9 +8,9 @@ name: Mirror to CodeCommit
 # deploy.yml — no long-lived AWS credentials are stored.
 #
 # Required GitHub repository variables (Settings → Variables → Actions):
-#   AWS_REGION              — e.g. us-east-1
+#   AWS_REGION              — e.g. ca-central-1
 #   CODECOMMIT_HTTP_URL     — CodeCommitCloneUrlHttp stack output, e.g.
-#                             https://git-codecommit.us-east-1.amazonaws.com/v1/repos/unshelvd
+#                             https://git-codecommit.ca-central-1.amazonaws.com/v1/repos/unshelvd
 #
 # Required GitHub repository secrets:
 #   AWS_DEPLOY_ROLE_ARN     — GitHubDeployRoleArn stack output (same secret

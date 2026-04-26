@@ -1,8 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  Unshelv'd — single-region AWS architecture (VPC, ALB, ECS Fargate service,
-  RDS PostgreSQL, ECR, S3 + CloudFront via OAC, Secrets Manager scaffold,
-  CloudWatch alarms, SNS). Codifies steps 1–9 of the architecture plan.
+  Unshelv'd — single-region AWS architecture (ca-central-1, AZs a+d)
+  VPC, ALB, ECS Fargate service, RDS PostgreSQL, ECR, S3 + CloudFront via OAC,
+  Secrets Manager scaffold, CloudWatch alarms, SNS.
+  Codifies steps 1–9 of the architecture plan.
   Steps 10–12 (Amplify Hosting, SES domain verification, Route 53 records)
   are console-driven and documented in DEPLOY.md.
 
@@ -119,7 +120,7 @@ Resources:
     Properties:
       VpcId: !Ref Vpc
       CidrBlock: 10.40.1.0/24
-      AvailabilityZone: !Select [0, !GetAZs ""]
+      AvailabilityZone: ca-central-1a   # AZ 1
       MapPublicIpOnLaunch: true
       Tags: [{ Key: Name, Value: !Sub "${AppName}-public-a" }]
 
@@ -128,7 +129,7 @@ Resources:
     Properties:
       VpcId: !Ref Vpc
       CidrBlock: 10.40.2.0/24
-      AvailabilityZone: !Select [1, !GetAZs ""]
+      AvailabilityZone: ca-central-1d   # AZ 4
       MapPublicIpOnLaunch: true
       Tags: [{ Key: Name, Value: !Sub "${AppName}-public-b" }]
 
@@ -137,7 +138,7 @@ Resources:
     Properties:
       VpcId: !Ref Vpc
       CidrBlock: 10.40.11.0/24
-      AvailabilityZone: !Select [0, !GetAZs ""]
+      AvailabilityZone: ca-central-1a   # AZ 1
       Tags: [{ Key: Name, Value: !Sub "${AppName}-private-a" }]
 
   PrivateSubnetB:
@@ -145,7 +146,7 @@ Resources:
     Properties:
       VpcId: !Ref Vpc
       CidrBlock: 10.40.12.0/24
-      AvailabilityZone: !Select [1, !GetAZs ""]
+      AvailabilityZone: ca-central-1d   # AZ 4
       Tags: [{ Key: Name, Value: !Sub "${AppName}-private-b" }]
 
   PublicRouteTable:

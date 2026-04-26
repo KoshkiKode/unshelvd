@@ -86,7 +86,7 @@ your shell.
 | Input | Where it comes from | Used in |
 |---|---|---|
 | AWS account ID | `aws sts get-caller-identity` | IAM, ECR, secrets ARNs |
-| AWS region | Your choice (e.g. `us-east-1`) | Every `aws` command |
+| AWS region | Your choice (e.g. `ca-central-1`) | Every `aws` command |
 | Production domain | `unshelvd.koshkikode.com` | Amplify, ECS env, CORS |
 | RDS master password | You generate (`openssl rand -base64 24`) | RDS, Secrets Manager |
 | Admin email + password | You choose | First-login credentials |
@@ -161,7 +161,7 @@ Secrets Manager secrets.
 aws configure
 # AWS Access Key ID:     AKIAIOSFODNN7EXAMPLE
 # AWS Secret Access Key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-# Default region name:   us-east-1
+# Default region name:   ca-central-1
 # Default output format: json
 ```
 
@@ -208,7 +208,7 @@ These variables are referenced by every AWS CLI command in this guide.
 Run them all in the same terminal before continuing.
 
 ```bash
-export AWS_REGION=us-east-1
+export AWS_REGION=ca-central-1
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 export ECR_REPO=unshelvd
 export ECS_CLUSTER=unshelvd
@@ -567,7 +567,7 @@ and region as the secrets. If you prefer to use full ARNs, get them from:
 ```bash
 aws secretsmanager describe-secret --secret-id unshelvd/DATABASE_URL \
   --query ARN --output text
-# e.g. arn:aws:secretsmanager:us-east-1:123456789012:secret:unshelvd/DATABASE_URL-AbCdEf
+# e.g. arn:aws:secretsmanager:ca-central-1:123456789012:secret:unshelvd/DATABASE_URL-AbCdEf
 ```
 
 Fill in the remaining placeholders and register:
@@ -575,7 +575,7 @@ Fill in the remaining placeholders and register:
 ```bash
 # Substitute ACCOUNT_ID and REGION placeholders in role ARNs and log config
 sed -e "s/ACCOUNT_ID/${AWS_ACCOUNT_ID}/g" \
-    -e "s|\"awslogs-region\": \"us-east-1\"|\"awslogs-region\": \"${AWS_REGION}\"|g" \
+    -e "s|\"awslogs-region\": \"ca-central-1\"|\"awslogs-region\": \"${AWS_REGION}\"|g" \
     ecs-task-def.json > /tmp/task-def-filled.json
 
 # Register the task definition
@@ -606,7 +606,7 @@ environment variables at container startup.
 | `WEB_BASE_URL` | plain | `https://unshelvd.koshkikode.com` |
 | `CORS_ALLOWED_ORIGINS` | plain | `https://unshelvd.koshkikode.com` |
 | `S3_BUCKET_NAME` | plain | `unshelvd-uploads` |
-| `AWS_REGION` | plain | `us-east-1` |
+| `AWS_REGION` | plain | `ca-central-1` |
 | `SMTP_HOST` | plain | `smtp.your-provider.com` |
 | `SMTP_PORT` | plain | `587` |
 | `SMTP_USER` | plain | `your-smtp-user` |
@@ -1000,7 +1000,7 @@ add:
 
 | Variable name | Value |
 |---|---|
-| `AWS_REGION` | `us-east-1` (or your region) |
+| `AWS_REGION` | `ca-central-1` |
 | `ECR_REPOSITORY` | `unshelvd` |
 | `ECS_CLUSTER` | `unshelvd` |
 | `ECS_SERVICE` | `unshelvd` |
@@ -1048,7 +1048,7 @@ this exact order** (order matters — the SPA fallback must be last):
 | 3 | `/<*>` | `/index.html` | `200 (Rewrite)` |
 
 Replace `<ALB_DNS_NAME>` with the ALB DNS name from Step 8f (e.g.
-`unshelvd-alb-1234567890.us-east-1.elb.amazonaws.com`).
+`unshelvd-alb-1234567890.ca-central-1.elb.amazonaws.com`).
 
 **Why rule 2 matters:** without the `/ws/<*>` rewrite, WebSocket upgrade
 requests from web browsers are swallowed by the SPA fallback. Messaging then
@@ -1163,7 +1163,7 @@ curl -fsS "https://$DOMAIN/" | grep -c "<html"
 
 1. Go to `/#/settings` and upload a profile avatar.
 2. The avatar URL in the page source must start with
-   `https://unshelvd-uploads.s3.us-east-1.amazonaws.com/avatars/`.
+   `https://unshelvd-uploads.s3.ca-central-1.amazonaws.com/avatars/`.
    (If it starts with `data:image/`, S3 is not configured — check that
    `S3_BUCKET_NAME` is set in the ECS task environment variables.)
 
