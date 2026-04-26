@@ -15,10 +15,10 @@ Description: >-
 #     --capabilities CAPABILITY_NAMED_IAM \
 #     --parameter-overrides \
 #         DomainName=koshkikode.com \
-#         CertificateArn=arn:aws:acm:us-east-1:ACCOUNT:certificate/UUID \
+#         CertificateArn=arn:aws:acm:us-east-1:261142221895:certificate/UUID \
 #         AlertEmail=ops@koshkikode.com \
 #         DBPassword=<from-secrets-manager> \
-#         GitHubOidcProviderArn=arn:aws:iam::ACCOUNT:oidc-provider/token.actions.githubusercontent.com
+#         GitHubOidcProviderArn=arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com
 #
 # After the stack is created, you still need to:
 #   - Push your first image to the ECR repo (the ECS service will then pull it
@@ -96,7 +96,7 @@ Parameters:
       references the pre-existing one rather than creating a new one.
       Find it in IAM → Identity providers, or run:
         aws iam list-open-id-connect-providers
-      Typically: arn:aws:iam::<ACCOUNT>:oidc-provider/token.actions.githubusercontent.com
+      Typically: arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com
 
 # ──────────────────────────────────────────────────────────────────────────────
 Conditions:
