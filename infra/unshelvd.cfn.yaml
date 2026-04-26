@@ -1,8 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  Unshelv'd — single-region AWS architecture (VPC, ALB, ECS Fargate service,
-  RDS PostgreSQL, ECR, S3 + CloudFront via OAC, Secrets Manager scaffold,
-  CloudWatch alarms, SNS). Codifies steps 1–9 of the architecture plan.
+  Unshelv'd — single-region AWS architecture (us-east-1, AZs a+d)
+  VPC, ALB, ECS Fargate service, RDS PostgreSQL, ECR, S3 + CloudFront via OAC,
+  Secrets Manager scaffold, CloudWatch alarms, SNS.
+  Codifies steps 1–9 of the architecture plan.
   Steps 10–12 (Amplify Hosting, SES domain verification, Route 53 records)
   are console-driven and documented in DEPLOY.md.
 
@@ -119,7 +120,7 @@ Resources:
     Properties:
       VpcId: !Ref Vpc
       CidrBlock: 10.40.1.0/24
-      AvailabilityZone: !Select [0, !GetAZs ""]
+      AvailabilityZone: us-east-1a   # AZ 1
       MapPublicIpOnLaunch: true
       Tags: [{ Key: Name, Value: !Sub "${AppName}-public-a" }]
 
@@ -128,7 +129,7 @@ Resources:
     Properties:
       VpcId: !Ref Vpc
       CidrBlock: 10.40.2.0/24
-      AvailabilityZone: !Select [1, !GetAZs ""]
+      AvailabilityZone: us-east-1d   # AZ 4
       MapPublicIpOnLaunch: true
       Tags: [{ Key: Name, Value: !Sub "${AppName}-public-b" }]
 
@@ -137,7 +138,7 @@ Resources:
     Properties:
       VpcId: !Ref Vpc
       CidrBlock: 10.40.11.0/24
-      AvailabilityZone: !Select [0, !GetAZs ""]
+      AvailabilityZone: us-east-1a   # AZ 1
       Tags: [{ Key: Name, Value: !Sub "${AppName}-private-a" }]
 
   PrivateSubnetB:
@@ -145,7 +146,7 @@ Resources:
     Properties:
       VpcId: !Ref Vpc
       CidrBlock: 10.40.12.0/24
-      AvailabilityZone: !Select [1, !GetAZs ""]
+      AvailabilityZone: us-east-1d   # AZ 4
       Tags: [{ Key: Name, Value: !Sub "${AppName}-private-b" }]
 
   PublicRouteTable:
@@ -435,14 +436,162 @@ Resources:
                   - ses:SendRawEmail
                 Resource: "*"
 
-  # ── 7. CloudWatch log group ────────────────────────────────────────────────
+  # ── 7. GitHub OIDC provider + deploy role ─────────────────────────────────
+  # Enables GitHub Actions to authenticate via OIDC — no long-lived AWS keys
+  # stored as secrets. The trust policy is scoped to this repo only.
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      # GitHub's current OIDC thumbprint. If GitHub rotates their TLS
+      # certificate, update this value by running:
+      #   openssl s_client -servername token.actions.githubusercontent.com \
+      #     -connect token.actions.githubusercontent.com:443 </dev/null 2>/dev/null \
+      #     | openssl x509 -fingerprint -noout -sha1 \
+      #     | tr -d ':' | awk -F= '{print tolower($2)}'
+      # Reference: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AppName}-github-deploy"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !GetAtt GitHubOidcProvider.Arn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+              StringLike:
+                # Scoped to KoshkiKode/unshelvd only — any branch, any trigger.
+                "token.actions.githubusercontent.com:sub": "repo:KoshkiKode/unshelvd:*"
+      Policies:
+        - PolicyName: EcrPush
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:CompleteLayerUpload
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                  - ecr:BatchGetImage
+                  - ecr:DescribeImages
+                Resource: !GetAtt EcrRepo.Arn
+        - PolicyName: EcsDeploy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RegisterTaskDefinition
+                  - ecs:DescribeTaskDefinition
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecs:UpdateService
+                  - ecs:DescribeServices
+                Resource: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/${AppName}/${AppName}"
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  - !GetAtt EcsExecutionRole.Arn
+                  - !GetAtt EcsTaskRole.Arn
+        - PolicyName: SecretsManagerRead
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref DatabaseUrlSecret
+        - PolicyName: CodeCommitMirrorPush
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: codecommit:GitPush
+                Resource: !GetAtt CodeCommitRepo.Arn
+
+  # ── 8. CodeCommit repository (AWS-native mirror) ───────────────────────────
+  # Acts as an AWS-hosted mirror of github.com/KoshkiKode/unshelvd.
+  # The mirror-to-codecommit.yml GitHub Actions workflow pushes to it on
+  # every commit via the GitHubDeployRole OIDC credentials.
+  CodeCommitRepo:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryName: !Ref AppName
+      RepositoryDescription: AWS-native mirror of github.com/KoshkiKode/unshelvd
+
+  # ── 9. IAM user: dogeisbae ─────────────────────────────────────────────────
+  # dogeisbae is both the GitHub username and the IAM username for the owner.
+  # Granted full CodeCommit access to the mirror repo, plus read-only
+  # visibility into ECS, ECR, and the CloudFormation stack.
+  DogeisbaeUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: dogeisbae
+      Policies:
+        - PolicyName: CodeCommitFullAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codecommit:GitPull
+                  - codecommit:GitPush
+                  - codecommit:GetBranch
+                  - codecommit:ListBranches
+                  - codecommit:CreateBranch
+                  - codecommit:DeleteBranch
+                  - codecommit:GetRepository
+                  - codecommit:GetCommit
+                  - codecommit:ListRepositories
+                  - codecommit:GetDifferences
+                  - codecommit:GetBlob
+                  - codecommit:CreatePullRequest
+                  - codecommit:GetPullRequest
+                  - codecommit:ListPullRequests
+                  - codecommit:MergePullRequestByFastForward
+                  - codecommit:MergePullRequestBySquash
+                  - codecommit:MergePullRequestByThreeWay
+                Resource: !GetAtt CodeCommitRepo.Arn
+        - PolicyName: ReadOnlyVisibility
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:Describe*
+                  - ecs:List*
+                  - ecr:Describe*
+                  - ecr:List*
+                  - ecr:GetRepositoryPolicy
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:ListStackResources
+                Resource: "*"
+
+  # ── 10. CloudWatch log group ────────────────────────────────────────────────
   AppLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/ecs/${AppName}"
       RetentionInDays: 30
 
-  # ── 8. ALB + target group + listeners (sticky sessions on for WS fan-out) ──
+  # ── 11. ALB + target group + listeners (sticky sessions on for WS fan-out) ──
   Alb:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
@@ -505,7 +654,7 @@ Resources:
             Port: "443"
             StatusCode: HTTP_301
 
-  # ── 9. ECS cluster + Fargate service ───────────────────────────────────────
+  # ── 12. ECS cluster + Fargate service ───────────────────────────────────────
   EcsCluster:
     Type: AWS::ECS::Cluster
     Properties:
@@ -617,7 +766,7 @@ Resources:
         ScaleInCooldown: 120
         ScaleOutCooldown: 60
 
-  # ── 10. S3 uploads bucket fronted by CloudFront via OAC ────────────────────
+  # ── 13. S3 uploads bucket fronted by CloudFront via OAC ────────────────────
   UploadsBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
@@ -703,7 +852,7 @@ Resources:
               StringEquals:
                 "AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
 
-  # ── 11. CloudWatch alarms → SNS → email ────────────────────────────────────
+  # ── 14. CloudWatch alarms → SNS → email ────────────────────────────────────
   AlarmTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -815,3 +964,23 @@ Outputs:
   AlertTopicArn:
     Description: SNS topic for CloudWatch alarms.
     Value: !Ref AlarmTopic
+
+  GitHubDeployRoleArn:
+    Description: >-
+      Paste this ARN into the AWS_DEPLOY_ROLE_ARN GitHub repository secret.
+      The deploy.yml workflow uses it to authenticate via OIDC.
+    Value: !GetAtt GitHubDeployRole.Arn
+    Export: { Name: !Sub "${AppName}-github-deploy-role-arn" }
+
+  CodeCommitCloneUrlHttp:
+    Description: >-
+      HTTPS clone URL for the CodeCommit mirror repo. Set this as the
+      CODECOMMIT_HTTP_URL GitHub Actions variable so mirror-to-codecommit.yml
+      can push to it.
+    Value: !GetAtt CodeCommitRepo.CloneUrlHttp
+    Export: { Name: !Sub "${AppName}-codecommit-https" }
+
+  CodeCommitCloneUrlSsh:
+    Description: SSH clone URL for the CodeCommit mirror repo.
+    Value: !GetAtt CodeCommitRepo.CloneUrlSsh
+    Export: { Name: !Sub "${AppName}-codecommit-ssh" }

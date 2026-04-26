@@ -1000,7 +1000,7 @@ add:
 
 | Variable name | Value |
 |---|---|
-| `AWS_REGION` | `us-east-1` (or your region) |
+| `AWS_REGION` | `us-east-1` |
 | `ECR_REPOSITORY` | `unshelvd` |
 | `ECS_CLUSTER` | `unshelvd` |
 | `ECS_SERVICE` | `unshelvd` |
