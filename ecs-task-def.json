@@ -30,27 +30,27 @@
       "secrets": [
         {
           "name": "DATABASE_URL",
-          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:unshelvd/DATABASE_URL"
+          "valueFrom": "unshelvd/DATABASE_URL"
         },
         {
           "name": "SESSION_SECRET",
-          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:unshelvd/SESSION_SECRET"
+          "valueFrom": "unshelvd/SESSION_SECRET"
         },
         {
           "name": "STRIPE_SECRET_KEY",
-          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:unshelvd/STRIPE_SECRET_KEY"
+          "valueFrom": "unshelvd/STRIPE_SECRET_KEY"
         },
         {
           "name": "STRIPE_WEBHOOK_SECRET",
-          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:unshelvd/STRIPE_WEBHOOK_SECRET"
+          "valueFrom": "unshelvd/STRIPE_WEBHOOK_SECRET"
         },
         {
           "name": "PAYPAL_CLIENT_SECRET",
-          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:unshelvd/PAYPAL_CLIENT_SECRET"
+          "valueFrom": "unshelvd/PAYPAL_CLIENT_SECRET"
         },
         {
           "name": "SMTP_PASS",
-          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:unshelvd/SMTP_PASS"
+          "valueFrom": "unshelvd/SMTP_PASS"
         }
       ],
       "logConfiguration": {

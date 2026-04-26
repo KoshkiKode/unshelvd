@@ -560,13 +560,22 @@ aws logs put-retention-policy \
 
 ### 8d. Register the ECS task definition
 
-The template is in `ecs-task-def.json`. Fill in the placeholders and
-register it:
+The template is in `ecs-task-def.json`. The `secrets` array uses secret names
+(e.g. `unshelvd/DATABASE_URL`) which work when ECS runs in the same account
+and region as the secrets. If you prefer to use full ARNs, get them from:
 
 ```bash
-# Substitute real values into the template
+aws secretsmanager describe-secret --secret-id unshelvd/DATABASE_URL \
+  --query ARN --output text
+# e.g. arn:aws:secretsmanager:us-east-1:123456789012:secret:unshelvd/DATABASE_URL-AbCdEf
+```
+
+Fill in the remaining placeholders and register:
+
+```bash
+# Substitute ACCOUNT_ID and REGION placeholders in role ARNs and log config
 sed -e "s/ACCOUNT_ID/${AWS_ACCOUNT_ID}/g" \
-    -e "s/REGION/${AWS_REGION}/g" \
+    -e "s|\"awslogs-region\": \"us-east-1\"|\"awslogs-region\": \"${AWS_REGION}\"|g" \
     ecs-task-def.json > /tmp/task-def-filled.json
 
 # Register the task definition
@@ -762,7 +771,7 @@ aws ecs create-service \
   --desired-count 1 \
   --launch-type FARGATE \
   --network-configuration \
-    "awsvpcConfiguration={subnets=[$(echo $SUBNET_IDS | tr ',' ',')],securityGroups=[$ECS_SG_ID],assignPublicIp=ENABLED}" \
+    "awsvpcConfiguration={subnets=[$(echo $SUBNET_IDS | tr ',' ' ')],securityGroups=[$ECS_SG_ID],assignPublicIp=ENABLED}" \
   --load-balancers \
     "targetGroupArn=$TG_ARN,containerName=unshelvd,containerPort=8080" \
   --health-check-grace-period-seconds 60 \
@@ -1228,7 +1237,7 @@ aws cloudwatch put-metric-alarm \
   --metric-name "HTTPCode_Target_5XX_Count" \
   --dimensions Name=LoadBalancer,Value="$(aws elbv2 describe-load-balancers \
     --names "$ALB_NAME" --query 'LoadBalancers[0].LoadBalancerArn' \
-    --output text | sed 's|arn:aws:elasticloadbalancing:[^:]*:[^:]*:||')" \
+    --output text | cut -d: -f6)" \
   --statistic Sum \
   --period 60 \
   --threshold 10 \
