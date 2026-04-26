@@ -44,3 +44,7 @@ src-tauri/target/
 
 # Test coverage output
 coverage/
+
+# Python bytecode cache
+__pycache__/
+*.pyc
