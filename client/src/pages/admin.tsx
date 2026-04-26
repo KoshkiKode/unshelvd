@@ -277,7 +277,6 @@ export default function AdminDashboard() {
   const [emailFrom, setEmailFrom] = useState("");
 
   const [platformFee, setPlatformFee] = useState("10");
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [registrationsEnabled, setRegistrationsEnabled] = useState(true);
 
   // Populate form fields when settings arrive (use useEffect to avoid rendering side-effects)
@@ -299,7 +298,6 @@ export default function AdminDashboard() {
     setEmailSmtpPass(settingsData.email_smtp_pass ?? "");
     setEmailFrom(settingsData.email_from ?? "");
     setPlatformFee(settingsData.platform_fee_percent ?? "10");
-    setMaintenanceMode(settingsData.maintenance_mode === "true");
     setRegistrationsEnabled(settingsData.registrations_enabled !== "false");
   }, [settingsData]);
 
@@ -428,7 +426,6 @@ export default function AdminDashboard() {
   const handleSavePlatform = () => {
     saveSettingsMutation.mutate({
       platform_fee_percent: platformFee,
-      maintenance_mode: String(maintenanceMode),
       registrations_enabled: String(registrationsEnabled),
     });
   };
@@ -1091,18 +1088,6 @@ export default function AdminDashboard() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">Maintenance Mode</p>
-                      <p className="text-xs text-muted-foreground">
-                        Shows a maintenance message to non-admin users. Admin access is unaffected.
-                      </p>
-                    </div>
-                    <Switch
-                      checked={maintenanceMode}
-                      onCheckedChange={setMaintenanceMode}
-                    />
-                  </div>
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium">New Registrations</p>

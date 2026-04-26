@@ -1,10 +1,9 @@
 # AWS Amplify Hosting build spec
 # ──────────────────────────────
 # Amplify Hosting builds and serves the static SPA from `dist/public`.
-# All `/api/**` requests are proxied to the App Runner service via a
-# Custom Rewrite + Redirect rule that you configure once in the Amplify
-# console (or via amplify.yml deployments — see "customHeaders" / "redirects"
-# below).
+# All `/api/**` and `/ws/**` requests are proxied to the ECS Fargate service
+# via a Custom Rewrite + Redirect rule configured once in the Amplify console
+# (see the rewrites block below and DEPLOY.md Step 12c).
 #
 # Required Amplify environment variables (set per branch in the console):
 #   VITE_API_URL                 — usually empty so the SPA uses the same
@@ -34,10 +33,13 @@ frontend:
 #
 #   Source                Target                                       Type
 #   ─────────             ──────────────────────────────────────       ────
-#   /api/<*>              https://YOUR-APP-RUNNER-URL.awsapprunner.com/api/<*>   200 (rewrite)
+#   /api/<*>              https://YOUR-ALB-DNS-NAME/api/<*>            200 (rewrite)
+#   /ws/<*>               https://YOUR-ALB-DNS-NAME/ws/<*>             200 (rewrite)
 #   /<*>                  /index.html                                  200 (rewrite)
 #
-# The first rule must be ABOVE the SPA fallback rule.
+# Replace YOUR-ALB-DNS-NAME with the ECS Application Load Balancer DNS name
+# (e.g. unshelvd-alb-1234567890.us-east-1.elb.amazonaws.com).
+# The /api and /ws rules must be ABOVE the SPA fallback rule.
 
 customHeaders:
   - pattern: '/assets/**'

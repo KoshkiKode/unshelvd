@@ -3,9 +3,9 @@ name: Deploy
 # ═══════════════════════════════════════════════════════════════════════════════
 # Unshelv'd — AWS Deploy Pipeline
 #
-# Builds the production Docker image, pushes to Amazon ECR, then triggers an
-# App Runner deployment. Database migrations are run as a separate job before
-# the new image goes live.
+# Builds the production Docker image, pushes to Amazon ECR, then deploys to
+# ECS Fargate via a rolling update. Database migrations are run as a separate
+# job before the new image goes live.
 #
 # Auth: uses GitHub OIDC to assume an IAM role — no long-lived AWS keys are
 # stored as secrets. Set up the trust policy following:
@@ -13,14 +13,18 @@ name: Deploy
 #   https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services
 #
 # Required GitHub repository secrets:
-#   AWS_DEPLOY_ROLE_ARN         — IAM role ARN with ecr:* + apprunner:* + (for
-#                                 the migrate job) iam:PassRole on the App
-#                                 Runner instance role
-#   APPRUNNER_SERVICE_ARN       — ARN of the App Runner service to update
+#   AWS_DEPLOY_ROLE_ARN         — IAM role ARN with ecr:*, ecs:*, and
+#                                 secretsmanager:GetSecretValue on
+#                                 unshelvd/DATABASE_URL
 #
 # Required GitHub repository variables (Settings → Variables → Actions):
 #   AWS_REGION                  — e.g. us-east-1
 #   ECR_REPOSITORY              — e.g. unshelvd
+#   ECS_CLUSTER                 — e.g. unshelvd
+#   ECS_SERVICE                 — e.g. unshelvd
+#   ECS_TASK_DEFINITION         — e.g. unshelvd
+#   ECS_CONTAINER_NAME          — e.g. unshelvd
+#   DATABASE_URL_SECRET_ID      — e.g. unshelvd/DATABASE_URL
 #
 # Triggers: pushes to main, plus manual dispatch.
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -84,7 +88,7 @@ jobs:
         run: node script/migrate.js
 
   build-and-deploy:
-    name: Build → ECR → App Runner
+    name: Build → ECR → ECS
     runs-on: ubuntu-latest
     needs: migrate
     environment: production
@@ -120,7 +124,24 @@ jobs:
           docker push "$REGISTRY/$REPO:latest"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
 
-      - name: Trigger App Runner deployment
+      - name: Download current ECS task definition
         run: |
-          aws apprunner start-deployment \
-            --service-arn "${{ secrets.APPRUNNER_SERVICE_ARN }}"
+          aws ecs describe-task-definition \
+            --task-definition "${{ vars.ECS_TASK_DEFINITION }}" \
+            --query taskDefinition > /tmp/task-def.json
+
+      - name: Update image in ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: /tmp/task-def.json
+          container-name: ${{ vars.ECS_CONTAINER_NAME }}
+          image: ${{ env.IMAGE }}
+
+      - name: Deploy updated task definition to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ vars.ECS_SERVICE }}
+          cluster: ${{ vars.ECS_CLUSTER }}
+          wait-for-service-stability: true
