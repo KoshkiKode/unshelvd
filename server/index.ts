@@ -56,11 +56,13 @@ const defaultAllowedOrigins = [
   "capacitor://localhost",
   "https://localhost",
   "http://localhost",
+  "http://localhost:3000",
   "http://localhost:5000",
   "http://10.0.2.2:5000",
   "https://unshelvd.koshkikode.com",
   "https://koshkikode.com",
   "https://www.koshkikode.com",
+  "https://un-533c7f1e3dae462c8491ea28099ebb06.ecs.us-east-1.on.aws",
 ];
 
 const envAllowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? "")
