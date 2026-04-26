@@ -8,7 +8,6 @@ name: Mirror to CodeCommit
 # deploy.yml — no long-lived AWS credentials are stored.
 #
 # Required GitHub repository variables (Settings → Variables → Actions):
-#   AWS_REGION              — e.g. us-east-1
 #   CODECOMMIT_HTTP_URL     — CodeCommitCloneUrlHttp stack output, e.g.
 #                             https://git-codecommit.us-east-1.amazonaws.com/v1/repos/unshelvd
 #
@@ -40,7 +39,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-region: us-east-1
 
       - name: Push mirror to CodeCommit
         env:
