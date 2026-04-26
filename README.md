@@ -29,7 +29,7 @@ A peer-to-peer book marketplace for every language, every country, every era. Bu
 | Database | PostgreSQL + Drizzle ORM |
 | Desktop | Tauri v2 (optional — see [DESKTOP.md](./DESKTOP.md)) |
 | Mobile | Capacitor (Android + iOS) |
-| Hosting | AWS Amplify Hosting (SPA + CDN) → AWS App Runner (API + WebSocket) → Amazon RDS for PostgreSQL → Amazon S3 (uploads) |
+| Hosting | AWS Amplify Hosting (SPA + CDN) → AWS ECS Fargate + ALB (API + WebSocket) → Amazon RDS for PostgreSQL → Amazon S3 (uploads) |
 | Catalog | Open Library API + proprietary database |
 
 ## Complete Local Setup (Web + API + Database + Admin + Mobile)
@@ -204,9 +204,9 @@ unshelvd/
 ├── ios/                   # Capacitor iOS project
 ├── scripts/               # Build scripts (Android, iOS, catalog seeder)
 ├── .github/workflows/     # CI: auto-build APK + verify iOS on every push
-├── Dockerfile             # Production container (App Runner)
+├── Dockerfile             # Production container (ECS Fargate)
 ├── docker-compose.yml     # Local dev (PostgreSQL)
-└── apprunner.yaml         # AWS App Runner service config
+└── ecs-task-def.json      # AWS ECS Fargate task definition template
 ```
 
 ## Security

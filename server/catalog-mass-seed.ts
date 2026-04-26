@@ -10,7 +10,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { bookCatalog } from "@shared/schema";
 import { sql } from "drizzle-orm";
 
-// Unix socket connections (Cloud SQL) don't use SSL
+// Unix socket connections (local dev) don't use SSL; RDS requires SSL
 const isUnixSocket = (process.env.DATABASE_URL || "").includes("host=/");
 const pool = new Pool({ 
   connectionString: process.env.DATABASE_URL,

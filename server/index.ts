@@ -11,7 +11,7 @@ import { startJobs } from "./jobs";
 
 const app = express();
 
-// Trust proxy — needed for App Runner / load balancers, secure cookies, and rate limiting
+// Trust proxy — needed for ECS Fargate / load balancers, secure cookies, and rate limiting
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
 
@@ -210,7 +210,7 @@ app.use((req, res, next) => {
     );
 
     // Auto-seed works + catalog on first run (no-op if already populated).
-    // Runs AFTER listen() so App Runner sees the port open immediately.
+    // Runs AFTER listen() so the ECS health check sees the port open immediately.
     runAutoSeed().catch((err) => {
       console.error("Auto-seed failed (non-fatal):", err);
     });

@@ -77,5 +77,5 @@ Key settings to customize:
 
 - The desktop app loads the same React frontend
 - In dev mode, it connects to `localhost:5000` (your local server)
-- In production, you can either bundle the static frontend or point to your App Runner URL
+- In production, you can either bundle the static frontend or point to your ECS service URL (via the ALB, e.g. `https://unshelvd.koshkikode.com`)
 - Tauri apps are ~3-8MB (vs Electron's 150MB+) since they use the system WebView

@@ -254,7 +254,7 @@ export async function registerRoutes(
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       secure: process.env.NODE_ENV === "production",
     },
-    // Trust the first proxy (App Runner, nginx, etc.)
+    // Trust the first proxy (ALB / ECS / nginx, etc.)
     proxy: process.env.NODE_ENV === "production",
   });
   app.use(sessionMiddleware);
@@ -299,22 +299,6 @@ export async function registerRoutes(
 
   app.use(passport.initialize());
   app.use(passport.session());
-
-  // Maintenance mode — return 503 for all API routes except the health check.
-  // Admins can toggle this via the admin settings panel.
-  app.use(async (req: Request, res: Response, next: NextFunction) => {
-    if (!req.path.startsWith("/api/") || req.path === "/api/health") return next();
-    try {
-      if (await isEnabled("maintenance_mode", false)) {
-        return res
-          .status(503)
-          .json({ message: "The site is temporarily down for maintenance. Please check back soon." });
-      }
-    } catch {
-      // If the DB is unreachable we can't read settings — don't block requests.
-    }
-    return next();
-  });
 
   // === HEALTH CHECK ===
   app.get("/api/health", async (_req, res) => {

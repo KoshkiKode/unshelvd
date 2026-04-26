@@ -1,10 +1,9 @@
 # AWS Amplify Hosting build spec
 # ──────────────────────────────
 # Amplify Hosting builds and serves the static SPA from `dist/public`.
-# All `/api/**` requests are proxied to the App Runner service via a
-# Custom Rewrite + Redirect rule that you configure once in the Amplify
-# console (or via amplify.yml deployments — see "customHeaders" / "redirects"
-# below).
+# All `/api/**` and `/ws/**` requests are proxied to the ECS Fargate service
+# via a Custom Rewrite + Redirect rule configured once in the Amplify console
+# (see the rewrites block below and DEPLOY.md Step 12c).
 #
 # Required Amplify environment variables (set per branch in the console):
 #   VITE_API_URL                 — usually empty so the SPA uses the same
@@ -30,14 +29,23 @@ frontend:
     paths:
       - node_modules/**/*
 
-# Configure these in the Amplify console under "Rewrites and redirects":
+# Configure these in the Amplify console under "Rewrites and redirects".
+# Order matters — process top-to-bottom; the SPA fallback MUST be last:
 #
-#   Source                Target                                       Type
-#   ─────────             ──────────────────────────────────────       ────
-#   /api/<*>              https://YOUR-APP-RUNNER-URL.awsapprunner.com/api/<*>   200 (rewrite)
-#   /<*>                  /index.html                                  200 (rewrite)
+#   Source                Target                                                   Type
+#   ─────────             ──────────────────────────────────────                   ────
+#   /api/<*>              https://unshelvd.koshkikode.com/api/<*>                  200 (rewrite)
+#   /ws/<*>               https://unshelvd.koshkikode.com/ws/<*>                   200 (rewrite)
+#   /<*>                  /index.html                                              200 (rewrite)
 #
-# The first rule must be ABOVE the SPA fallback rule.
+# `unshelvd.koshkikode.com` is the Route 53 alias of the ECS Application Load
+# Balancer (see infra/unshelvd.cfn.yaml). Using the custom domain (instead of
+# the raw ALB DNS name) means cookies, CORS, and TLS all line up with what
+# the API server expects.
+#
+# Amplify Hosting forwards the WebSocket upgrade through the /ws rewrite, so
+# `wss://<your-amplify-domain>/ws` reaches the chat server the same way the
+# native Capacitor apps do directly.
 
 customHeaders:
   - pattern: '/assets/**'

@@ -192,7 +192,7 @@ async function seed() {
     process.exit(1);
   }
 
-  // Unix socket connections (Cloud SQL) don't use SSL
+  // Unix socket connections (local dev) don't use SSL; RDS requires SSL
   const isUnixSocket = process.env.DATABASE_URL.includes("host=/");
   const client = new Client({ 
     connectionString: process.env.DATABASE_URL,

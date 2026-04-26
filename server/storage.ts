@@ -11,7 +11,7 @@ import { Pool } from "pg";
 import { eq, and, or, desc, asc, gte, lte, sql, ilike, inArray, isNull } from "drizzle-orm";
 import { sanitizeLikeInput } from "./security";
 
-// Unix socket connections (Cloud SQL) don't use SSL
+// Unix socket connections don't use SSL (kept for local dev compatibility)
 const isUnixSocket = (process.env.DATABASE_URL || "").includes("host=/");
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

@@ -10,7 +10,7 @@
  *     OFFER_EXPIRY_DAYS (default 7).
  *
  * Multi-instance safety:
- *   Multiple App Runner instances can run simultaneously.  Each job acquires
+ *   Multiple ECS Fargate tasks can run simultaneously.  Each job acquires
  *   a PostgreSQL advisory lock before executing so only one instance
  *   processes the job at a time — the others skip that run silently.
  *
@@ -255,7 +255,7 @@ async function expireAbandonedTransactions(): Promise<void> {
  * Runs each job once immediately on startup (to catch anything that missed
  * the last run), then repeats every JOB_INTERVAL_MS.
  *
- * Call this AFTER httpServer.listen() so App Runner binds to PORT on time.
+ * Call this AFTER httpServer.listen() so the ECS health check sees PORT open.
  */
 export async function startJobs(): Promise<void> {
   console.log(
