@@ -123,17 +123,11 @@ jobs:
           docker push "$REGISTRY/$REPO:latest"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
 
-      - name: Download current ECS task definition
-        run: |
-          aws ecs describe-task-definition \
-            --task-definition "${{ vars.ECS_TASK_DEFINITION }}" \
-            --query taskDefinition > /tmp/task-def.json
-
       - name: Update image in ECS task definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: /tmp/task-def.json
+          task-definition: ecs-task-def.json
           container-name: ${{ vars.ECS_CONTAINER_NAME }}
           image: ${{ env.IMAGE }}
 
