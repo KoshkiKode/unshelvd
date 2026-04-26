@@ -28,9 +28,9 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Install production dependencies only
+# Install production dependencies only + curl for health check
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN apk add --no-cache curl && npm ci --omit=dev
 
 # Run as non-root for security
 USER node
@@ -57,7 +57,7 @@ EXPOSE 8080
 
 # ECS container-level health check (ALB target group also checks /api/health).
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
-  CMD wget -qO- http://localhost:8080/api/health || exit 1
+  CMD curl -f http://localhost:8080/api/health || exit 1
 
 # Run
 CMD ["node", "dist/index.cjs"]
