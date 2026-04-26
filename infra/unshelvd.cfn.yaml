@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  Unshelv'd — single-region AWS architecture (ca-central-1, AZs a+d)
+  Unshelv'd — single-region AWS architecture (us-east-1, AZs a+d)
   VPC, ALB, ECS Fargate service, RDS PostgreSQL, ECR, S3 + CloudFront via OAC,
   Secrets Manager scaffold, CloudWatch alarms, SNS.
   Codifies steps 1–9 of the architecture plan.
@@ -120,7 +120,7 @@ Resources:
     Properties:
       VpcId: !Ref Vpc
       CidrBlock: 10.40.1.0/24
-      AvailabilityZone: ca-central-1a   # AZ 1
+      AvailabilityZone: us-east-1a   # AZ 1
       MapPublicIpOnLaunch: true
       Tags: [{ Key: Name, Value: !Sub "${AppName}-public-a" }]
 
@@ -129,7 +129,7 @@ Resources:
     Properties:
       VpcId: !Ref Vpc
       CidrBlock: 10.40.2.0/24
-      AvailabilityZone: ca-central-1d   # AZ 4
+      AvailabilityZone: us-east-1d   # AZ 4
       MapPublicIpOnLaunch: true
       Tags: [{ Key: Name, Value: !Sub "${AppName}-public-b" }]
 
@@ -138,7 +138,7 @@ Resources:
     Properties:
       VpcId: !Ref Vpc
       CidrBlock: 10.40.11.0/24
-      AvailabilityZone: ca-central-1a   # AZ 1
+      AvailabilityZone: us-east-1a   # AZ 1
       Tags: [{ Key: Name, Value: !Sub "${AppName}-private-a" }]
 
   PrivateSubnetB:
@@ -146,7 +146,7 @@ Resources:
     Properties:
       VpcId: !Ref Vpc
       CidrBlock: 10.40.12.0/24
-      AvailabilityZone: ca-central-1d   # AZ 4
+      AvailabilityZone: us-east-1d   # AZ 4
       Tags: [{ Key: Name, Value: !Sub "${AppName}-private-b" }]
 
   PublicRouteTable:

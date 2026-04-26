@@ -26,8 +26,8 @@
         { "name": "CORS_ALLOWED_ORIGINS","value": "https://unshelvd.koshkikode.com" },
         { "name": "S3_BUCKET_NAME",      "value": "unshelvd-uploads" },
         { "name": "CDN_BASE_URL",        "value": "https://cdn.koshkikode.com" },
-        { "name": "AWS_REGION",          "value": "ca-central-1" },
-        { "name": "SMTP_HOST",           "value": "email-smtp.ca-central-1.amazonaws.com" },
+        { "name": "AWS_REGION",          "value": "us-east-1" },
+        { "name": "SMTP_HOST",           "value": "email-smtp.us-east-1.amazonaws.com" },
         { "name": "SMTP_PORT",           "value": "587" },
         { "name": "SMTP_USER",           "value": "REPLACE_WITH_SES_SMTP_USERNAME" },
         { "name": "EMAIL_FROM",          "value": "Unshelv'd <noreply@koshkikode.com>" }
@@ -66,7 +66,7 @@
         "logDriver": "awslogs",
         "options": {
           "awslogs-group": "/ecs/unshelvd",
-          "awslogs-region": "ca-central-1",
+          "awslogs-region": "us-east-1",
           "awslogs-stream-prefix": "ecs"
         }
       },

@@ -46,7 +46,7 @@ describe("s3.uploadImage URL formatting", () => {
   it("returns S3 virtual-hosted URL when no CDN is configured", async () => {
     const s3 = await loadS3({
       S3_BUCKET_NAME: "unshelvd-uploads",
-      AWS_REGION: "ca-central-1",
+      AWS_REGION: "us-east-1",
     });
     const url = await s3.uploadImage(
       42,
@@ -62,7 +62,7 @@ describe("s3.uploadImage URL formatting", () => {
   it("returns CDN URL when CDN_BASE_URL is configured", async () => {
     const s3 = await loadS3({
       S3_BUCKET_NAME: "unshelvd-uploads",
-      AWS_REGION: "ca-central-1",
+      AWS_REGION: "us-east-1",
       CDN_BASE_URL: "https://cdn.koshkikode.com",
     });
     const url = await s3.uploadImage(
@@ -79,7 +79,7 @@ describe("s3.uploadImage URL formatting", () => {
   it("strips a trailing slash from CDN_BASE_URL", async () => {
     const s3 = await loadS3({
       S3_BUCKET_NAME: "unshelvd-uploads",
-      AWS_REGION: "ca-central-1",
+      AWS_REGION: "us-east-1",
       CDN_BASE_URL: "https://cdn.koshkikode.com///",
     });
     const url = await s3.uploadImage(
@@ -106,13 +106,13 @@ describe("s3.deleteImage URL parsing", () => {
     };
     const s3 = await loadS3({
       S3_BUCKET_NAME: "unshelvd-uploads",
-      AWS_REGION: "ca-central-1",
+      AWS_REGION: "us-east-1",
       CDN_BASE_URL: "https://cdn.koshkikode.com",
     });
     sdk.__send.mockClear();
 
     await s3.deleteImage(
-      "https://unshelvd-uploads.s3.ca-central-1.amazonaws.com/avatars/42/abc.png",
+      "https://unshelvd-uploads.s3.us-east-1.amazonaws.com/avatars/42/abc.png",
     );
 
     expect(sdk.__send).toHaveBeenCalledTimes(1);
@@ -126,7 +126,7 @@ describe("s3.deleteImage URL parsing", () => {
     };
     const s3 = await loadS3({
       S3_BUCKET_NAME: "unshelvd-uploads",
-      AWS_REGION: "ca-central-1",
+      AWS_REGION: "us-east-1",
       CDN_BASE_URL: "https://cdn.koshkikode.com",
     });
     sdk.__send.mockClear();
@@ -144,7 +144,7 @@ describe("s3.deleteImage URL parsing", () => {
     };
     const s3 = await loadS3({
       S3_BUCKET_NAME: "unshelvd-uploads",
-      AWS_REGION: "ca-central-1",
+      AWS_REGION: "us-east-1",
       CDN_BASE_URL: "https://cdn.koshkikode.com",
     });
     sdk.__send.mockClear();

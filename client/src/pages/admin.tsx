@@ -1005,7 +1005,7 @@ export default function AdminDashboard() {
                       <Label htmlFor="smtp-host" className="text-xs font-medium">SMTP Host</Label>
                       <Input
                         id="smtp-host"
-                        placeholder="email-smtp.ca-central-1.amazonaws.com"
+                        placeholder="email-smtp.us-east-1.amazonaws.com"
                         value={emailSmtpHost}
                         onChange={(e) => setEmailSmtpHost(e.target.value)}
                         className="mt-1 font-mono text-xs"
