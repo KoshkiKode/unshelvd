@@ -444,7 +444,13 @@ Resources:
       Url: https://token.actions.githubusercontent.com
       ClientIdList:
         - sts.amazonaws.com
-      # GitHub's current thumbprint. AWS uses this to verify the OIDC token.
+      # GitHub's current OIDC thumbprint. If GitHub rotates their TLS
+      # certificate, update this value by running:
+      #   openssl s_client -servername token.actions.githubusercontent.com \
+      #     -connect token.actions.githubusercontent.com:443 </dev/null 2>/dev/null \
+      #     | openssl x509 -fingerprint -noout -sha1 \
+      #     | tr -d ':' | awk -F= '{print tolower($2)}'
+      # Reference: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html
       ThumbprintList:
         - 6938fd4d98bab03faadb97b34396831e3780aea1
 
@@ -542,7 +548,24 @@ Resources:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
-                Action: codecommit:*
+                Action:
+                  - codecommit:GitPull
+                  - codecommit:GitPush
+                  - codecommit:GetBranch
+                  - codecommit:ListBranches
+                  - codecommit:CreateBranch
+                  - codecommit:DeleteBranch
+                  - codecommit:GetRepository
+                  - codecommit:GetCommit
+                  - codecommit:ListRepositories
+                  - codecommit:GetDifferences
+                  - codecommit:GetBlob
+                  - codecommit:CreatePullRequest
+                  - codecommit:GetPullRequest
+                  - codecommit:ListPullRequests
+                  - codecommit:MergePullRequestByFastForward
+                  - codecommit:MergePullRequestBySquash
+                  - codecommit:MergePullRequestByThreeWay
                 Resource: !GetAtt CodeCommitRepo.Arn
         - PolicyName: ReadOnlyVisibility
           PolicyDocument:

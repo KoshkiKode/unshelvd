@@ -53,4 +53,7 @@ jobs:
           git config --global credential.UseHttpPath true
 
           git remote add codecommit "$CODECOMMIT_URL"
-          git push codecommit --mirror
+          # --prune removes refs in CodeCommit that have been deleted on GitHub
+          # (e.g. merged feature branches) while --all --tags avoids the
+          # unintended force-deletion of unrelated refs that --mirror would cause.
+          git push codecommit --all --tags --prune
