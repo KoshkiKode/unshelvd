@@ -1,6 +1,5 @@
 import pg from 'pg';
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 import { existsSync, readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -182,7 +181,7 @@ function printAdminCredentials(username, email, password, action) {
   console.log(`║  Username: ${username.padEnd(40)}║`);
   console.log(`║  Email:    ${email.padEnd(40)}║`);
   console.log(`║  Password: ${password.padEnd(40)}║`);
-  console.log(`║  SHA-256:  ${crypto.createHash('sha256').update(password).digest('hex').slice(0, 38)}..║`);
+  console.log('║  Fingerprint: [not generated]                     ║');
   console.log('╚══════════════════════════════════════════════════════╝');
 }
 
