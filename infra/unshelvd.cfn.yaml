@@ -15,9 +15,10 @@ Description: >-
 #     --capabilities CAPABILITY_NAMED_IAM \
 #     --parameter-overrides \
 #         DomainName=koshkikode.com \
-#         CertificateArn=arn:aws:acm:us-east-1:ACCOUNT:certificate/UUID \
+#         CertificateArn=arn:aws:acm:us-east-1:261142221895:certificate/UUID \
 #         AlertEmail=ops@koshkikode.com \
-#         DBPassword=<from-secrets-manager>
+#         DBPassword=<from-secrets-manager> \
+#         GitHubOidcProviderArn=arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com
 #
 # After the stack is created, you still need to:
 #   - Push your first image to the ECR repo (the ECS service will then pull it
@@ -86,6 +87,16 @@ Parameters:
     Description: (Optional) Initial container image. Leave blank on first
       deploy — the ECS service will be created with a placeholder and the
       deploy.yml GitHub Action will replace it on the next push to main.
+
+  GitHubOidcProviderArn:
+    Type: String
+    Description: >-
+      ARN of the existing GitHub OIDC provider in this account.
+      Only one provider per URL is allowed per AWS account, so this stack
+      references the pre-existing one rather than creating a new one.
+      Find it in IAM → Identity providers, or run:
+        aws iam list-open-id-connect-providers
+      Typically: arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com
 
 # ──────────────────────────────────────────────────────────────────────────────
 Conditions:
@@ -436,25 +447,11 @@ Resources:
                   - ses:SendRawEmail
                 Resource: "*"
 
-  # ── 7. GitHub OIDC provider + deploy role ─────────────────────────────────
+  # ── 7. GitHub deploy role ──────────────────────────────────────────────────
   # Enables GitHub Actions to authenticate via OIDC — no long-lived AWS keys
   # stored as secrets. The trust policy is scoped to this repo only.
-  GitHubOidcProvider:
-    Type: AWS::IAM::OIDCProvider
-    Properties:
-      Url: https://token.actions.githubusercontent.com
-      ClientIdList:
-        - sts.amazonaws.com
-      # GitHub's current OIDC thumbprint. If GitHub rotates their TLS
-      # certificate, update this value by running:
-      #   openssl s_client -servername token.actions.githubusercontent.com \
-      #     -connect token.actions.githubusercontent.com:443 </dev/null 2>/dev/null \
-      #     | openssl x509 -fingerprint -noout -sha1 \
-      #     | tr -d ':' | awk -F= '{print tolower($2)}'
-      # Reference: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html
-      ThumbprintList:
-        - 6938fd4d98bab03faadb97b34396831e3780aea1
-
+  # Note: the GitHub OIDC provider (token.actions.githubusercontent.com) must
+  # already exist in this account; pass its ARN via GitHubOidcProviderArn.
   GitHubDeployRole:
     Type: AWS::IAM::Role
     Properties:
@@ -464,7 +461,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Federated: !GetAtt GitHubOidcProvider.Arn
+              Federated: !Ref GitHubOidcProviderArn
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:

@@ -4,12 +4,12 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "1024",
   "memory": "2048",
-  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/unshelvd-ecs-execution",
-  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/unshelvd-ecs-task",
+  "executionRoleArn": "arn:aws:iam::261142221895:role/unshelvd-ecs-execution",
+  "taskRoleArn": "arn:aws:iam::261142221895:role/unshelvd-ecs-task",
   "containerDefinitions": [
     {
       "name": "unshelvd",
-      "image": "ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/unshelvd:latest",
+      "image": "261142221895.dkr.ecr.us-east-1.amazonaws.com/unshelvd:latest",
       "essential": true,
       "portMappings": [
         {
