@@ -49,53 +49,79 @@ export class PgRateLimitStore implements Store {
             PRIMARY KEY (key)
           )
         `)
-        .then(() => undefined);
+        .then(() => undefined)
+        .catch((err) => {
+          // Clear the cached promise so the next request retries table creation
+          this.initPromise = null;
+          throw err;
+        });
     }
     return this.initPromise;
   }
 
   async increment(key: string): Promise<ClientRateLimitInfo> {
-    await this.ensureTable();
     const now = Date.now();
     const resetTime = new Date(now + this.windowMs);
 
-    const result = await this.pool.query<{ hits: string; reset_time: Date }>(
-      `INSERT INTO rate_limits (key, hits, reset_time)
-         VALUES ($1, 1, $2)
-       ON CONFLICT (key) DO UPDATE
-         SET hits       = CASE
-                            WHEN rate_limits.reset_time <= NOW()
-                            THEN 1
-                            ELSE rate_limits.hits + 1
-                          END,
-             reset_time = CASE
-                            WHEN rate_limits.reset_time <= NOW()
-                            THEN $2
-                            ELSE rate_limits.reset_time
-                          END
-       RETURNING hits, reset_time`,
-      [key, resetTime],
-    );
+    try {
+      await this.ensureTable();
 
-    return {
-      totalHits: parseInt(result.rows[0].hits, 10),
-      resetTime: result.rows[0].reset_time,
-    };
+      const result = await this.pool.query<{ hits: string; reset_time: Date }>(
+        `INSERT INTO rate_limits (key, hits, reset_time)
+           VALUES ($1, 1, $2)
+         ON CONFLICT (key) DO UPDATE
+           SET hits       = CASE
+                              WHEN rate_limits.reset_time <= NOW()
+                              THEN 1
+                              ELSE rate_limits.hits + 1
+                            END,
+               reset_time = CASE
+                              WHEN rate_limits.reset_time <= NOW()
+                              THEN $2
+                              ELSE rate_limits.reset_time
+                            END
+         RETURNING hits, reset_time`,
+        [key, resetTime],
+      );
+
+      return {
+        totalHits: parseInt(result.rows[0].hits, 10),
+        resetTime: result.rows[0].reset_time,
+      };
+    } catch (err) {
+      // Fail open: when the DB is unavailable, allow the request through rather
+      // than returning a 500 to the user.  The effective hit count of 0 ensures
+      // express-rate-limit does not block the request.
+      console.error("[rate-limit] increment failed, failing open:", err);
+      return { totalHits: 0, resetTime };
+    }
   }
 
   async decrement(key: string): Promise<void> {
-    await this.pool.query(
-      `UPDATE rate_limits SET hits = GREATEST(hits - 1, 0) WHERE key = $1`,
-      [key],
-    );
+    try {
+      await this.pool.query(
+        `UPDATE rate_limits SET hits = GREATEST(hits - 1, 0) WHERE key = $1`,
+        [key],
+      );
+    } catch (err) {
+      console.error("[rate-limit] decrement failed:", err);
+    }
   }
 
   async resetKey(key: string): Promise<void> {
-    await this.pool.query(`DELETE FROM rate_limits WHERE key = $1`, [key]);
+    try {
+      await this.pool.query(`DELETE FROM rate_limits WHERE key = $1`, [key]);
+    } catch (err) {
+      console.error("[rate-limit] resetKey failed:", err);
+    }
   }
 
   async resetAll(): Promise<void> {
-    await this.pool.query(`TRUNCATE rate_limits`);
+    try {
+      await this.pool.query(`TRUNCATE rate_limits`);
+    } catch (err) {
+      console.error("[rate-limit] resetAll failed:", err);
+    }
   }
 }
 
