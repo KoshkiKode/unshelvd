@@ -29,17 +29,23 @@ frontend:
     paths:
       - node_modules/**/*
 
-# Configure these in the Amplify console under "Rewrites and redirects":
+# Configure these in the Amplify console under "Rewrites and redirects".
+# Order matters — process top-to-bottom; the SPA fallback MUST be last:
 #
-#   Source                Target                                       Type
-#   ─────────             ──────────────────────────────────────       ────
-#   /api/<*>              https://YOUR-ALB-DNS-NAME/api/<*>            200 (rewrite)
-#   /ws/<*>               https://YOUR-ALB-DNS-NAME/ws/<*>             200 (rewrite)
-#   /<*>                  /index.html                                  200 (rewrite)
+#   Source                Target                                                   Type
+#   ─────────             ──────────────────────────────────────                   ────
+#   /api/<*>              https://unshelvd.koshkikode.com/api/<*>                  200 (rewrite)
+#   /ws/<*>               https://unshelvd.koshkikode.com/ws/<*>                   200 (rewrite)
+#   /<*>                  /index.html                                              200 (rewrite)
 #
-# Replace YOUR-ALB-DNS-NAME with the ECS Application Load Balancer DNS name
-# (e.g. unshelvd-alb-1234567890.us-east-1.elb.amazonaws.com).
-# The /api and /ws rules must be ABOVE the SPA fallback rule.
+# `unshelvd.koshkikode.com` is the Route 53 alias of the ECS Application Load
+# Balancer (see infra/unshelvd.cfn.yaml). Using the custom domain (instead of
+# the raw ALB DNS name) means cookies, CORS, and TLS all line up with what
+# the API server expects.
+#
+# Amplify Hosting forwards the WebSocket upgrade through the /ws rewrite, so
+# `wss://<your-amplify-domain>/ws` reaches the chat server the same way the
+# native Capacitor apps do directly.
 
 customHeaders:
   - pattern: '/assets/**'

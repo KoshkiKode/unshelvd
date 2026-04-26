@@ -25,7 +25,12 @@
         { "name": "WEB_BASE_URL",        "value": "https://unshelvd.koshkikode.com" },
         { "name": "CORS_ALLOWED_ORIGINS","value": "https://unshelvd.koshkikode.com" },
         { "name": "S3_BUCKET_NAME",      "value": "unshelvd-uploads" },
-        { "name": "AWS_REGION",          "value": "us-east-1" }
+        { "name": "CDN_BASE_URL",        "value": "https://cdn.koshkikode.com" },
+        { "name": "AWS_REGION",          "value": "us-east-1" },
+        { "name": "SMTP_HOST",           "value": "email-smtp.us-east-1.amazonaws.com" },
+        { "name": "SMTP_PORT",           "value": "587" },
+        { "name": "SMTP_USER",           "value": "REPLACE_WITH_SES_SMTP_USERNAME" },
+        { "name": "EMAIL_FROM",          "value": "Unshelv'd <noreply@koshkikode.com>" }
       ],
       "secrets": [
         {
@@ -47,6 +52,10 @@
         {
           "name": "PAYPAL_CLIENT_SECRET",
           "valueFrom": "unshelvd/PAYPAL_CLIENT_SECRET"
+        },
+        {
+          "name": "PAYPAL_WEBHOOK_ID",
+          "valueFrom": "unshelvd/PAYPAL_WEBHOOK_ID"
         },
         {
           "name": "SMTP_PASS",

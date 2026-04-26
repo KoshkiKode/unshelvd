@@ -7,10 +7,13 @@
  * AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY in your shell.
  *
  * Bucket visibility: uploaded objects are written without an ACL (the bucket
- * default applies). Make the bucket publicly readable either by:
- *   1. Disabling "Block Public Access" + attaching a bucket policy that
- *      grants s3:GetObject to "Principal: *" for the prefix used here, or
- *   2. Fronting the bucket with CloudFront and serving objects through it.
+ * default applies). Two recommended setups:
+ *   1. Front the bucket with CloudFront via Origin Access Control (OAC),
+ *      keep "Block Public Access" ON, and set CDN_BASE_URL=https://cdn.<your-
+ *      domain> so publicUrl() returns CloudFront URLs. (Recommended.)
+ *   2. Disable "Block Public Access" + attach a bucket policy that grants
+ *      s3:GetObject to "Principal: *" for the prefix used here. Leave
+ *      CDN_BASE_URL unset; URLs will be S3 virtual-hosted-style.
  */
 
 import {
@@ -22,6 +25,11 @@ import crypto from "crypto";
 
 const BUCKET_NAME = process.env.S3_BUCKET_NAME ?? "";
 const REGION = process.env.AWS_REGION ?? "us-east-1";
+// Optional CloudFront (or any CDN) base URL fronting the bucket, e.g.
+// "https://cdn.koshkikode.com". When set, newly-uploaded object URLs are
+// returned through the CDN. Trailing slashes are stripped so callers don't
+// have to be careful. Leaving this unset keeps the legacy S3 URL behaviour.
+const CDN_BASE_URL = (process.env.CDN_BASE_URL ?? "").replace(/\/+$/, "");
 
 let _s3: S3Client | null = null;
 
@@ -47,8 +55,18 @@ const MIME_TO_EXT: Record<string, string> = {
   "image/gif": "gif",
 };
 
-/** Public virtual-hosted-style URL for an object in the configured bucket. */
+/**
+ * Public URL for an object in the configured bucket.
+ *
+ * When `CDN_BASE_URL` is set (e.g. a CloudFront distribution fronting the
+ * bucket), returns `${CDN_BASE_URL}/${key}`. Otherwise falls back to the
+ * S3 virtual-hosted-style URL. Existing rows that contain the legacy S3
+ * URL keep resolving because the CDN serves the same underlying object.
+ */
 function publicUrl(key: string): string {
+  if (CDN_BASE_URL) {
+    return `${CDN_BASE_URL}/${key}`;
+  }
   return `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/${key}`;
 }
 
@@ -90,10 +108,20 @@ export async function uploadImage(
 export async function deleteImage(url: string): Promise<void> {
   if (!BUCKET_NAME || !url) return;
 
-  const prefix = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/`;
-  if (!url.startsWith(prefix)) return;
+  // We must accept BOTH the legacy S3 virtual-hosted URL and the new CDN URL
+  // (when CDN_BASE_URL is configured) because the database has a mix of both
+  // during/after the cutover. Whichever prefix matches first wins.
+  const s3Prefix = `https://${BUCKET_NAME}.s3.${REGION}.amazonaws.com/`;
+  const cdnPrefix = CDN_BASE_URL ? `${CDN_BASE_URL}/` : "";
 
-  const key = url.slice(prefix.length);
+  let key = "";
+  if (url.startsWith(s3Prefix)) {
+    key = url.slice(s3Prefix.length);
+  } else if (cdnPrefix && url.startsWith(cdnPrefix)) {
+    key = url.slice(cdnPrefix.length);
+  } else {
+    return;
+  }
   if (!key) return;
 
   try {
