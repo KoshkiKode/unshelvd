@@ -1,9 +1,9 @@
 /**
  * Amazon S3 helpers for profile image uploads.
  *
- * Auth: On AWS App Runner / EC2 / ECS the task role's IAM identity is used
- * automatically via the default AWS credential provider chain — no static
- * credentials required. Locally, either run `aws configure` or export
+ * Auth: On AWS ECS Fargate the task role's IAM identity is used automatically
+ * via the default AWS credential provider chain — no static credentials
+ * required. Locally, either run `aws configure` or export
  * AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY in your shell.
  *
  * Bucket visibility: uploaded objects are written without an ACL (the bucket
@@ -28,7 +28,7 @@ let _s3: S3Client | null = null;
 function getClient(): S3Client {
   if (!_s3) {
     // The SDK picks up credentials from the default provider chain
-    // (env vars, shared config, IMDS, ECS/App Runner task role, etc.).
+    // (env vars, shared config, IMDS, ECS task role, etc.).
     _s3 = new S3Client({ region: REGION });
   }
   return _s3;

@@ -254,7 +254,7 @@ export async function registerRoutes(
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       secure: process.env.NODE_ENV === "production",
     },
-    // Trust the first proxy (App Runner, nginx, etc.)
+    // Trust the first proxy (ALB / ECS / nginx, etc.)
     proxy: process.env.NODE_ENV === "production",
   });
   app.use(sessionMiddleware);

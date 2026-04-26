@@ -42,12 +42,7 @@ function printAdminCredentials(
 }
 
 async function seed() {
-  // Unix socket connections (Cloud SQL) don't use SSL
-  const isUnixSocket = (process.env.DATABASE_URL || "").includes("host=/");
-  const pool = new Pool({ 
-    connectionString: process.env.DATABASE_URL,
-    ssl: isUnixSocket ? false : (process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false),
-  });
+  // Unix socket connections (local dev) don't use SSL; RDS requires SSL
   const db = drizzle(pool);
 
   console.log("Seeding database...");

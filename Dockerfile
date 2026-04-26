@@ -55,7 +55,9 @@ COPY script/seed.js ./script/seed.js
 ENV PORT=8080
 EXPOSE 8080
 
-# AWS App Runner uses its own TCP startup probe — no Docker HEALTHCHECK needed.
+# ECS container-level health check (ALB target group also checks /api/health).
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
+  CMD wget -qO- http://localhost:8080/api/health || exit 1
 
 # Run
 CMD ["node", "dist/index.cjs"]
