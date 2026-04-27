@@ -68,7 +68,7 @@ parameters:
   # REQUIRED — ACM certificate ARN in us-east-1 covering unshelvd.koshkikode.com
   # Console: Certificate Manager → Request → Public → DNS validation → approve
   # in Route 53.  Paste the ARN here once it shows status "Issued".
-  CertificateArn: "arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERTIFICATE_ID"
+  CertificateArn: "arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/arn:aws:acm:us-east-1:261142221895:certificate/28ca1207-2220-499a-a136-96ac67081ee9"
 
   # OPTIONAL — ACM certificate ARN in us-east-1 covering cdn.koshkikode.com.
   # Leave blank to use the auto-generated *.cloudfront.net domain until you are
@@ -79,7 +79,7 @@ parameters:
   # ── Alerting ─────────────────────────────────────────────────────────────────
   # REQUIRED — email address that will receive CloudWatch alarm notifications.
   # You will get a subscription-confirmation email; click the link to activate.
-  AlertEmail: "ops@koshkikode.com"
+  AlertEmail: "mango.jacq@koshkikode.com"
 
   # ── Database ─────────────────────────────────────────────────────────────────
   DBUser: unshelvd
@@ -104,7 +104,7 @@ parameters:
   # To pre-configure: SES → SMTP settings → Create SMTP credentials.
   # The username (AKIAIOSFODNN7EXAMPLE) goes here; the password goes into
   # Secrets Manager (unshelvd/SMTP_PASS) after the stack is created.
-  SmtpUser: ""
+  SmtpUser: "AKIATZTKKCRDVDQE53XW"
 
   # ── ECS container image ───────────────────────────────────────────────────────
   # Leave blank on first deploy — the stack creates the ECS service with a
@@ -119,7 +119,7 @@ parameters:
   # Find it: IAM → Identity providers.
   # Looks like: arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com
   # Leave blank if no provider exists yet — the stack will create it.
-  GitHubOidcProviderArn: ""
+  GitHubOidcProviderArn: "arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com"
 
 tags:
   Project: unshelvd
