@@ -8,42 +8,85 @@ Description: >-
   are console-driven and documented in DEPLOY.md.
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Usage:
-#   Trigger .github/workflows/cfn-deploy.yml from GitHub Actions
-#   (Actions → Deploy CloudFormation Stack → Run workflow).
-#   The workflow reads all parameters from GitHub repository secrets/variables —
-#   no manual CLI invocation needed after the first deploy.
+# Usage — AWS Console + GitHub Actions (no CLI required):
 #
-# GitHub repository SECRETS required (Settings → Secrets → Actions):
-#   AWS_DEPLOY_ROLE_ARN       — IAM role ARN used for OIDC auth.
-#                               For the very first deploy, create this role
-#                               manually in AWS IAM (trust the OIDC provider
-#                               at GITHUB_OIDC_PROVIDER_ARN). After the stack
-#                               is created, update this secret to the
-#                               GitHubDeployRoleArn stack output.
-#   CFN_CERTIFICATE_ARN       — ACM cert ARN (us-east-1) for the ALB listener.
-#   CFN_DB_PASSWORD           — RDS master password (16+ chars). Set once.
+#   BEFORE running the workflow you must have:
+#     1. An ACM certificate in us-east-1 covering `unshelvd.<DomainName>`.
+#        Console: Certificate Manager → Request → DNS validation → approve via
+#        Route 53.  Copy the resulting ARN.
+#     2. A bootstrap IAM role that GitHub Actions can assume to deploy the
+#        stack on its first run.  The stack itself creates the permanent
+#        `unshelvd-github-deploy` role; once the stack is up you switch the
+#        secret to the stack-output ARN and can delete the bootstrap role.
+#        Console: IAM → Roles → Create role → Web identity →
+#          Identity provider: token.actions.githubusercontent.com
+#          Audience: sts.amazonaws.com
+#          Condition: repo:KoshkiKode/unshelvd:*
+#        Attach PowerUserAccess + IAMFullAccess (or a scoped policy with
+#        cloudformation:*, iam:*, ecr:*, ecs:*, rds:*, ec2:*, s3:*,
+#        secretsmanager:*, logs:*, sns:*, codecommit:*, cloudwatch:*,
+#        application-autoscaling:*, cloudfront:*).
 #
-# GitHub repository VARIABLES required (Settings → Variables → Actions):
-#   GITHUBOIDCPROVIDERARN     — ARN of the existing GitHub OIDC provider, e.g.:
-#                               arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com
-#                               Passed to GitHubOidcProviderArn so the stack
-#                               does NOT try to create a duplicate provider.
+#   GitHub repository SECRETS (Settings → Secrets and variables → Secrets):
+#     AWS_DEPLOY_ROLE_ARN   — bootstrap IAM role ARN (step 2 above).
+#                             After the stack is created update this to the
+#                             GitHubDeployRoleArn stack output.
+#     CFN_CERTIFICATE_ARN   — ACM cert ARN from step 1.
+#     CFN_DB_PASSWORD       — RDS master password, 16+ chars. Choose once and
+#                             never change it (RDS ignores password updates).
 #
-# Optional GitHub repository VARIABLES:
-#   CFN_DOMAIN_NAME           — Apex domain (default: koshkikode.com)
-#   CFN_ALERT_EMAIL           — Ops alert email (default: ops@koshkikode.com)
-#   CFN_CDN_CERTIFICATE_ARN   — ACM cert in us-east-1 for cdn.<domain>
-#   CFN_DB_INSTANCE_CLASS     — RDS instance size (default: db.t4g.micro)
-#   CFN_STACK_NAME            — Stack name (default: unshelvd)
+#   GitHub repository VARIABLES (Settings → Secrets and variables → Variables):
+#     GITHUBOIDCPROVIDERARN — ARN of an existing GitHub OIDC provider in this
+#                             account, e.g.:
+#                             arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com
+#                             Console: IAM → Identity providers.
+#                             Leave the variable EMPTY to have the stack create
+#                             the provider automatically (safe only if no
+#                             provider exists yet — one per URL per account).
 #
-# After the stack is created, you still need to (one-time):
-#   - Update the AWS_DEPLOY_ROLE_ARN secret to the GitHubDeployRoleArn output.
-#   - Set the CODECOMMIT_HTTP_URL variable to the CodeCommitCloneUrlHttp output.
-#   - Push your first image to ECR (ECS will pull it on the next deploy.yml run).
-#   - Create a Route 53 alias A-record for `unshelvd.<DomainName>` → AlbDnsName.
-#   - Create a Route 53 alias A-record for `cdn.<DomainName>` → CloudFrontDomainName.
-#   - Verify the domain in SES and store the SMTP password in `unshelvd/SMTP_PASS`.
+#   Optional GitHub repository VARIABLES:
+#     CFN_DOMAIN_NAME       — Apex domain (default: koshkikode.com)
+#     CFN_ALERT_EMAIL       — Ops alert email (default: ops@koshkikode.com)
+#     CFN_CDN_CERTIFICATE_ARN — ACM cert in us-east-1 for cdn.<domain>
+#                             (needed to use the cdn.<domain> alias on
+#                             CloudFront; leave blank to use the auto-generated
+#                             *.cloudfront.net domain until you are ready).
+#     CFN_DB_INSTANCE_CLASS — RDS instance size (default: db.t4g.micro)
+#     CFN_STACK_NAME        — CloudFormation stack name (default: unshelvd)
+#
+#   Trigger the workflow:
+#     GitHub → Actions → "Deploy CloudFormation Stack" → Run workflow → main.
+#     The workflow takes ~15 minutes on first run (RDS creation dominates).
+#
+#   After the stack is CREATED (one-time post-stack actions):
+#     a. Open CloudFormation → Stacks → unshelvd → Outputs tab and note:
+#          GitHubDeployRoleArn, AlbDnsName, CloudFrontDomainName,
+#          EcrRepositoryUri, UploadsBucketName, CodeCommitCloneUrlHttp.
+#     b. Update the AWS_DEPLOY_ROLE_ARN secret to GitHubDeployRoleArn.
+#     c. Set these GitHub repository VARIABLES for deploy.yml:
+#          ECR_REPOSITORY=unshelvd, ECS_CLUSTER=unshelvd, ECS_SERVICE=unshelvd,
+#          ECS_CONTAINER_NAME=unshelvd, DATABASE_URL_SECRET_ID=unshelvd/DATABASE_URL
+#          CODECOMMIT_HTTP_URL=<CodeCommitCloneUrlHttp output>
+#     d. Route 53 → Hosted zones → koshkikode.com → Create record:
+#          unshelvd.koshkikode.com  A  Alias → ALB → <AlbDnsName output>
+#          cdn.koshkikode.com       A  Alias → CloudFront → <CloudFrontDomainName output>
+#     e. SES SMTP credentials — Console: SES → SMTP settings → Create SMTP credentials.
+#          Store the SMTP username in ecs-task-def.json (SMTP_USER env var) or
+#          configure email later via the admin panel (/#/admin → Settings → Email).
+#          Store the SMTP password → Secrets Manager → unshelvd/SMTP_PASS →
+#          "Set secret value" → enter the password (replaces the placeholder).
+#     f. Amplify Hosting — Console: Amplify → Host web app → GitHub →
+#          KoshkiKode/unshelvd → branch: main.
+#          Add env vars: VITE_STRIPE_PUBLISHABLE_KEY (optional, can be left blank
+#          and configured via admin panel later), VITE_THRIFTBOOKS_AFF_ID,
+#          VITE_ADSENSE_CLIENT.
+#          Rewrites (in order): /api/<*> → https://<AlbDnsName>/api/<*> (200),
+#          /ws/<*> → https://<AlbDnsName>/ws/<*> (200), /<*> → /index.html (200).
+#          Custom domain → unshelvd.koshkikode.com.
+#     g. Push to main → deploy.yml runs automatically → first real deploy.
+#     h. Sign in at /#/admin → Settings → Payments to add Stripe/PayPal keys.
+#          Stripe, PayPal keys are NOT required for launch — the platform runs
+#          without payments until you add them via the admin panel.
 # ──────────────────────────────────────────────────────────────────────────────
 
 Parameters:
@@ -95,6 +138,17 @@ Parameters:
       - db.t4g.small
       - db.t4g.medium
     Description: Right-size for launch (micro), bump as traffic grows.
+
+  SmtpUser:
+    Type: String
+    Default: ""
+    Description: >-
+      SES SMTP username (IAM access key ID, looks like AKIAIOSFODNN7EXAMPLE).
+      Generate via SES console → SMTP settings → Create SMTP credentials.
+      Can also be left blank and configured later via the admin panel
+      (/#/admin → Settings → Email). The password goes into the
+      unshelvd/SMTP_PASS secret — set it via Secrets Manager console after
+      the stack is created.
 
   ContainerImage:
     Type: String
@@ -447,14 +501,9 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
-                Resource:
-                  - !Ref DatabaseUrlSecret
-                  - !Ref SessionSecret
-                  - !Ref StripeSecretKey
-                  - !Ref StripeWebhookSecret
-                  - !Ref PaypalClientSecret
-                  - !Ref PaypalWebhookId
-                  - !Ref SmtpPass
+                # Wildcard covers all current and future unshelvd/* secrets so
+                # adding a new secret doesn't require a role policy update.
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppName}/*"
 
   EcsTaskRole:
     Type: AWS::IAM::Role
@@ -729,16 +778,34 @@ Resources:
             - { Name: WEB_BASE_URL,         Value: !Sub "https://unshelvd.${DomainName}" }
             - { Name: CORS_ALLOWED_ORIGINS, Value: !Sub "https://unshelvd.${DomainName}" }
             - { Name: S3_BUCKET_NAME,       Value: !Ref UploadsBucket }
-            - { Name: CDN_BASE_URL,         Value: !Sub "https://cdn.${DomainName}" }
+            # CDN_BASE_URL: use custom cdn.<domain> when a CDN cert is provided;
+            # fall back to the auto-generated *.cloudfront.net domain otherwise
+            # so image uploads work immediately without a custom domain cert.
+            - Name: CDN_BASE_URL
+              Value: !If
+                - HasCdnCert
+                - !Sub "https://cdn.${DomainName}"
+                - !Sub "https://${CloudFrontDistribution.DomainName}"
             - { Name: AWS_REGION,           Value: !Ref AWS::Region }
             - { Name: SMTP_HOST,            Value: !Sub "email-smtp.${AWS::Region}.amazonaws.com" }
             - { Name: SMTP_PORT,            Value: "587" }
+            # SMTP_USER: SES SMTP username (IAM access key ID). Set via the
+            # SmtpUser parameter at deploy time, or leave blank and configure
+            # later via the admin panel (/#/admin → Settings → Email).
+            - { Name: SMTP_USER,            Value: !Ref SmtpUser }
             - { Name: EMAIL_FROM,           Value: !Sub "Unshelv'd <noreply@${DomainName}>" }
           Secrets:
             - { Name: DATABASE_URL,          ValueFrom: !Ref DatabaseUrlSecret }
             - { Name: SESSION_SECRET,        ValueFrom: !Ref SessionSecret }
-            - { Name: STRIPE_SECRET_KEY,     ValueFrom: !Ref StripeSecretKey }
-            - { Name: STRIPE_WEBHOOK_SECRET, ValueFrom: !Ref StripeWebhookSecret }
+            # Stripe keys are intentionally NOT injected here. The PLACEHOLDER
+            # values would make the server believe Stripe is configured (breaking
+            # every checkout). Add your real keys via the admin panel instead:
+            #   /#/admin → Settings → Payments → Stripe
+            # When you are ready to use env-var injection instead, populate the
+            # unshelvd/STRIPE_SECRET_KEY and unshelvd/STRIPE_WEBHOOK_SECRET
+            # secrets in Secrets Manager and uncomment the two lines below.
+            # - { Name: STRIPE_SECRET_KEY,     ValueFrom: !Ref StripeSecretKey }
+            # - { Name: STRIPE_WEBHOOK_SECRET, ValueFrom: !Ref StripeWebhookSecret }
             - { Name: PAYPAL_CLIENT_SECRET,  ValueFrom: !Ref PaypalClientSecret }
             - { Name: PAYPAL_WEBHOOK_ID,     ValueFrom: !Ref PaypalWebhookId }
             - { Name: SMTP_PASS,             ValueFrom: !Ref SmtpPass }
@@ -810,7 +877,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      BucketName: !Sub "${AppName}-uploads-${AWS::AccountId}"
+      BucketName: !Sub "${AppName}-uploads"
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true

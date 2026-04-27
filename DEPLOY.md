@@ -72,13 +72,253 @@ GitHub Actions
 | **Amazon CloudWatch** | Logs, metrics, alarms |
 | **Amazon Route 53** | DNS host for `koshkikode.com` |
 
-> 💡 This guide uses **test-mode Stripe/PayPal credentials** for first launch.
-> Swap in live keys only after the platform has been reviewed and you're ready
-> to accept real money.
+> 💡 **Stripe and PayPal are entirely optional at launch.** Add keys later via
+> the admin panel (`/#/admin → Settings → Payments`) whenever you are ready to
+> accept payments. The platform runs in "browse and list" mode without them.
 
 ---
 
-## Inputs you'll need before you start
+## CloudFormation Deployment — Console + GitHub Actions (recommended)
+
+This is the fastest path. `infra/unshelvd.cfn.yaml` creates the entire AWS
+infrastructure in one workflow run: VPC, subnets, NAT gateway, RDS PostgreSQL,
+S3 bucket, CloudFront CDN, ECR registry, ECS cluster + Fargate service, ALB,
+Secrets Manager scaffolds, CloudWatch alarms, SNS topic, CodeCommit mirror,
+and all IAM roles. No AWS CLI required after setup.
+
+### CF-1 — Request an ACM certificate (one time, ~5 min)
+
+1. **AWS Console → Certificate Manager → Request → Request a public
+   certificate**.
+2. Domain: `unshelvd.koshkikode.com`  (add `*.koshkikode.com` as a second name
+   if you want to cover the apex and `cdn.` subdomain with a single cert).
+3. Validation: **DNS validation**.
+4. Click through to the certificate detail page. Expand the domain row and
+   click **Create records in Route 53** (one click if Route 53 hosts the zone).
+5. Wait 2–5 minutes until Status shows **Issued**. Copy the **Certificate ARN**
+   — you will use it in CF-3.
+
+> If you also want a `cdn.koshkikode.com` alias on CloudFront, request a
+> **second** certificate in us-east-1 for `cdn.koshkikode.com` and note its
+> ARN separately (used as the optional `CFN_CDN_CERTIFICATE_ARN` variable).
+
+### CF-2 — Create a bootstrap IAM deploy role (one time)
+
+The stack creates its own permanent deploy role (`unshelvd-github-deploy`).
+You need a temporary role to run the stack creation itself.
+
+1. **IAM → Roles → Create role**.
+2. **Trusted entity type**: Web identity.
+3. **Identity provider**: `token.actions.githubusercontent.com`
+   **Audience**: `sts.amazonaws.com`
+4. **Add a condition**: `token.actions.githubusercontent.com:sub` =
+   `repo:KoshkiKode/unshelvd:*` (StringLike).
+5. **Permissions**: attach `AdministratorAccess` (or a scoped policy covering
+   `cloudformation:*`, `iam:*`, `ecr:*`, `ecs:*`, `rds:*`, `ec2:*`, `s3:*`,
+   `secretsmanager:*`, `logs:*`, `sns:*`, `cloudwatch:*`, `cloudfront:*`,
+   `codecommit:*`, `application-autoscaling:*`).
+6. **Name it** `unshelvd-bootstrap-deploy`. Copy the **Role ARN**.
+
+> You will replace this with the stack-output role ARN after the stack is
+> created, then you can delete the bootstrap role.
+
+### CF-3 — Set GitHub secrets and variables
+
+**GitHub → Settings → Secrets and variables → Actions → Secrets** — add:
+
+| Secret | Value |
+|---|---|
+| `AWS_DEPLOY_ROLE_ARN` | Bootstrap role ARN from CF-2 |
+| `CFN_CERTIFICATE_ARN` | ACM cert ARN from CF-1 |
+| `CFN_DB_PASSWORD` | A strong password, **16+ chars** — write it down, never change it after first deploy |
+
+**GitHub → Settings → Secrets and variables → Actions → Variables** — add:
+
+| Variable | Value |
+|---|---|
+| `GITHUBOIDCPROVIDERARN` | ARN of the GitHub OIDC provider in your account. Find it: **IAM → Identity providers** — if one exists copy its ARN. If none exists, leave this variable **empty** and the stack will create it automatically. |
+
+Optional variables (all have sensible defaults):
+
+| Variable | Default | Notes |
+|---|---|---|
+| `CFN_DOMAIN_NAME` | `koshkikode.com` | Your apex domain |
+| `CFN_ALERT_EMAIL` | `ops@koshkikode.com` | Ops alert email |
+| `CFN_CDN_CERTIFICATE_ARN` | *(blank)* | ACM cert for `cdn.<domain>`; leave blank to use CloudFront's auto-generated `*.cloudfront.net` domain initially |
+| `CFN_DB_INSTANCE_CLASS` | `db.t4g.micro` | Bump to `db.t4g.small` when you need more headroom |
+| `CFN_STACK_NAME` | `unshelvd` | CloudFormation stack name |
+
+### CF-4 — Trigger the CloudFormation workflow
+
+**GitHub → Actions → "Deploy CloudFormation Stack" → Run workflow → Branch:
+main → Run workflow**.
+
+The run takes **10–20 minutes** (RDS creation is the slow step). Watch progress
+in the Actions log. When the job completes with a green ✓, the entire AWS
+infrastructure is live.
+
+> If it fails with `ROLLBACK_COMPLETE`, open **CloudFormation → Stacks →
+> unshelvd → Events** tab to find the error. Common causes: the certificate ARN
+> is in the wrong region (must be us-east-1), the DB password is shorter than
+> 16 characters, or the OIDC provider already exists (set `GITHUBOIDCPROVIDERARN`
+> to the existing ARN and re-run).
+
+### CF-5 — Collect stack outputs
+
+Open **CloudFormation → Stacks → unshelvd → Outputs** tab. You will need
+all of these values in the steps below:
+
+| Output key | Used for |
+|---|---|
+| `GitHubDeployRoleArn` | Replace `AWS_DEPLOY_ROLE_ARN` secret |
+| `AlbDnsName` | Route 53 alias record; Amplify rewrite target |
+| `CloudFrontDomainName` | Route 53 alias record for `cdn.koshkikode.com` |
+| `EcrRepositoryUri` | Shown for reference — deploy.yml reads it from `ECR_REPOSITORY` variable |
+| `UploadsBucketName` | Confirm it matches `S3_BUCKET_NAME` in `ecs-task-def.json` (`unshelvd-uploads`) |
+| `CodeCommitCloneUrlHttp` | `CODECOMMIT_HTTP_URL` GitHub variable |
+
+### CF-6 — Update GitHub secrets and variables with stack outputs
+
+**Secrets** — update `AWS_DEPLOY_ROLE_ARN` to the `GitHubDeployRoleArn` output.
+
+**Variables** — add the following (all required by `deploy.yml`):
+
+| Variable | Value |
+|---|---|
+| `ECR_REPOSITORY` | `unshelvd` |
+| `ECS_CLUSTER` | `unshelvd` |
+| `ECS_SERVICE` | `unshelvd` |
+| `ECS_CONTAINER_NAME` | `unshelvd` |
+| `DATABASE_URL_SECRET_ID` | `unshelvd/DATABASE_URL` |
+| `CODECOMMIT_HTTP_URL` | `CodeCommitCloneUrlHttp` output |
+
+Optional build variables (baked into the Vite client at Docker build time):
+
+| Variable | Value |
+|---|---|
+| `STRIPE_PUBLISHABLE_KEY` | `pk_test_…` or `pk_live_…` — **optional**, leave blank and add via admin panel later |
+| `THRIFTBOOKS_AFF_ID` | ThriftBooks Impact affiliate ID *(optional)* |
+| `ADSENSE_CLIENT` | `ca-pub-XXXXXXXXXX` *(optional)* |
+
+### CF-7 — Route 53 DNS records
+
+**Route 53 → Hosted zones → koshkikode.com → Create record** — two records:
+
+| Record name | Type | Routing | Target |
+|---|---|---|---|
+| `unshelvd` | A | Alias → Application Load Balancer → us-east-1 | `AlbDnsName` output |
+| `cdn` | A | Alias → CloudFront distribution | `CloudFrontDomainName` output |
+
+> The `cdn.koshkikode.com` record works even before the CDN certificate is
+> issued — the CloudFront distribution always accepts the `*.cloudfront.net`
+> domain in the meantime. Images will load from the CloudFront URL until the
+> custom domain is fully set up, then switch automatically.
+
+### CF-8 — SES SMTP credentials (for transactional email)
+
+1. **SES → SMTP settings → Create SMTP credentials**. This creates an IAM user
+   and generates SMTP credentials. Note the **SMTP username** (looks like
+   `AKIAIOSFODNN7EXAMPLE`) and **SMTP password** (shown once).
+2. **Verify your sending domain**: SES → Verified identities → Create identity
+   → Domain → `koshkikode.com`. Follow the CNAME/TXT prompts (Route 53
+   auto-setup is available).
+3. Store the credentials:
+   - **Secrets Manager → Secrets → `unshelvd/SMTP_PASS`** → "Set secret value"
+     → enter the SMTP password (replaces the `PLACEHOLDER_set_via_console` value).
+   - **`ecs-task-def.json`**: update `SMTP_USER` in the `environment` array to
+     your SMTP username, commit, and push — `deploy.yml` picks it up on the
+     next run. Alternatively, configure email entirely via the admin panel after
+     launch (see CF-12).
+
+> SES starts in **sandbox mode** — you can only send to verified addresses.
+> To remove the restriction: **Service Quotas → Amazon SES → Sending limits →
+> Request increase** (takes 24–48 h). Do this before your first real user
+> signs up.
+
+### CF-9 — Amplify Hosting (frontend CDN + custom domain)
+
+1. **Amplify → Host web app → GitHub** → authorize → pick
+   `KoshkiKode/unshelvd`, branch `main`. Amplify auto-detects `amplify.yml`.
+2. **App settings → Environment variables** — add:
+
+   | Key | Value |
+   |---|---|
+   | `VITE_API_URL` | *(leave blank)* — SPA uses same-origin + Amplify rewrite |
+   | `VITE_STRIPE_PUBLISHABLE_KEY` | `pk_test_…` *(optional — can be added later)* |
+   | `VITE_THRIFTBOOKS_AFF_ID` | affiliate ID *(optional)* |
+   | `VITE_ADSENSE_CLIENT` | `ca-pub-…` *(optional)* |
+
+3. **App settings → Rewrites and redirects** — add **in this exact order**:
+
+   | # | Source | Target | Type |
+   |---|---|---|---|
+   | 1 | `/api/<*>` | `https://<AlbDnsName>/api/<*>` | `200 (Rewrite)` |
+   | 2 | `/ws/<*>` | `https://<AlbDnsName>/ws/<*>` | `200 (Rewrite)` |
+   | 3 | `/<*>` | `/index.html` | `200 (Rewrite)` |
+
+   Replace `<AlbDnsName>` with the `AlbDnsName` stack output (e.g.
+   `unshelvd-alb-1234567890.us-east-1.elb.amazonaws.com`).
+
+4. **Domain management → Add domain** → `unshelvd.koshkikode.com` → Amplify
+   creates an ACM cert and shows you CNAME records — click
+   **Update DNS in Route 53** for one-click setup.
+
+### CF-10 — First application deploy
+
+Push any commit to `main` (or trigger `deploy.yml` manually):
+
+```bash
+git commit --allow-empty -m "ci: trigger first deploy"
+git push origin main
+```
+
+`deploy.yml` runs: migrates the database, builds the Docker image, pushes it to
+ECR, registers a new ECS task definition from `ecs-task-def.json`, and triggers
+a rolling deploy. The ECS service will show `RUNNING` in 5–10 minutes.
+
+### CF-11 — Verify the deployment
+
+| Check | URL / command | Expected result |
+|---|---|---|
+| API health | `https://unshelvd.koshkikode.com/api/health` | `{"status":"ok"}` |
+| SPA loads | `https://unshelvd.koshkikode.com/` | Unshelv'd homepage |
+| Admin login | `https://unshelvd.koshkikode.com/#/login` | Login succeeds |
+| Admin panel | `https://unshelvd.koshkikode.com/#/admin` | Dashboard loads |
+| Image upload | Profile settings → upload avatar | URL starts with `https://unshelvd-uploads.s3…` or `https://…cloudfront.net/…` |
+| Real-time chat | Two browser tabs → send a message | Appears in < 1 second |
+
+If `ECS → Services → unshelvd → Tasks` shows tasks stopping immediately, open
+**CloudWatch → Log groups → /ecs/unshelvd** to see the startup error.
+
+### CF-12 — Configure Stripe, PayPal, and email via admin panel
+
+Sign in to `/#/admin` and open **Settings**:
+
+- **Payments → Stripe** — paste `sk_live_…` (secret key) and `pk_live_…`
+  (publishable key). Enable Stripe. The publishable key is also served to the
+  frontend automatically — no redeploy required.
+- **Payments → Stripe Webhook** — in the Stripe dashboard add a webhook
+  endpoint `https://unshelvd.koshkikode.com/api/webhooks/stripe` for events:
+  `payment_intent.succeeded`, `payment_intent.payment_failed`,
+  `account.updated`, `transfer.failed`, `charge.refunded`. Paste the signing
+  secret (`whsec_…`) into the admin panel.
+- **Payments → PayPal** — paste client ID and secret, set mode to `sandbox`
+  (switch to `live` when ready).
+- **Email** — if you skipped CF-8, enter SMTP credentials here:
+  host `email-smtp.us-east-1.amazonaws.com`, port `587`, user and password
+  from the SES SMTP credentials you created.
+
+> All of these settings are stored in the database, take effect immediately
+> (no restart or redeploy needed), and override any environment variable
+> values.
+
+---
+
+## Inputs you'll need before you start (CLI deployment path)
+
+> If you are using the **CloudFormation + console path** described above,
+> you can skip directly to CF-9 (Amplify Hosting) after completing CF-1
+> through CF-8. The steps below are the manual CLI deployment reference.
 
 Have these values ready — the rest of the doc is copy/paste once they're in
 your shell.
@@ -91,9 +331,8 @@ your shell.
 | RDS master password | You generate (`openssl rand -base64 24`) | RDS, Secrets Manager |
 | Admin email + password | You choose | First-login credentials |
 | SMTP credentials | Your email provider | Transactional email |
-| Stripe **test** keys (publishable + secret) | Stripe dashboard → Developers | Build args, Secrets Manager |
-| Stripe webhook signing secret (test) | Stripe dashboard → Webhooks | Secrets Manager |
-| PayPal sandbox credentials *(optional)* | PayPal developer portal | Secrets Manager |
+| Stripe keys *(optional)* | Stripe dashboard → Developers | Admin panel or build args |
+| PayPal sandbox credentials *(optional)* | PayPal developer portal | Admin panel |
 
 ---
 
@@ -344,16 +583,18 @@ aws secretsmanager create-secret \
   --region "$AWS_REGION" \
   --secret-string "$(openssl rand -hex 32)"
 
-# Stripe (required if payments are enabled)
-aws secretsmanager create-secret \
-  --name unshelvd/STRIPE_SECRET_KEY \
-  --region "$AWS_REGION" \
-  --secret-string "sk_test_..."   # replace with sk_live_... for production
-
-aws secretsmanager create-secret \
-  --name unshelvd/STRIPE_WEBHOOK_SECRET \
-  --region "$AWS_REGION" \
-  --secret-string "whsec_..."    # signing secret from Stripe dashboard → Webhooks
+# Stripe — OPTIONAL. The app runs without Stripe; add keys later via the
+# admin panel (/#/admin → Settings → Payments). Only create these if you
+# prefer env-var injection over the admin panel approach.
+# aws secretsmanager create-secret \
+#   --name unshelvd/STRIPE_SECRET_KEY \
+#   --region "$AWS_REGION" \
+#   --secret-string "sk_test_..."   # replace with sk_live_... for production
+#
+# aws secretsmanager create-secret \
+#   --name unshelvd/STRIPE_WEBHOOK_SECRET \
+#   --region "$AWS_REGION" \
+#   --secret-string "whsec_..."    # signing secret from Stripe dashboard → Webhooks
 
 # PayPal (optional — only needed if PayPal checkout is enabled)
 aws secretsmanager create-secret \
@@ -1004,10 +1245,10 @@ add:
 | `ECR_REPOSITORY` | `unshelvd` |
 | `ECS_CLUSTER` | `unshelvd` |
 | `ECS_SERVICE` | `unshelvd` |
-| `ECS_TASK_DEFINITION` | `unshelvd` |
+| `ECS_TASK_DEFINITION` | `ecs-task-def.json` *(path to file in repo; default if omitted)* |
 | `ECS_CONTAINER_NAME` | `unshelvd` |
 | `DATABASE_URL_SECRET_ID` | `unshelvd/DATABASE_URL` |
-| `STRIPE_PUBLISHABLE_KEY` | `pk_test_…` (baked into the Vite client at build time; swap to `pk_live_…` for production) |
+| `STRIPE_PUBLISHABLE_KEY` | `pk_test_…` or `pk_live_…` — **optional**, baked into the Vite client at build time; leave blank and add keys later via the admin panel |
 | `THRIFTBOOKS_AFF_ID` | Your ThriftBooks Impact affiliate ID *(optional)* |
 | `ADSENSE_CLIENT` | Your AdSense publisher ID, e.g. `ca-pub-XXXXXXXXXX` *(optional)* |
 
