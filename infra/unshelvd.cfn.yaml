@@ -9,30 +9,41 @@ Description: >-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Usage:
-#   aws cloudformation deploy \
-#     --template-file infra/unshelvd.cfn.yaml \
-#     --stack-name unshelvd \
-#     --capabilities CAPABILITY_NAMED_IAM \
-#     --parameter-overrides \
-#         DomainName=koshkikode.com \
-#         CertificateArn=arn:aws:acm:us-east-1:261142221895:certificate/UUID \
-#         AlertEmail=ops@koshkikode.com \
-#         DBPassword=<from-secrets-manager>
-#         # GitHubOidcProviderArn is optional: omit it to let the stack create the
-#         # GitHub OIDC provider automatically, or pass the ARN of an existing one:
-#         # GitHubOidcProviderArn=arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com
+#   Trigger .github/workflows/cfn-deploy.yml from GitHub Actions
+#   (Actions → Deploy CloudFormation Stack → Run workflow).
+#   The workflow reads all parameters from GitHub repository secrets/variables —
+#   no manual CLI invocation needed after the first deploy.
 #
-# After the stack is created, you still need to:
-#   - Set the AWS_DEPLOY_ROLE_ARN GitHub Actions secret to the GitHubDeployRoleArn
-#     stack output (see Outputs section at the bottom of this template).
-#   - Push your first image to the ECR repo (the ECS service will then pull it
-#     on its next deployment via .github/workflows/deploy.yml).
-#   - Create a Route 53 alias A-record for `unshelvd.<DomainName>` pointing to
-#     the ALB DNS output below.
-#   - Create a Route 53 alias A-record for `cdn.<DomainName>` pointing to the
-#     CloudFront DomainName output below.
-#   - Verify the domain in SES and store the SES SMTP password in
-#     `unshelvd/SMTP_PASS` (Secrets Manager).
+# GitHub repository SECRETS required (Settings → Secrets → Actions):
+#   AWS_DEPLOY_ROLE_ARN       — IAM role ARN used for OIDC auth.
+#                               For the very first deploy, create this role
+#                               manually in AWS IAM (trust the OIDC provider
+#                               at GITHUB_OIDC_PROVIDER_ARN). After the stack
+#                               is created, update this secret to the
+#                               GitHubDeployRoleArn stack output.
+#   CFN_CERTIFICATE_ARN       — ACM cert ARN (us-east-1) for the ALB listener.
+#   CFN_DB_PASSWORD           — RDS master password (16+ chars). Set once.
+#
+# GitHub repository VARIABLES required (Settings → Variables → Actions):
+#   GITHUBOIDCPROVIDERARN     — ARN of the existing GitHub OIDC provider, e.g.:
+#                               arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com
+#                               Passed to GitHubOidcProviderArn so the stack
+#                               does NOT try to create a duplicate provider.
+#
+# Optional GitHub repository VARIABLES:
+#   CFN_DOMAIN_NAME           — Apex domain (default: koshkikode.com)
+#   CFN_ALERT_EMAIL           — Ops alert email (default: ops@koshkikode.com)
+#   CFN_CDN_CERTIFICATE_ARN   — ACM cert in us-east-1 for cdn.<domain>
+#   CFN_DB_INSTANCE_CLASS     — RDS instance size (default: db.t4g.micro)
+#   CFN_STACK_NAME            — Stack name (default: unshelvd)
+#
+# After the stack is created, you still need to (one-time):
+#   - Update the AWS_DEPLOY_ROLE_ARN secret to the GitHubDeployRoleArn output.
+#   - Set the CODECOMMIT_HTTP_URL variable to the CodeCommitCloneUrlHttp output.
+#   - Push your first image to ECR (ECS will pull it on the next deploy.yml run).
+#   - Create a Route 53 alias A-record for `unshelvd.<DomainName>` → AlbDnsName.
+#   - Create a Route 53 alias A-record for `cdn.<DomainName>` → CloudFrontDomainName.
+#   - Verify the domain in SES and store the SMTP password in `unshelvd/SMTP_PASS`.
 # ──────────────────────────────────────────────────────────────────────────────
 
 Parameters:
