@@ -1,0 +1,117 @@
+name: Deploy CloudFormation Stack
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Unshelv'd — Infrastructure deploy pipeline
+#
+# Runs `aws cloudformation deploy` on infra/unshelvd.cfn.yaml.
+# Trigger manually from Actions → Deploy CloudFormation Stack → Run workflow.
+#
+# Auth: same GitHub OIDC role as deploy.yml — no long-lived AWS keys.
+#
+# ─── Required GitHub repository SECRETS (Settings → Secrets → Actions) ───────
+#
+#   AWS_DEPLOY_ROLE_ARN       — IAM role with cloudformation:*, iam:*,
+#                               ecr:*, ecs:*, rds:*, ec2:*, s3:*, etc.
+#                               For the very first stack creation, create this
+#                               role manually in AWS IAM and give it the
+#                               GITHUB_OIDC_PROVIDER_ARN as federated principal.
+#                               After the stack is created the GitHubDeployRole
+#                               output IS this role — set the secret to that ARN.
+#
+#   CFN_CERTIFICATE_ARN       — ACM certificate ARN (us-east-1) for the ALB
+#                               HTTPS listener covering unshelvd.<domain>.
+#                               e.g. arn:aws:acm:us-east-1:123456789:certificate/UUID
+#
+#   CFN_DB_PASSWORD           — RDS master password, 16+ characters.
+#                               Must not change after first deploy (RDS ignores it).
+#
+# ─── Required GitHub repository VARIABLES (Settings → Variables → Actions) ───
+#
+#   GITHUBOIDCPROVIDERARN     — ARN of the GitHub OIDC provider in this AWS
+#                               account, e.g.:
+#                               arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com
+#                               Passed to GitHubOidcProviderArn so the stack
+#                               does NOT try to create a duplicate provider.
+#
+# ─── Optional GitHub repository VARIABLES ────────────────────────────────────
+#
+#   CFN_DOMAIN_NAME           — Apex domain (default: koshkikode.com)
+#   CFN_ALERT_EMAIL           — Ops alert email (default: ops@koshkikode.com)
+#   CFN_CDN_CERTIFICATE_ARN   — ACM cert in us-east-1 for cdn.<domain>
+#                               (CloudFront custom domain; leave blank to skip)
+#   CFN_DB_INSTANCE_CLASS     — RDS instance size (default: db.t4g.micro)
+#   CFN_STACK_NAME            — CloudFormation stack name (default: unshelvd)
+#
+# After a successful stack deploy you still need to (one-time):
+#   1. Set AWS_DEPLOY_ROLE_ARN secret to the GitHubDeployRoleArn stack output.
+#   2. Set CODECOMMIT_HTTP_URL variable to the CodeCommitCloneUrlHttp output.
+#   3. Create Route 53 alias records per the stack Outputs.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack_name:
+        description: 'CloudFormation stack name'
+        required: false
+        default: 'unshelvd'
+
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
+
+jobs:
+  deploy-stack:
+    name: CloudFormation deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Deploy CloudFormation stack
+        env:
+          STACK_NAME: ${{ inputs.stack_name || vars.CFN_STACK_NAME || 'unshelvd' }}
+          DOMAIN_NAME: ${{ vars.CFN_DOMAIN_NAME || 'koshkikode.com' }}
+          ALERT_EMAIL: ${{ vars.CFN_ALERT_EMAIL || 'ops@koshkikode.com' }}
+          CERTIFICATE_ARN: ${{ secrets.CFN_CERTIFICATE_ARN }}
+          CDN_CERTIFICATE_ARN: ${{ vars.CFN_CDN_CERTIFICATE_ARN || '' }}
+          DB_PASSWORD: ${{ secrets.CFN_DB_PASSWORD }}
+          DB_INSTANCE_CLASS: ${{ vars.CFN_DB_INSTANCE_CLASS || 'db.t4g.micro' }}
+          GITHUB_OIDC_PROVIDER_ARN: ${{ vars.GITHUBOIDCPROVIDERARN }}
+        run: |
+          aws cloudformation deploy \
+            --template-file infra/unshelvd.cfn.yaml \
+            --stack-name "$STACK_NAME" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              DomainName="$DOMAIN_NAME" \
+              CertificateArn="$CERTIFICATE_ARN" \
+              CdnCertificateArn="$CDN_CERTIFICATE_ARN" \
+              AlertEmail="$ALERT_EMAIL" \
+              DBPassword="$DB_PASSWORD" \
+              DBInstanceClass="$DB_INSTANCE_CLASS" \
+              GitHubOidcProviderArn="$GITHUB_OIDC_PROVIDER_ARN"
+
+      - name: Print stack outputs
+        env:
+          STACK_NAME: ${{ inputs.stack_name || vars.CFN_STACK_NAME || 'unshelvd' }}
+        run: |
+          echo "──────────────────────────────────────────────────────"
+          echo "Stack outputs — copy the values below into GitHub:"
+          echo "──────────────────────────────────────────────────────"
+          aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
+            --output table
+          echo ""
+          echo "Next steps:"
+          echo "  1. Set secret  AWS_DEPLOY_ROLE_ARN  → GitHubDeployRoleArn output"
+          echo "  2. Set variable CODECOMMIT_HTTP_URL → CodeCommitCloneUrlHttp output"
+          echo "  3. Create Route 53 aliases per the AlbDnsName / CloudFrontDomainName outputs"

@@ -9,26 +9,41 @@ Description: >-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Usage:
-#   aws cloudformation deploy \
-#     --template-file infra/unshelvd.cfn.yaml \
-#     --stack-name unshelvd \
-#     --capabilities CAPABILITY_NAMED_IAM \
-#     --parameter-overrides \
-#         DomainName=koshkikode.com \
-#         CertificateArn=arn:aws:acm:us-east-1:261142221895:certificate/UUID \
-#         AlertEmail=ops@koshkikode.com \
-#         DBPassword=<from-secrets-manager> \
-#         GitHubOidcProviderArn=arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com
+#   Trigger .github/workflows/cfn-deploy.yml from GitHub Actions
+#   (Actions → Deploy CloudFormation Stack → Run workflow).
+#   The workflow reads all parameters from GitHub repository secrets/variables —
+#   no manual CLI invocation needed after the first deploy.
 #
-# After the stack is created, you still need to:
-#   - Push your first image to the ECR repo (the ECS service will then pull it
-#     on its next deployment via .github/workflows/deploy.yml).
-#   - Create a Route 53 alias A-record for `unshelvd.<DomainName>` pointing to
-#     the ALB DNS output below.
-#   - Create a Route 53 alias A-record for `cdn.<DomainName>` pointing to the
-#     CloudFront DomainName output below.
-#   - Verify the domain in SES and store the SES SMTP password in
-#     `unshelvd/SMTP_PASS` (Secrets Manager).
+# GitHub repository SECRETS required (Settings → Secrets → Actions):
+#   AWS_DEPLOY_ROLE_ARN       — IAM role ARN used for OIDC auth.
+#                               For the very first deploy, create this role
+#                               manually in AWS IAM (trust the OIDC provider
+#                               at GITHUB_OIDC_PROVIDER_ARN). After the stack
+#                               is created, update this secret to the
+#                               GitHubDeployRoleArn stack output.
+#   CFN_CERTIFICATE_ARN       — ACM cert ARN (us-east-1) for the ALB listener.
+#   CFN_DB_PASSWORD           — RDS master password (16+ chars). Set once.
+#
+# GitHub repository VARIABLES required (Settings → Variables → Actions):
+#   GITHUBOIDCPROVIDERARN     — ARN of the existing GitHub OIDC provider, e.g.:
+#                               arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com
+#                               Passed to GitHubOidcProviderArn so the stack
+#                               does NOT try to create a duplicate provider.
+#
+# Optional GitHub repository VARIABLES:
+#   CFN_DOMAIN_NAME           — Apex domain (default: koshkikode.com)
+#   CFN_ALERT_EMAIL           — Ops alert email (default: ops@koshkikode.com)
+#   CFN_CDN_CERTIFICATE_ARN   — ACM cert in us-east-1 for cdn.<domain>
+#   CFN_DB_INSTANCE_CLASS     — RDS instance size (default: db.t4g.micro)
+#   CFN_STACK_NAME            — Stack name (default: unshelvd)
+#
+# After the stack is created, you still need to (one-time):
+#   - Update the AWS_DEPLOY_ROLE_ARN secret to the GitHubDeployRoleArn output.
+#   - Set the CODECOMMIT_HTTP_URL variable to the CodeCommitCloneUrlHttp output.
+#   - Push your first image to ECR (ECS will pull it on the next deploy.yml run).
+#   - Create a Route 53 alias A-record for `unshelvd.<DomainName>` → AlbDnsName.
+#   - Create a Route 53 alias A-record for `cdn.<DomainName>` → CloudFrontDomainName.
+#   - Verify the domain in SES and store the SMTP password in `unshelvd/SMTP_PASS`.
 # ──────────────────────────────────────────────────────────────────────────────
 
 Parameters:
@@ -90,21 +105,44 @@ Parameters:
 
   GitHubOidcProviderArn:
     Type: String
+    Default: ""
     Description: >-
-      ARN of the existing GitHub OIDC provider in this account.
-      Only one provider per URL is allowed per AWS account, so this stack
-      references the pre-existing one rather than creating a new one.
+      ARN of an existing GitHub OIDC provider in this account.
+      Leave blank to have the stack create it automatically.
+      Only one provider per URL is allowed per AWS account; if one already
+      exists pass its ARN here to avoid a duplicate-resource error.
       Find it in IAM → Identity providers, or run:
         aws iam list-open-id-connect-providers
       Typically: arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com
 
 # ──────────────────────────────────────────────────────────────────────────────
 Conditions:
-  HasContainerImage: !Not [!Equals [!Ref ContainerImage, ""]]
-  HasCdnCert:        !Not [!Equals [!Ref CdnCertificateArn, ""]]
+  HasContainerImage:       !Not [!Equals [!Ref ContainerImage, ""]]
+  HasCdnCert:              !Not [!Equals [!Ref CdnCertificateArn, ""]]
+  CreateGitHubOidcProvider: !Equals [!Ref GitHubOidcProviderArn, ""]
 
 # ──────────────────────────────────────────────────────────────────────────────
 Resources:
+
+  # ── 0. GitHub OIDC provider (created only when GitHubOidcProviderArn is blank)
+  # Allows GitHub Actions to exchange a short-lived JWT for temporary AWS
+  # credentials without storing long-lived IAM access keys as secrets.
+  # If your account already has this provider, pass its ARN via the
+  # GitHubOidcProviderArn parameter instead of letting the stack create one.
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateGitHubOidcProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      # AWS validates GitHub's OIDC tokens against GitHub's published JWKS
+      # endpoint; the thumbprint below is the SHA-1 of the TLS certificate
+      # used by token.actions.githubusercontent.com (both current values are
+      # listed so a certificate rotation doesn't require a stack update).
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
 
   # ── 1. VPC + 2 public subnets (ALB) + 2 private subnets (ECS, RDS) ─────────
   Vpc:
@@ -450,8 +488,8 @@ Resources:
   # ── 7. GitHub deploy role ──────────────────────────────────────────────────
   # Enables GitHub Actions to authenticate via OIDC — no long-lived AWS keys
   # stored as secrets. The trust policy is scoped to this repo only.
-  # Note: the GitHub OIDC provider (token.actions.githubusercontent.com) must
-  # already exist in this account; pass its ARN via GitHubOidcProviderArn.
+  # The Federated principal resolves to the OIDC provider created above when
+  # GitHubOidcProviderArn is blank, or to the existing provider ARN otherwise.
   GitHubDeployRole:
     Type: AWS::IAM::Role
     Properties:
@@ -461,7 +499,10 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Federated: !Ref GitHubOidcProviderArn
+              Federated: !If
+                - CreateGitHubOidcProvider
+                - !GetAtt GitHubOidcProvider.Arn
+                - !Ref GitHubOidcProviderArn
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
@@ -968,6 +1009,15 @@ Outputs:
       The deploy.yml workflow uses it to authenticate via OIDC.
     Value: !GetAtt GitHubDeployRole.Arn
     Export: { Name: !Sub "${AppName}-github-deploy-role-arn" }
+
+  GitHubOidcProviderArn:
+    Description: >-
+      ARN of the GitHub OIDC provider used by the deploy role.
+      Verify this matches arn:aws:iam::ACCOUNT:oidc-provider/token.actions.githubusercontent.com
+    Value: !If
+      - CreateGitHubOidcProvider
+      - !GetAtt GitHubOidcProvider.Arn
+      - !Ref GitHubOidcProviderArn
 
   CodeCommitCloneUrlHttp:
     Description: >-
