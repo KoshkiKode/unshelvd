@@ -29,7 +29,7 @@
         { "name": "AWS_REGION",          "value": "us-east-1" },
         { "name": "SMTP_HOST",           "value": "email-smtp.us-east-1.amazonaws.com" },
         { "name": "SMTP_PORT",           "value": "587" },
-        { "name": "SMTP_USER",           "value": "REPLACE_WITH_SES_SMTP_USERNAME" },
+        { "name": "SMTP_USER",           "value": "AKIATZTKKCRDVDQE53XW" },
         { "name": "EMAIL_FROM",          "value": "Unshelv'd <noreply@koshkikode.com>" }
       ],
       "secrets": [
