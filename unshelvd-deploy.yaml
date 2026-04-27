@@ -1,0 +1,127 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# unshelvd-deploy.yaml — CloudFormation Git sync deployment configuration
+#
+# This file is read by CloudFormation whenever a commit lands on main.
+# It points to the infrastructure template and supplies all parameter values
+# so the stack can be created or updated automatically from the console.
+#
+# AWS CloudFormation console setup (one-time):
+#   1. CloudFormation → Stacks → Create stack → With new resources (standard)
+#   2. Template source: Amazon S3 or Upload — choose "Sync from Git"
+#   3. Connect your GitHub account → pick KoshkiKode/unshelvd, branch: main
+#   4. Deployment file path: unshelvd-deploy.yaml   ← this file
+#   5. CloudFormation reads template-file-path and parameters below.
+#
+# Before the FIRST deploy you MUST:
+#   a. Create an ACM certificate in us-east-1 for unshelvd.koshkikode.com
+#      and paste its ARN into CertificateArn below.
+#   b. Create an SSM SecureString parameter with your database master password:
+#        AWS Console → Systems Manager → Parameter Store → Create parameter
+#          Name:  /unshelvd/db-password
+#          Tier:  Standard
+#          Type:  SecureString
+#          Value: <a strong password, 16+ characters>
+#      CloudFormation will resolve {{resolve:ssm-secure:/unshelvd/db-password}}
+#      at deploy time — the password never appears in this file or in git.
+#   c. Fill in AlertEmail below with your real ops/admin email address.
+#   d. If a GitHub OIDC provider already exists in your account, paste its ARN
+#      into GitHubOidcProviderArn (IAM → Identity providers).  Leave blank to
+#      let the stack create it (safe only when none exists yet).
+#
+# After the stack is CREATED (one-time console steps — nothing to edit here):
+#   • CloudFormation → Stacks → unshelvd → Outputs tab:
+#       copy AlbDnsName, CloudFrontDomainName, GitHubDeployRoleArn,
+#            EcrRepositoryUri, UploadsBucketName, CodeCommitCloneUrlHttp
+#   • Route 53 → koshkikode.com hosted zone → Create two A-alias records:
+#       unshelvd.koshkikode.com → ALB (AlbDnsName)
+#       cdn.koshkikode.com      → CloudFront (CloudFrontDomainName)
+#   • Secrets Manager → unshelvd/SMTP_PASS → Set secret value
+#       (paste the SES SMTP password generated from SES → SMTP settings)
+#   • GitHub → Settings → Secrets → update AWS_DEPLOY_ROLE_ARN to
+#       GitHubDeployRoleArn output
+#   • GitHub → Settings → Variables → add:
+#       ECR_REPOSITORY=unshelvd  ECS_CLUSTER=unshelvd  ECS_SERVICE=unshelvd
+#       ECS_CONTAINER_NAME=unshelvd  DATABASE_URL_SECRET_ID=unshelvd/DATABASE_URL
+#       CODECOMMIT_HTTP_URL=<CodeCommitCloneUrlHttp output>
+#   • Amplify → Host web app → GitHub → KoshkiKode/unshelvd, branch: main
+#       Rewrites (in order):
+#         /api/<*>  →  https://<AlbDnsName>/api/<*>   (200 Rewrite)
+#         /ws/<*>   →  https://<AlbDnsName>/ws/<*>    (200 Rewrite)
+#         /<*>      →  /index.html                    (200 Rewrite)
+#       Custom domain: unshelvd.koshkikode.com
+#   • Admin panel: https://unshelvd.koshkikode.com/#/admin → Settings
+#       → Payments to add Stripe / PayPal keys at any time (no redeploy needed).
+# ──────────────────────────────────────────────────────────────────────────────
+
+template-file-path: ./infra/unshelvd.cfn.yaml
+
+parameters:
+
+  # ── App identity ─────────────────────────────────────────────────────────────
+  AppName: unshelvd
+
+  # Apex domain.  ALB serves api/ws on unshelvd.<DomainName>;
+  # CloudFront serves images on cdn.<DomainName>.
+  DomainName: koshkikode.com
+
+  # ── TLS certificates (ACM) ───────────────────────────────────────────────────
+  # REQUIRED — ACM certificate ARN in us-east-1 covering unshelvd.koshkikode.com
+  # Console: Certificate Manager → Request → Public → DNS validation → approve
+  # in Route 53.  Paste the ARN here once it shows status "Issued".
+  CertificateArn: "arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERTIFICATE_ID"
+
+  # OPTIONAL — ACM certificate ARN in us-east-1 covering cdn.koshkikode.com.
+  # Leave blank to use the auto-generated *.cloudfront.net domain until you are
+  # ready.  The app works fully either way — image uploads use the CloudFront
+  # domain automatically when this is blank.
+  CdnCertificateArn: ""
+
+  # ── Alerting ─────────────────────────────────────────────────────────────────
+  # REQUIRED — email address that will receive CloudWatch alarm notifications.
+  # You will get a subscription-confirmation email; click the link to activate.
+  AlertEmail: "ops@koshkikode.com"
+
+  # ── Database ─────────────────────────────────────────────────────────────────
+  DBUser: unshelvd
+
+  # REQUIRED — RDS master password resolved securely from SSM Parameter Store.
+  # DO NOT put a real password here in plain text.
+  # Before deploying, create the SSM parameter:
+  #   Systems Manager → Parameter Store → Create parameter
+  #     Name:  /unshelvd/db-password
+  #     Type:  SecureString
+  #     Value: <your password, 16+ characters>
+  DBPassword: "{{resolve:ssm-secure:/unshelvd/db-password}}"
+
+  # Instance size.  db.t4g.micro covers launch traffic; bump to small/medium
+  # in a later stack update when you need more headroom.
+  # Allowed values: db.t4g.micro | db.t4g.small | db.t4g.medium
+  DBInstanceClass: db.t4g.micro
+
+  # ── Email (SES SMTP) ─────────────────────────────────────────────────────────
+  # OPTIONAL at launch — leave blank and configure email later via the admin
+  # panel (/#/admin → Settings → Email).
+  # To pre-configure: SES → SMTP settings → Create SMTP credentials.
+  # The username (AKIAIOSFODNN7EXAMPLE) goes here; the password goes into
+  # Secrets Manager (unshelvd/SMTP_PASS) after the stack is created.
+  SmtpUser: ""
+
+  # ── ECS container image ───────────────────────────────────────────────────────
+  # Leave blank on first deploy — the stack creates the ECS service with a
+  # placeholder and deploy.yml replaces it on the first push to main.
+  # On subsequent stack updates this value is ignored because deploy.yml
+  # manages the task definition directly.
+  ContainerImage: ""
+
+  # ── GitHub OIDC provider ─────────────────────────────────────────────────────
+  # If your AWS account already has a GitHub OIDC provider, paste its ARN here
+  # to prevent the stack from trying to create a duplicate (one per URL allowed).
+  # Find it: IAM → Identity providers.
+  # Looks like: arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com
+  # Leave blank if no provider exists yet — the stack will create it.
+  GitHubOidcProviderArn: ""
+
+tags:
+  Project: unshelvd
+  Environment: production
+  ManagedBy: cloudformation
