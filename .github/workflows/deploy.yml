@@ -21,9 +21,22 @@ name: Deploy
 #   ECR_REPOSITORY              — e.g. unshelvd
 #   ECS_CLUSTER                 — e.g. unshelvd
 #   ECS_SERVICE                 — e.g. unshelvd
-#   ECS_TASK_DEFINITION         — e.g. unshelvd
+#   ECS_TASK_DEFINITION         — path to the ECS task definition JSON file
+#                                 in the repo (default: ecs-task-def.json)
 #   ECS_CONTAINER_NAME          — e.g. unshelvd
 #   DATABASE_URL_SECRET_ID      — e.g. unshelvd/DATABASE_URL
+#
+# Optional GitHub repository variables:
+#   THRIFTBOOKS_AFF_ID          — ThriftBooks Impact affiliate ID (baked into
+#                                 the Docker image as VITE_THRIFTBOOKS_AFF_ID)
+#   ADSENSE_CLIENT              — Google AdSense publisher ID (baked in as
+#                                 VITE_ADSENSE_CLIENT)
+#   STRIPE_PUBLISHABLE_KEY      — Stripe publishable key (pk_live_… or
+#                                 pk_test_…); baked in as
+#                                 VITE_STRIPE_PUBLISHABLE_KEY so the server
+#                                 can serve it to the frontend via
+#                                 /api/config/public. Can also be set in the
+#                                 admin panel after deploy.
 #
 # Triggers: pushes to main, plus manual dispatch.
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -127,7 +140,7 @@ jobs:
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: ecs-task-def.json
+          task-definition: ${{ vars.ECS_TASK_DEFINITION || 'ecs-task-def.json' }}
           container-name: ${{ vars.ECS_CONTAINER_NAME }}
           image: ${{ env.IMAGE }}
 
