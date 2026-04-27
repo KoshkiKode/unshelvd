@@ -35,6 +35,11 @@ RUN apk add --no-cache curl && npm ci --omit=dev
 # Run as non-root for security
 USER node
 
+# Accept Stripe publishable key so the server can serve it to the frontend
+# via /api/config/public (falls back to the admin-panel DB setting).
+ARG VITE_STRIPE_PUBLISHABLE_KEY
+ENV VITE_STRIPE_PUBLISHABLE_KEY=$VITE_STRIPE_PUBLISHABLE_KEY
+
 # Production runtime
 ENV NODE_ENV=production
 
