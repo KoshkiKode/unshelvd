@@ -47,7 +47,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/migrations ./migrations
 
 # Copy schema config (needed by drizzle at runtime)
-COPY --from=builder /app/dist/drizzle.config.js ./drizzle.config.js
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 COPY shared ./shared
 COPY script/bootstrap.js ./script/bootstrap.js
 COPY script/migrate.js ./script/migrate.js

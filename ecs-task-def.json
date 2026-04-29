@@ -25,6 +25,10 @@
                     "value": "production"
                 },
                 {
+                    "name": "NODE_TLS_REJECT_UNAUTHORIZED",
+                    "value": "0"
+                },
+                {
                     "name": "PORT",
                     "value": "8080"
                 },
@@ -75,28 +79,36 @@
                 {
                     "name": "EMAIL_FROM",
                     "value": "Unshelv'd <noreply@koshkikode.com>"
+                },
+                {
+                    "name": "ADMIN_USERNAME",
+                    "value": "admin"
+                },
+                {
+                    "name": "ADMIN_EMAIL",
+                    "value": "mango.jacq@koshkikode.com"
+                },
+                {
+                    "name": "ADMIN_PASSWORD",
+                    "value": "8DViDtrAQ18GaUr/8jJIprOj"
                 }
             ],
             "secrets": [
                 {
                     "name": "DATABASE_URL",
-                    "valueFrom": "unshelvd/DATABASE_URL"
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:261142221895:secret:unshelvd/DATABASE_URL-g6cChR"
                 },
                 {
                     "name": "SESSION_SECRET",
-                    "valueFrom": "unshelvd/SESSION_SECRET"
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:261142221895:secret:unshelvd/SESSION_SECRET-H1PnJa"
                 },
                 {
                     "name": "PAYPAL_CLIENT_SECRET",
-                    "valueFrom": "unshelvd/PAYPAL_CLIENT_SECRET"
-                },
-                {
-                    "name": "PAYPAL_WEBHOOK_ID",
-                    "valueFrom": "unshelvd/PAYPAL_WEBHOOK_ID"
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:261142221895:secret:unshelvd/PAYPAL_CLIENT_SECRET-xIkkXD"
                 },
                 {
                     "name": "SMTP_PASS",
-                    "valueFrom": "unshelvd/SMTP_PASS"
+                    "valueFrom": "arn:aws:secretsmanager:us-east-1:261142221895:secret:unshelvd/SMTP_PASS-hlga97"
                 }
             ],
             "logConfiguration": {
