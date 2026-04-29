@@ -44,7 +44,7 @@ A peer-to-peer book marketplace for every language, every country, every era. Bu
 ### 2) Start PostgreSQL
 
 ```bash
-docker-compose up -d db
+docker compose up -d db
 ```
 
 ### 3) Configure environment

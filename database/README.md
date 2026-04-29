@@ -103,7 +103,7 @@ the corresponding `works` rows.
 Start a local PostgreSQL instance via Docker Compose:
 
 ```bash
-docker-compose up -d db
+docker compose up -d db
 ```
 
 Set your `.env`:

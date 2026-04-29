@@ -1,9 +1,9 @@
 # Local development with PostgreSQL
-# Usage: docker-compose up -d db   (start just the database)
+# Usage: docker compose up -d db   (start just the database)
 #        npm run dev                (run the app locally against it)
 #
 # Or run everything in containers:
-#        docker-compose up --build
+#        docker compose up --build
 
 services:
   db:
