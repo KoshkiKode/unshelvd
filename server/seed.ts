@@ -37,7 +37,6 @@ function printAdminCredentials(
   console.log(`║  Username: ${username.padEnd(40)}║`);
   console.log(`║  Email:    ${email.padEnd(40)}║`);
   console.log(`║  Password: ${password.padEnd(40)}║`);
-  console.log(`║  SHA-256:  ${crypto.createHash("sha256").update(password).digest("hex").slice(0, 38)}..║`);
   console.log("╚══════════════════════════════════════════════════════╝");
 }
 
