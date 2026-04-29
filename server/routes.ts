@@ -72,7 +72,6 @@ import { z, ZodError } from "zod";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
-import csurf from "csurf";
 import connectPgSimple from "connect-pg-simple";
 import createMemoryStore from "memorystore";
 import bcrypt from "bcryptjs";
@@ -266,22 +265,6 @@ export async function registerRoutes(
     proxy: process.env.NODE_ENV === "production",
   });
   app.use(sessionMiddleware);
-
-  const csrfProtection = csurf();
-  const csrfUnlessWebhook = (req: Request, res: Response, next: NextFunction) => {
-    // Third-party webhooks cannot provide CSRF tokens; they are authenticated
-    // by provider signature verification in their handlers.
-    if (req.path === "/api/payments/stripe/webhook" || req.path === "/api/payments/paypal/webhook") {
-      return next();
-    }
-    return csrfProtection(req, res, next);
-  };
-  app.use(csrfUnlessWebhook);
-
-  // CSRF token bootstrap endpoint for SPA/native clients.
-  app.get("/api/csrf-token", (req, res) => {
-    return res.json({ csrfToken: req.csrfToken() });
-  });
 
   // Passport setup
   passport.use(
