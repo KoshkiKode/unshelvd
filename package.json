@@ -132,7 +132,8 @@
     "wouter": "^3.9.0",
     "ws": "^8.20.0",
     "zod": "^4.3.6",
-    "zod-validation-error": "^5.0.0"
+    "zod-validation-error": "^5.0.0",
+    "csurf": "^1.11.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.3.1",
