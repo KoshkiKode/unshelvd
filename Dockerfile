@@ -32,9 +32,6 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN apk add --no-cache curl && npm ci --omit=dev
 
-# Run as non-root for security
-USER node
-
 # Accept Stripe publishable key so the server can serve it to the frontend
 # via /api/config/public (falls back to the admin-panel DB setting).
 ARG VITE_STRIPE_PUBLISHABLE_KEY
@@ -50,18 +47,21 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/migrations ./migrations
 
 # Copy schema config (needed by drizzle at runtime)
-COPY drizzle.config.ts ./
+COPY --from=builder /app/dist/drizzle.config.js ./drizzle.config.js
 COPY shared ./shared
 COPY script/bootstrap.js ./script/bootstrap.js
 COPY script/migrate.js ./script/migrate.js
 COPY script/seed.js ./script/seed.js
+
+# Run as non-root for security
+USER node
 
 # Expose port
 ENV PORT=8080
 EXPOSE 8080
 
 # ECS container-level health check (ALB target group also checks /api/health).
-HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=3 \
   CMD curl -f http://localhost:8080/api/health || exit 1
 
 # Run

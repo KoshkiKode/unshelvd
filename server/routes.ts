@@ -79,7 +79,12 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { uploadImage, deleteImage, isS3Configured } from "./s3";
 
-const BCRYPT_SALT_ROUNDS = 14;
+const parsedBcryptRounds = Number.parseInt(process.env.BCRYPT_SALT_ROUNDS ?? "", 10);
+const BCRYPT_SALT_ROUNDS =
+  Number.isInteger(parsedBcryptRounds) && parsedBcryptRounds >= 10 && parsedBcryptRounds <= 14
+    ? parsedBcryptRounds
+    : 12;
+const DEFAULT_USER_BOOKS_LIMIT = 200;
 
 const PgSessionStore = connectPgSimple(session);
 const MemoryStore = createMemoryStore(session);
@@ -160,7 +165,9 @@ function getPublicAppOrigin(req: Request): string {
   }
 
   if (process.env.NODE_ENV === "production") {
-    console.warn("[auth] PUBLIC_APP_URL/APP_URL/WEB_BASE_URL not set; falling back to localhost verification origin.");
+    console.warn(
+      "[auth] Production misconfiguration: set at least one of PUBLIC_APP_URL, APP_URL, or WEB_BASE_URL. Falling back to localhost may cause email verification URLs to point to localhost."
+    );
   }
   return "http://localhost:5000";
 }
@@ -239,11 +246,11 @@ export async function registerRoutes(
         })
       : new MemoryStore({ checkPeriod: SESSION_TTL_MS });
 
-  // CSRF protection is applied globally via applySecurityMiddleware() (server/security.ts),
-  // which is called from server/index.ts before registerRoutes().  The middleware requires
-  // the custom header "X-App-CSRF: 1" on every state-changing request in production.
-  // CodeQL's js/missing-token-validation alert is a false positive here — it does not
-  // trace cross-module middleware chains.
+  // CSRF protection is applied globally via applySecurityMiddleware() in server/security.ts.
+  // Verifiable call site: server/index.ts (the bootstrap section) calls
+  // applySecurityMiddleware(app) before registerRoutes(app), so these routes are covered.
+  // The middleware requires "X-App-CSRF: 1" on state-changing requests in production.
+  // CodeQL's js/missing-token-validation alert here is due to cross-module flow limits.
   const sessionMiddleware = session({
     secret: process.env.SESSION_SECRET || "unshelvd-dev-secret-change-me",
     resave: false,
@@ -555,7 +562,10 @@ export async function registerRoutes(
       if (!userId) return res.status(400).json({ message: "Invalid user ID" });
       const rawLimit = parseInt(req.query.limit as string);
       const rawOffset = parseInt(req.query.offset as string);
-      const limit = Math.min(!Number.isNaN(rawLimit) && rawLimit > 0 ? rawLimit : 200, 200);
+      const limit = Math.min(
+        !Number.isNaN(rawLimit) && rawLimit > 0 ? rawLimit : DEFAULT_USER_BOOKS_LIMIT,
+        DEFAULT_USER_BOOKS_LIMIT,
+      );
       const offset = !Number.isNaN(rawOffset) && rawOffset > 0 ? rawOffset : 0;
       const booksList = await storage.getBooksByUser(userId, limit, offset);
       return res.json(booksList);
@@ -1394,7 +1404,7 @@ export async function registerRoutes(
   });
 
   // Stripe webhook (handles payment confirmations)
-  app.post("/api/webhooks/stripe", async (req, res) => {
+  app.post("/api/payments/stripe/webhook", async (req, res) => {
     // DB setting takes priority over env var so admin can rotate the secret without a redeploy
     const webhookSecret =
       (await getSetting("stripe_webhook_secret")) || process.env.STRIPE_WEBHOOK_SECRET || null;

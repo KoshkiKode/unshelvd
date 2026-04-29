@@ -18,9 +18,21 @@ CREATE TEMP TABLE temp_catalog (
     source VARCHAR(50)
 );
 
--- Copy the CSV data (run this from the unshelvd directory)
-\COPY temp_catalog FROM './database/catalog.csv' WITH CSV HEADER;
+-- Copy the CSV data.
+-- Pass the CSV path at runtime, for example:
+-- psql -v catalog_csv='./database/catalog.csv' -f import_catalog_data.sql
+\COPY temp_catalog FROM :'catalog_csv' WITH CSV HEADER;
 
+-- Normalize shared transformations once to avoid duplicated logic
+WITH normalized_catalog AS (
+    SELECT
+        tc.*,
+        CASE
+            WHEN tc.publication_year ~ '^\d+$' THEN tc.publication_year::INTEGER
+            ELSE NULL
+        END AS publication_year_int
+    FROM temp_catalog tc
+)
 -- Insert unique works into the works table
 INSERT INTO works (
     unshelvd_id, title, author, original_language, 
@@ -31,14 +43,11 @@ SELECT DISTINCT
     work_title,
     work_author,
     NULLIF(original_language, ''),
-    CASE 
-        WHEN publication_year ~ '^\d+$' THEN publication_year::INTEGER 
-        ELSE NULL 
-    END,
+    publication_year_int,
     NULLIF(genre, ''),
     NULLIF(cover_url, ''),
     NULLIF(source, '')
-FROM temp_catalog
+FROM normalized_catalog
 ON CONFLICT (unshelvd_id) DO UPDATE SET
     updated_at = now();
 
@@ -57,25 +66,34 @@ SELECT
     NULLIF(tc.isbn10, ''),
     NULLIF(tc.language, ''),
     NULLIF(tc.publisher, ''),
-    CASE 
-        WHEN tc.publication_year ~ '^\d+$' THEN tc.publication_year::INTEGER 
-        ELSE NULL 
-    END,
+    tc.publication_year_int,
     NULLIF(tc.genre, ''),
     NULLIF(tc.cover_url, ''),
     NULLIF(tc.source, ''),
     NULLIF(tc.original_language, ''),
     NULLIF(tc.country_of_origin, ''),
     w.id
-FROM temp_catalog tc
+FROM normalized_catalog tc
 JOIN works w ON w.unshelvd_id = tc.unshelvd_work_id
 ON CONFLICT (unshelvd_id) DO UPDATE SET
     updated_at = now();
 
 -- Show import statistics
-SELECT 'Works imported:' as info, COUNT(*) as count FROM works WHERE unshelvd_id IS NOT NULL
+WITH works_rows AS (
+    SELECT unshelvd_id
+    FROM works
+    WHERE unshelvd_id IS NOT NULL
+),
+catalog_rows AS (
+    SELECT unshelvd_id
+    FROM book_catalog
+    WHERE unshelvd_id IS NOT NULL
+)
+SELECT 'Works imported:' as info, COUNT(*) as count
+FROM works_rows
 UNION ALL
-SELECT 'Editions imported:' as info, COUNT(*) as count FROM book_catalog WHERE unshelvd_id IS NOT NULL;
+SELECT 'Editions imported:' as info, COUNT(*) as count
+FROM catalog_rows;
 
 -- Show sample data
 SELECT 'Sample works:' as type, unshelvd_id, title, author, original_language 
