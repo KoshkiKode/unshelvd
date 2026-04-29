@@ -520,9 +520,13 @@ aws rds create-db-instance \
 This takes 5–10 minutes. Poll until the status is `available`:
 
 ```bash
-watch -n 30 "aws rds describe-db-instances \
-  --db-instance-identifier $RDS_INSTANCE \
-  --query 'DBInstances[0].DBInstanceStatus' --output text"
+# Works on Linux, macOS, and zsh (no `watch` required)
+while true; do
+  aws rds describe-db-instances \
+    --db-instance-identifier "$RDS_INSTANCE" \
+    --query 'DBInstances[0].DBInstanceStatus' --output text
+  sleep 30
+done
 # Press Ctrl-C when it shows "available"
 ```
 
@@ -1646,7 +1650,7 @@ Local development uses Docker Compose for Postgres and data-URI fallback for
 image uploads (no S3 needed). See `README.md` for the full local setup.
 
 ```bash
-docker-compose up -d db   # starts local PostgreSQL
+docker compose up -d db   # starts local PostgreSQL
 cp .env.example .env      # copy and fill in local values
 npm run db:setup          # run migrations + seed
 npm run dev               # start the dev server at http://localhost:5000
