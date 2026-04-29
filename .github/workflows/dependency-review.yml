@@ -1,0 +1,33 @@
+name: Dependency Review
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Unshelv'd — Dependency security review
+#
+# Runs on every pull request targeting main. Compares the dependency changes
+# introduced by the PR against the GitHub Advisory Database and fails the check
+# if any vulnerable packages are added.
+#
+# No secrets or variables required — uses GITHUB_TOKEN automatically.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: always
