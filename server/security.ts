@@ -320,7 +320,7 @@ export function applySecurityMiddleware(app: Express, pgPool?: Pool) {
     legacyHeaders: false,
     // Avoid overlapping counters/headers on routes with dedicated limiters.
     skip: (req) => {
-      const path = req.originalUrl.split("?")[0];
+      const path = req.path;
       return (
         path.startsWith("/api/auth/") ||
         path.startsWith("/api/search/") ||
@@ -338,6 +338,8 @@ export function applySecurityMiddleware(app: Express, pgPool?: Pool) {
     windowMs: SEARCH_WINDOW_MS,
     max: 20,
     message: { message: "Too many search requests. Please slow down." },
+    standardHeaders: true,
+    legacyHeaders: false,
     store: makeStore(SEARCH_WINDOW_MS),
   });
   app.use("/api/search/", searchLimiter);
@@ -361,7 +363,7 @@ export function parseIntParam(value: string | string[] | undefined): number | nu
   if (Array.isArray(value)) value = value[0];
   if (!value) return null;
   const parsed = parseInt(value, 10);
-  if (isNaN(parsed) || !isFinite(parsed) || parsed < 0) return null;
+  if (isNaN(parsed) || !isFinite(parsed) || parsed <= 0) return null;
   return parsed;
 }
 

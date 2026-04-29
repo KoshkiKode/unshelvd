@@ -5,7 +5,13 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { sql, eq } from "drizzle-orm";
 
-const BCRYPT_SALT_ROUNDS = 14;
+const parsedSeedBcryptRounds = Number.parseInt(
+  process.env.SEED_BCRYPT_SALT_ROUNDS ?? "",
+  10,
+);
+const BCRYPT_SALT_ROUNDS = Number.isFinite(parsedSeedBcryptRounds) && parsedSeedBcryptRounds > 0
+  ? parsedSeedBcryptRounds
+  : 12;
 
 // Open Library cover URLs by ISBN
 const cover = (isbn: string) => `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
@@ -540,12 +546,12 @@ async function seed() {
   // MIRKO'S INTERNATIONAL COLLECTION
   // ═══════════════════════════════════════
   await db.insert(books).values([
-    { userId: mirko.id, title: "Na Drini ćuprija", author: "Ivo Andrić", isbn: "9788652118038", coverUrl: cover("9788652118038"), condition: "good", status: "for-sale", price: 35.00, genre: "Fiction,History", publisher: "Prosveta", year: 1945, language: "Serbian", countryOfOrigin: "Yugoslavia", era: "Vintage (1900-1970)", script: "Cyrillic", workId: wid2("The Bridge on the Drina", "Ivo Andrić") },
+    { userId: mirko.id, title: "Na Drini cuprija", author: "Ivo Andrić", isbn: "9788652118038", coverUrl: cover("9788652118038"), condition: "good", status: "for-sale", price: 35.00, genre: "Fiction,History", publisher: "Prosveta", year: 1945, language: "Serbian", countryOfOrigin: "Yugoslavia", era: "Vintage (1900-1970)", script: "Cyrillic", workId: wid2("The Bridge on the Drina", "Ivo Andrić") },
     { userId: mirko.id, title: "The Bridge on the Drina", author: "Ivo Andrić", isbn: "9780226020457", coverUrl: cover("9780226020457"), condition: "like-new", status: "for-sale", price: 18.00, genre: "Fiction,History", publisher: "University of Chicago Press", year: 1959, language: "English", originalLanguage: "Serbian", countryOfOrigin: "Yugoslavia", era: "Vintage (1900-1970)", script: "Latin", workId: wid2("The Bridge on the Drina", "Ivo Andrić") },
     { userId: mirko.id, title: "Мастер и Маргарита", author: "Михаил Булгаков", isbn: "9785170977871", coverUrl: cover("9785170977871"), condition: "fair", status: "open-to-offers", genre: "Fiction,Fantasy", publisher: "AST", year: 1967, language: "Russian", countryOfOrigin: "USSR / Soviet Union", era: "Vintage (1900-1970)", script: "Cyrillic", workId: wid2("The Master and Margarita", "Mikhail Bulgakov") },
     { userId: mirko.id, title: "The Master and Margarita", author: "Mikhail Bulgakov", isbn: "9780141180144", coverUrl: cover("9780141180144"), condition: "good", status: "for-sale", price: 14.00, genre: "Fiction,Fantasy", publisher: "Penguin Classics", year: 1997, language: "English", originalLanguage: "Russian", countryOfOrigin: "USSR / Soviet Union", era: "Vintage (1900-1970)", script: "Latin", workId: wid2("The Master and Margarita", "Mikhail Bulgakov") },
-    { userId: mirko.id, title: "Derviš i smrt", author: "Meša Selimović", condition: "good", status: "for-sale", price: 28.00, genre: "Fiction,Philosophy", publisher: "Svjetlost", year: 1966, language: "Bosnian", countryOfOrigin: "Yugoslavia", era: "Vintage (1900-1970)", script: "Latin", workId: wid2("Death and the Dervish", "Meša Selimović") },
-    { userId: mirko.id, title: "Сталкер (Strugatsky brothers)", author: "Аркадий и Борис Стругацкие", condition: "fair", status: "open-to-offers", genre: "Sci-Fi", publisher: "Молодая гвардия", year: 1972, language: "Russian", countryOfOrigin: "USSR / Soviet Union", era: "Modern (1970-2000)", script: "Cyrillic", workId: wid2("Roadside Picnic", "Arkady and Boris Strugatsky") },
+    { userId: mirko.id, title: "Derviš i smrt", author: "Meša Selimović", condition: "good", status: "for-sale", price: 28.00, genre: "Fiction,Philosophy", publisher: "Svjetlost", year: 1966, language: "Bosnian", countryOfOrigin: "Yugoslavia", era: "Vintage (1900-1970)", script: "Latin", workId: wid2("Death and the Dervish", "Mesa Selimovic") },
+    { userId: mirko.id, title: "Сталкер (Strugatsky brothers)", author: "Arkady and Boris Strugatsky", condition: "fair", status: "open-to-offers", genre: "Sci-Fi", publisher: "Молодая гвардия", year: 1972, language: "Russian", countryOfOrigin: "USSR / Soviet Union", era: "Modern (1970-2000)", script: "Cyrillic", workId: wid2("Roadside Picnic", "Arkady and Boris Strugatsky") },
     { userId: mirko.id, title: "Kafka's Diaries", author: "Franz Kafka", isbn: "9780805209068", coverUrl: cover("9780805209068"), condition: "good", status: "not-for-sale", genre: "Non-Fiction,Biography", publisher: "Schocken", year: 1948, language: "English", originalLanguage: "German", countryOfOrigin: "Austria-Hungary", era: "Vintage (1900-1970)", script: "Latin", workId: wid2("The Diaries of Franz Kafka", "Franz Kafka") },
     { userId: mirko.id, title: "Prokleta avlija", author: "Ivo Andrić", condition: "fair", status: "for-sale", price: 22.00, genre: "Fiction", publisher: "Prosveta", year: 1954, language: "Serbian", countryOfOrigin: "Yugoslavia", era: "Vintage (1900-1970)", script: "Cyrillic", workId: wid2("The Damned Yard", "Ivo Andrić") },
   ]);
