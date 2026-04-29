@@ -1,0 +1,55 @@
+name: Stale Issues and PRs
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Unshelv'd — Automated stale issue and pull request management
+#
+# Runs every Monday at 06:00 UTC and can be triggered manually.
+# Issues/PRs with no activity for 60 days are labelled "stale"; after a further
+# 7 days with no activity they are closed automatically.
+#
+# Issues/PRs with the "pinned" or "security" label are never marked stale.
+#
+# No secrets or variables required.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Every Monday at 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    name: Mark and Close Stale Issues/PRs
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: 60
+          days-before-close: 7
+          stale-issue-label: 'stale'
+          stale-pr-label: 'stale'
+          exempt-issue-labels: 'pinned,security'
+          exempt-pr-labels: 'pinned,security'
+          stale-issue-message: >
+            This issue has been automatically marked as stale because it has had
+            no activity for 60 days. It will be closed in 7 days if no further
+            activity occurs. If this is still relevant, please leave a comment
+            or remove the **stale** label.
+          stale-pr-message: >
+            This pull request has been automatically marked as stale because it
+            has had no activity for 60 days. It will be closed in 7 days if no
+            further activity occurs. If this is still being worked on, please
+            leave a comment or remove the **stale** label.
+          close-issue-message: >
+            This issue was closed automatically after 7 days of inactivity
+            following the stale notice. Feel free to reopen it if it is still
+            relevant.
+          close-pr-message: >
+            This pull request was closed automatically after 7 days of
+            inactivity following the stale notice. Feel free to reopen it if
+            work continues.

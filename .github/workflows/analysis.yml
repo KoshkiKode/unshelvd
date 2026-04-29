@@ -1,0 +1,112 @@
+name: Analysis
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Unshelv'd — Code Analysis Pipeline
+#
+# Runs on every push to main and every pull request targeting main.
+# Produces two analysis reports:
+#   • Test coverage — HTML + lcov artifacts, summary posted to the job summary
+#   • Bundle size   — dist directory sizes posted to the job summary
+#
+# No secrets or variables required.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Test coverage ────────────────────────────────────────────────────────────
+  coverage:
+    name: Test Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+        env:
+          NODE_ENV: test
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 30
+
+      - name: Post coverage summary
+        run: |
+          echo "## Test Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f coverage/coverage-summary.json ]; then
+            node -e "
+              const s = require('./coverage/coverage-summary.json').total;
+              const fmt = (x) => (x.pct !== undefined ? x.pct.toFixed(1) + '%' : 'N/A');
+              console.log('| Metric | Coverage |');
+              console.log('|--------|----------|');
+              console.log('| Statements | ' + fmt(s.statements) + ' |');
+              console.log('| Branches   | ' + fmt(s.branches) + ' |');
+              console.log('| Functions  | ' + fmt(s.functions) + ' |');
+              console.log('| Lines      | ' + fmt(s.lines) + ' |');
+            " >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "_Coverage summary not available — run \`npm run test:coverage\` locally._" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  # ── Bundle size analysis ─────────────────────────────────────────────────────
+  bundle:
+    name: Bundle Size
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (production)
+        run: npm run build
+        env:
+          SKIP_ENV_VERIFY: "true"
+
+      - name: Report bundle sizes
+        run: |
+          echo "## Bundle Size Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| File | Size |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|------|" >> "$GITHUB_STEP_SUMMARY"
+          find dist -type f \( -name "*.js" -o -name "*.css" \) | sort | while read -r f; do
+            SIZE=$(du -sh "$f" | cut -f1)
+            echo "| \`$f\` | $SIZE |" >> "$GITHUB_STEP_SUMMARY"
+          done
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          TOTAL=$(du -sh dist 2>/dev/null | cut -f1 || echo "N/A")
+          echo "**Total dist size: $TOTAL**" >> "$GITHUB_STEP_SUMMARY"
