@@ -1,27 +1,16 @@
-# Unshelv'd — Full Production Deployment Guide (AWS)
+# Unshelv'd — Production Deployment Guide (macOS → AWS)
 
-> **Deployment is done locally from macOS using the AWS CLI.**
-> No GitHub Actions secrets or OIDC setup are required for deploying.
->
-> | Task | Script |
-> |------|--------|
-> | Deploy infrastructure (first time) | `./scripts/deploy-infra.sh` |
-> | Deploy the application (every release) | `./scripts/deploy.sh` |
->
-> GitHub Actions only runs CI (type-check, build, tests) on every push.
-> See [Step 1](#step-1--prerequisites) for prerequisites.
+All deployment is done from your Mac using the AWS CLI.
+**GitHub Actions only runs CI** (type-check, build, tests) — it does not deploy anything.
 
-This is the single, complete deployment reference for this repository.
-Follow every step in order — sections marked **(one time)** only need to be
-done on the very first deploy.
+---
 
 ## Canonical identifiers (do not drift)
 
 | | |
 |---|---|
 | **Production URL** | `https://unshelvd.koshkikode.com` |
-| **Mobile bundle / application ID** | `com.koshkikode.unshelvd` (Android `applicationId` + iOS `PRODUCT_BUNDLE_IDENTIFIER` + Capacitor `appId`) |
-| **Desktop bundle ID (Tauri)** | `com.koshkikode.unshelvd.desktop` |
+| **Mobile bundle / application ID** | `com.koshkikode.unshelvd` |
 | **ECS Cluster** | `unshelvd` |
 | **ECS Service** | `unshelvd` |
 | **ECS Task Definition** | `unshelvd` |
@@ -31,26 +20,13 @@ done on the very first deploy.
 | **Amazon S3 uploads bucket** | `unshelvd-uploads` |
 | **Sender email** | `noreply@koshkikode.com` |
 
-These values appear throughout this guide, in `ecs-task-def.json`,
-`capacitor.config.ts`, `android/app/build.gradle`, the iOS Xcode project,
-`server/index.ts` (CORS allow-list), and `client/index.html` (canonical /
-Open Graph tags). If you change one, change them all.
-
-## Production URL (canonical)
-
-```
-https://unshelvd.koshkikode.com/
-```
-
-The apex domain `koshkikode.com` (and its `www.` host) is also operated by
-the same team on AWS Amplify Hosting. The backend's CORS allow-list includes
-both `https://koshkikode.com` and `https://www.koshkikode.com` so a sibling
-marketing site on the apex domain can call the Unshelv'd API without extra
-configuration.
+These values appear in `ecs-task-def.json`, `capacitor.config.ts`,
+`android/app/build.gradle`, the iOS Xcode project, `server/index.ts`
+(CORS allow-list), and `client/index.html`. If you change one, change them all.
 
 ---
 
-## Quick-reference: what you will build
+## Architecture overview
 
 ```
 Route 53 (DNS)
@@ -64,15 +40,11 @@ ECS Fargate service (behind Application Load Balancer)
   ├── reads secrets from AWS Secrets Manager on startup
   ├── connects to Amazon RDS for PostgreSQL (database)
   └── writes profile / cover images to Amazon S3
-
-GitHub Actions
-  ├── ci.yml         — type-check + build + test on every PR / push
-  └── deploy.yml     — migrate DB → build Docker image → push ECR → ECS rolling deploy
 ```
 
 | Service | Role |
 |---------|------|
-| **GitHub Actions** | CI/CD |
+| **macOS AWS CLI** | Deploy infrastructure and application |
 | **Amazon ECR** | Docker image registry |
 | **AWS ECS Fargate** | Backend API + WebSocket server (serverless containers) |
 | **Application Load Balancer** | Routes HTTP/WebSocket traffic to ECS tasks |
@@ -81,333 +53,61 @@ GitHub Actions
 | **Amazon S3** | Profile image and cover uploads |
 | **AWS Amplify Hosting** | SPA CDN, custom domain, managed TLS, `/api/**` and `/ws/**` rewrite proxy |
 | **Amazon CloudWatch** | Logs, metrics, alarms |
-| **Amazon Route 53** | DNS host for `koshkikode.com` |
+| **Amazon Route 53** | DNS for `koshkikode.com` |
 
 > 💡 **Stripe and PayPal are entirely optional at launch.** Add keys later via
-> the admin panel (`/#/admin → Settings → Payments`) whenever you are ready to
-> accept payments. The platform runs in "browse and list" mode without them.
+> the admin panel (`/#/admin → Settings → Payments`). The platform runs in
+> "browse and list" mode without them.
 
 ---
 
-## CloudFormation Deployment — Console + GitHub Actions (recommended)
-
-This is the fastest path. `infra/unshelvd.cfn.yaml` creates the entire AWS
-infrastructure in one workflow run: VPC, subnets, NAT gateway, RDS PostgreSQL,
-S3 bucket, CloudFront CDN, ECR registry, ECS cluster + Fargate service, ALB,
-Secrets Manager scaffolds, CloudWatch alarms, SNS topic, CodeCommit mirror,
-and all IAM roles. No AWS CLI required after setup.
-
-### CF-1 — Request an ACM certificate (one time, ~5 min)
-
-1. **AWS Console → Certificate Manager → Request → Request a public
-   certificate**.
-2. Domain: `unshelvd.koshkikode.com`  (add `*.koshkikode.com` as a second name
-   if you want to cover the apex and `cdn.` subdomain with a single cert).
-3. Validation: **DNS validation**.
-4. Click through to the certificate detail page. Expand the domain row and
-   click **Create records in Route 53** (one click if Route 53 hosts the zone).
-5. Wait 2–5 minutes until Status shows **Issued**. Copy the **Certificate ARN**
-   — you will use it in CF-3.
-
-> If you also want a `cdn.koshkikode.com` alias on CloudFront, request a
-> **second** certificate in us-east-1 for `cdn.koshkikode.com` and note its
-> ARN separately (used as the optional `CFN_CDN_CERTIFICATE_ARN` variable).
-
-### CF-2 — Create a bootstrap IAM deploy role (one time)
-
-The stack creates its own permanent deploy role (`unshelvd-github-deploy`).
-You need a temporary role to run the stack creation itself.
-
-1. **IAM → Roles → Create role**.
-2. **Trusted entity type**: Web identity.
-3. **Identity provider**: `token.actions.githubusercontent.com`
-   **Audience**: `sts.amazonaws.com`
-4. **Add a condition**: `token.actions.githubusercontent.com:sub` =
-   `repo:KoshkiKode/unshelvd:*` (StringLike).
-5. **Permissions**: attach `AdministratorAccess` (or a scoped policy covering
-   `cloudformation:*`, `iam:*`, `ecr:*`, `ecs:*`, `rds:*`, `ec2:*`, `s3:*`,
-   `secretsmanager:*`, `logs:*`, `sns:*`, `cloudwatch:*`, `cloudfront:*`,
-   `codecommit:*`, `application-autoscaling:*`).
-6. **Name it** `unshelvd-bootstrap-deploy`. Copy the **Role ARN**.
-
-> You will replace this with the stack-output role ARN after the stack is
-> created, then you can delete the bootstrap role.
-
-### CF-3 — Set GitHub secrets and variables
-
-**GitHub → Settings → Secrets and variables → Actions → Secrets** — add:
-
-| Secret | Value |
-|---|---|
-| `AWS_DEPLOY_ROLE_ARN` | Bootstrap role ARN from CF-2 |
-| `CFN_CERTIFICATE_ARN` | ACM cert ARN from CF-1 |
-| `CFN_DB_PASSWORD` | A strong password, **16+ chars** — write it down, never change it after first deploy |
-
-**GitHub → Settings → Secrets and variables → Actions → Variables** — add:
-
-| Variable | Value |
-|---|---|
-| `GITHUBOIDCPROVIDERARN` | ARN of the GitHub OIDC provider in your account. Find it: **IAM → Identity providers** — if one exists copy its ARN. If none exists, leave this variable **empty** and the stack will create it automatically. |
-
-Optional variables (all have sensible defaults):
-
-| Variable | Default | Notes |
-|---|---|---|
-| `CFN_DOMAIN_NAME` | `koshkikode.com` | Your apex domain |
-| `CFN_ALERT_EMAIL` | `ops@koshkikode.com` | Ops alert email |
-| `CFN_CDN_CERTIFICATE_ARN` | *(blank)* | ACM cert for `cdn.<domain>`; leave blank to use CloudFront's auto-generated `*.cloudfront.net` domain initially |
-| `CFN_DB_INSTANCE_CLASS` | `db.t4g.micro` | Bump to `db.t4g.small` when you need more headroom |
-| `CFN_STACK_NAME` | `unshelvd` | CloudFormation stack name |
-
-### CF-4 — Trigger the CloudFormation workflow
-
-**GitHub → Actions → "Deploy CloudFormation Stack" → Run workflow → Branch:
-main → Run workflow**.
-
-The run takes **10–20 minutes** (RDS creation is the slow step). Watch progress
-in the Actions log. When the job completes with a green ✓, the entire AWS
-infrastructure is live.
-
-> If it fails with `ROLLBACK_COMPLETE`, open **CloudFormation → Stacks →
-> unshelvd → Events** tab to find the error. Common causes: the certificate ARN
-> is in the wrong region (must be us-east-1), the DB password is shorter than
-> 16 characters, or the OIDC provider already exists (set `GITHUBOIDCPROVIDERARN`
-> to the existing ARN and re-run).
-
-### CF-5 — Collect stack outputs
-
-Open **CloudFormation → Stacks → unshelvd → Outputs** tab. You will need
-all of these values in the steps below:
-
-| Output key | Used for |
-|---|---|
-| `GitHubDeployRoleArn` | Replace `AWS_DEPLOY_ROLE_ARN` secret |
-| `AlbDnsName` | Route 53 alias record; Amplify rewrite target |
-| `CloudFrontDomainName` | Route 53 alias record for `cdn.koshkikode.com` |
-| `EcrRepositoryUri` | Shown for reference — deploy.yml reads it from `ECR_REPOSITORY` variable |
-| `UploadsBucketName` | Confirm it matches `S3_BUCKET_NAME` in `ecs-task-def.json` (`unshelvd-uploads`) |
-| `CodeCommitCloneUrlHttp` | `CODECOMMIT_HTTP_URL` GitHub variable |
-
-### CF-6 — Update GitHub secrets and variables with stack outputs
-
-**Secrets** — update `AWS_DEPLOY_ROLE_ARN` to the `GitHubDeployRoleArn` output.
-
-**Variables** — add the following (all required by `deploy.yml`):
-
-| Variable | Value |
-|---|---|
-| `ECR_REPOSITORY` | `unshelvd` |
-| `ECS_CLUSTER` | `unshelvd` |
-| `ECS_SERVICE` | `unshelvd` |
-| `ECS_CONTAINER_NAME` | `unshelvd` |
-| `DATABASE_URL_SECRET_ID` | `unshelvd/DATABASE_URL` |
-| `CODECOMMIT_HTTP_URL` | `CodeCommitCloneUrlHttp` output |
-
-Optional build variables (baked into the Vite client at Docker build time):
-
-| Variable | Value |
-|---|---|
-| `STRIPE_PUBLISHABLE_KEY` | `pk_test_…` or `pk_live_…` — **optional**, leave blank and add via admin panel later |
-| `THRIFTBOOKS_AFF_ID` | ThriftBooks Impact affiliate ID *(optional)* |
-| `ADSENSE_CLIENT` | `ca-pub-XXXXXXXXXX` *(optional)* |
-
-### CF-7 — Route 53 DNS records
-
-**Route 53 → Hosted zones → koshkikode.com → Create record** — two records:
-
-| Record name | Type | Routing | Target |
-|---|---|---|---|
-| `unshelvd` | A | Alias → Application Load Balancer → us-east-1 | `AlbDnsName` output |
-| `cdn` | A | Alias → CloudFront distribution | `CloudFrontDomainName` output |
-
-> The `cdn.koshkikode.com` record works even before the CDN certificate is
-> issued — the CloudFront distribution always accepts the `*.cloudfront.net`
-> domain in the meantime. Images will load from the CloudFront URL until the
-> custom domain is fully set up, then switch automatically.
-
-### CF-8 — SES SMTP credentials (for transactional email)
-
-1. **SES → SMTP settings → Create SMTP credentials**. This creates an IAM user
-   and generates SMTP credentials. Note the **SMTP username** (looks like
-   `AKIAIOSFODNN7EXAMPLE`) and **SMTP password** (shown once).
-2. **Verify your sending domain**: SES → Verified identities → Create identity
-   → Domain → `koshkikode.com`. Follow the CNAME/TXT prompts (Route 53
-   auto-setup is available).
-3. Store the credentials:
-   - **Secrets Manager → Secrets → `unshelvd/SMTP_PASS`** → "Set secret value"
-     → enter the SMTP password (replaces the `PLACEHOLDER_set_via_console` value).
-   - **`ecs-task-def.json`**: update `SMTP_USER` in the `environment` array to
-     your SMTP username, commit, and push — `deploy.yml` picks it up on the
-     next run. Alternatively, configure email entirely via the admin panel after
-     launch (see CF-12).
-
-> SES starts in **sandbox mode** — you can only send to verified addresses.
-> To remove the restriction: **Service Quotas → Amazon SES → Sending limits →
-> Request increase** (takes 24–48 h). Do this before your first real user
-> signs up.
-
-### CF-9 — Amplify Hosting (frontend CDN + custom domain)
-
-1. **Amplify → Host web app → GitHub** → authorize → pick
-   `KoshkiKode/unshelvd`, branch `main`. Amplify auto-detects `amplify.yml`.
-2. **App settings → Environment variables** — add:
-
-   | Key | Value |
-   |---|---|
-   | `VITE_API_URL` | *(leave blank)* — SPA uses same-origin + Amplify rewrite |
-   | `VITE_STRIPE_PUBLISHABLE_KEY` | `pk_test_…` *(optional — can be added later)* |
-   | `VITE_THRIFTBOOKS_AFF_ID` | affiliate ID *(optional)* |
-   | `VITE_ADSENSE_CLIENT` | `ca-pub-…` *(optional)* |
-
-3. **App settings → Rewrites and redirects** — add **in this exact order**:
-
-   | # | Source | Target | Type |
-   |---|---|---|---|
-   | 1 | `/api/<*>` | `https://<AlbDnsName>/api/<*>` | `200 (Rewrite)` |
-   | 2 | `/ws/<*>` | `https://<AlbDnsName>/ws/<*>` | `200 (Rewrite)` |
-   | 3 | `/<*>` | `/index.html` | `200 (Rewrite)` |
-
-   Replace `<AlbDnsName>` with the `AlbDnsName` stack output (e.g.
-   `unshelvd-alb-1234567890.us-east-1.elb.amazonaws.com`).
-
-4. **Domain management → Add domain** → `unshelvd.koshkikode.com` → Amplify
-   creates an ACM cert and shows you CNAME records — click
-   **Update DNS in Route 53** for one-click setup.
-
-### CF-10 — First application deploy
-
-Push any commit to `main` (or trigger `deploy.yml` manually):
+## Step 1 — Install tools on your Mac (one time)
 
 ```bash
-git commit --allow-empty -m "ci: trigger first deploy"
-git push origin main
+# AWS CLI v2
+brew install awscli
+
+# Docker Desktop (for building and pushing the container image)
+brew install --cask docker
+
+# jq (JSON processor — used in deploy commands)
+brew install jq
+
+# Node.js 20+ (use nvm or asdf, or the official installer from nodejs.org)
+node --version   # must be 20 or higher
+
+# PostgreSQL client (used once to create the app database in RDS)
+brew install postgresql
 ```
 
-`deploy.yml` runs: migrates the database, builds the Docker image, pushes it to
-ECR, registers a new ECS task definition from `ecs-task-def.json`, and triggers
-a rolling deploy. The ECS service will show `RUNNING` in 5–10 minutes.
-
-### CF-11 — Verify the deployment
-
-| Check | URL / command | Expected result |
-|---|---|---|
-| API health | `https://unshelvd.koshkikode.com/api/health` | `{"status":"ok"}` |
-| SPA loads | `https://unshelvd.koshkikode.com/` | Unshelv'd homepage |
-| Admin login | `https://unshelvd.koshkikode.com/#/login` | Login succeeds |
-| Admin panel | `https://unshelvd.koshkikode.com/#/admin` | Dashboard loads |
-| Image upload | Profile settings → upload avatar | URL starts with `https://unshelvd-uploads.s3…` or `https://…cloudfront.net/…` |
-| Real-time chat | Two browser tabs → send a message | Appears in < 1 second |
-
-If `ECS → Services → unshelvd → Tasks` shows tasks stopping immediately, open
-**CloudWatch → Log groups → /ecs/unshelvd** to see the startup error.
-
-### CF-12 — Configure Stripe, PayPal, and email via admin panel
-
-Sign in to `/#/admin` and open **Settings**:
-
-- **Payments → Stripe** — paste `sk_live_…` (secret key) and `pk_live_…`
-  (publishable key). Enable Stripe. The publishable key is also served to the
-  frontend automatically — no redeploy required.
-- **Payments → Stripe Webhook** — in the Stripe dashboard add a webhook
-  endpoint `https://unshelvd.koshkikode.com/api/webhooks/stripe` for events:
-  `payment_intent.succeeded`, `payment_intent.payment_failed`,
-  `account.updated`, `transfer.failed`, `charge.refunded`. Paste the signing
-  secret (`whsec_…`) into the admin panel.
-- **Payments → PayPal** — paste client ID and secret, set mode to `sandbox`
-  (switch to `live` when ready).
-- **Email** — if you skipped CF-8, enter SMTP credentials here:
-  host `email-smtp.us-east-1.amazonaws.com`, port `587`, user and password
-  from the SES SMTP credentials you created.
-
-> All of these settings are stored in the database, take effect immediately
-> (no restart or redeploy needed), and override any environment variable
-> values.
-
----
-
-## Inputs you'll need before you start (CLI deployment path)
-
-> If you are using the **CloudFormation + console path** described above,
-> you can skip directly to CF-9 (Amplify Hosting) after completing CF-1
-> through CF-8. The steps below are the manual CLI deployment reference.
-
-Have these values ready — the rest of the doc is copy/paste once they're in
-your shell.
-
-| Input | Where it comes from | Used in |
-|---|---|---|
-| AWS account ID | `aws sts get-caller-identity` | IAM, ECR, secrets ARNs |
-| AWS region | Your choice (e.g. `us-east-1`) | Every `aws` command |
-| Production domain | `unshelvd.koshkikode.com` | Amplify, ECS env, CORS |
-| RDS master password | You generate (`openssl rand -base64 24`) | RDS, Secrets Manager |
-| Admin email + password | You choose | First-login credentials |
-| SMTP credentials | Your email provider | Transactional email |
-| Stripe keys *(optional)* | Stripe dashboard → Developers | Admin panel or build args |
-| PayPal sandbox credentials *(optional)* | PayPal developer portal | Admin panel |
-
----
-
-## Step 0 — Pre-deploy code changes (already done in this branch)
-
-The following items have already been applied in the current codebase.
-Verify each before continuing with the infrastructure steps.
-
-### 0a. Maintenance mode middleware removed ✓
-
-The blocking 503 middleware has been removed from `server/routes.ts`.
-The platform is ready to serve all API requests.
-
-### 0b. CI workflow enabled ✓
-
-`.github/workflows/ci.yml` — the `test` job has no `if: false` guard.
-Type-checking, building, and testing run on every push and PR.
-
-### 0c. Deploy workflow updated to ECS ✓
-
-`.github/workflows/deploy.yml` has been updated to use ECS Fargate rolling
-deploys instead of App Runner. Both the `migrate` and `build-and-deploy` jobs
-are active with no `if: false` guard.
-
-### 0d. ECS task definition template present ✓
-
-`ecs-task-def.json` is the base task definition template. Before registering
-it in AWS you must replace the `ACCOUNT_ID` and `REGION` placeholders.
-
-### 0e. Commit and push
+Verify everything is installed:
 
 ```bash
-git push origin main
+aws --version
+docker --version
+node --version
+jq --version
+psql --version
 ```
 
 ---
 
-## Step 1 — Prerequisites
+## Step 2 — Configure AWS credentials (one time)
 
-Install these tools on your workstation before running any AWS CLI commands.
-
-```bash
-node --version   # 20 or higher
-npm --version    # 10 or higher
-docker --version # 24 or higher
-aws --version    # AWS CLI v2 — https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
-psql --version   # PostgreSQL client — used once to create the database
-jq --version     # JSON processor — used in the verification steps
-```
-
-### Configure AWS credentials
-
-You need an IAM user or role with permission to create IAM roles, ECR
-repositories, ECS clusters/services, ALBs, RDS instances, S3 buckets, and
-Secrets Manager secrets.
+You need an IAM user (or SSO profile) with permission to create and manage
+ECR, ECS, RDS, S3, ALB, Secrets Manager, IAM roles, CloudWatch, and
+CloudFormation resources.
 
 **Option A — IAM user with access keys (simplest for a solo deploy):**
 
-```bash
-# Create an IAM user in the AWS Console → IAM → Users → Create user
-# Attach the policy "AdministratorAccess" (or a scoped policy — see below)
-# Under the user → Security credentials → Create access key → Application running outside AWS
-# Copy the Access Key ID and Secret Access Key
+1. AWS Console → **IAM → Users → Create user**
+2. Attach the policy `AdministratorAccess` (or a scoped policy covering the
+   services listed above)
+3. Under the user → **Security credentials → Create access key →
+   Application running outside AWS**
+4. Copy the Access Key ID and Secret Access Key
 
+```bash
 aws configure
 # AWS Access Key ID:     AKIAIOSFODNN7EXAMPLE
 # AWS Secret Access Key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
@@ -415,29 +115,28 @@ aws configure
 # Default output format: json
 ```
 
-**Option B — AWS SSO / Identity Center (recommended for teams):**
+**Option B — AWS SSO / Identity Center:**
 
 ```bash
 aws configure sso
-# Follow the prompts — it will open a browser for you to sign in
+# Follow the prompts — it opens a browser for you to sign in
 aws sso login --profile your-profile-name
 export AWS_PROFILE=your-profile-name
 ```
 
-**Verify authentication works:**
+**Verify credentials work:**
 
 ```bash
 aws sts get-caller-identity
-# Should print your Account ID, UserId, and ARN
+# Prints your Account ID, UserId, and ARN
 ```
 
-> ⚠️ **Security note**: Never commit AWS access keys to source control.
-> Use environment variables, `~/.aws/credentials`, or IAM roles instead.
-> Rotate keys regularly and apply least-privilege policies when possible.
+> ⚠️ Never commit AWS credentials to source control. Use `~/.aws/credentials`
+> or environment variables only.
 
 ---
 
-## Step 2 — Clone, install, and verify locally
+## Step 3 — Clone the repo and verify it builds
 
 ```bash
 git clone https://github.com/KoshkiKode/unshelvd.git
@@ -445,17 +144,16 @@ cd unshelvd
 npm install
 npm run check    # TypeScript type-check
 npm test         # unit tests
-npm run build    # full production build
+npm run build    # full production build (SKIP_ENV_VERIFY=true)
 ```
 
-All three commands must succeed before continuing.
+All three must succeed before continuing.
 
 ---
 
-## Step 3 — Set shell variables (copy/paste once per terminal session)
+## Step 4 — Set shell variables (copy/paste once per terminal session)
 
-These variables are referenced by every AWS CLI command in this guide.
-Run them all in the same terminal before continuing.
+Run these once at the start of every terminal session that uses the `aws` CLI.
 
 ```bash
 export AWS_REGION=us-east-1
@@ -474,11 +172,7 @@ echo "Account: $AWS_ACCOUNT_ID  Region: $AWS_REGION"
 
 ---
 
-## Step 4 — Amazon ECR — Docker image registry (one time)
-
-Create the repository that will hold the production Docker images. ECR
-vulnerability scanning is enabled so every pushed image is scanned
-automatically.
+## Step 5 — Amazon ECR — Docker image registry (one time)
 
 ```bash
 aws ecr create-repository \
@@ -488,24 +182,23 @@ aws ecr create-repository \
   --image-tag-mutability MUTABLE
 ```
 
-Note the repository URI printed in the output — it looks like:
-`<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/unshelvd`.
-You will use this URI in the ECS task definition (Step 8).
+Note the `repositoryUri` in the output — it looks like:
+`<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/unshelvd`
 
 ---
 
-## Step 5 — Amazon RDS — PostgreSQL database (one time)
+## Step 6 — Amazon RDS — PostgreSQL database (one time)
 
-### 5a. Generate and save the master password
+### 6a. Generate and save the master password
 
 ```bash
 export RDS_PASSWORD="$(openssl rand -base64 24)"
 echo "RDS master password: $RDS_PASSWORD"
-# Save this somewhere safe (1Password, AWS Secrets Manager, etc.)
-# You cannot retrieve it from AWS after this point.
+# Save this in 1Password or another safe location.
+# AWS does not let you retrieve it again after creation.
 ```
 
-### 5b. Create the RDS instance
+### 6b. Create the RDS instance
 
 ```bash
 aws rds create-db-instance \
@@ -523,15 +216,12 @@ aws rds create-db-instance \
   --region "$AWS_REGION"
 ```
 
-> ⚠️ `--publicly-accessible` is the simplest option for a first deploy. To
-> harden for production, see **Step 5e** below.
+> `--publicly-accessible` is simplest for a first deploy. See Step 6e to
+> lock it down after the ECS service is running.
 
-### 5c. Wait for the instance to become available
-
-This takes 5–10 minutes. Poll until the status is `available`:
+### 6c. Wait for the instance to become available (~5–10 min)
 
 ```bash
-# Works on Linux, macOS, and zsh (no `watch` required)
 while true; do
   aws rds describe-db-instances \
     --db-instance-identifier "$RDS_INSTANCE" \
@@ -541,7 +231,7 @@ done
 # Press Ctrl-C when it shows "available"
 ```
 
-### 5d. Grab the endpoint and create the application database
+### 6d. Grab the endpoint and create the application database
 
 ```bash
 export RDS_ENDPOINT="$(aws rds describe-db-instances \
@@ -549,79 +239,71 @@ export RDS_ENDPOINT="$(aws rds describe-db-instances \
   --query 'DBInstances[0].Endpoint.Address' --output text)"
 echo "RDS endpoint: $RDS_ENDPOINT"
 
-# Connect to the default "postgres" database and create the app database
+# Connect and create the app database
 psql "postgresql://unshelvd:${RDS_PASSWORD}@${RDS_ENDPOINT}:5432/postgres?sslmode=require" \
   -c "CREATE DATABASE unshelvd;"
 ```
 
-The full connection string for subsequent steps is:
+The full `DATABASE_URL` for subsequent steps:
 
 ```
 postgresql://unshelvd:<PASSWORD>@<RDS_ENDPOINT>:5432/unshelvd?sslmode=require
 ```
 
-### 5e. (Recommended) Lock down the RDS security group
+### 6e. (Recommended) Lock down the RDS security group
 
-By default, `--publicly-accessible` exposes the database to the internet on
-port 5432. Restrict it to your IP and the ECS task subnet:
+By default `--publicly-accessible` exposes port 5432 to the internet.
+After creating the ECS service (Step 9), restrict access:
 
-1. **AWS Console → EC2 → Security Groups** — find the security group attached
-   to the RDS instance (named something like `default` or `rds-launch-wizard`).
-2. **Inbound rules → Edit → Add rule**:
-   - Type: `PostgreSQL`  Port: `5432`  Source: **My IP** (your workstation)
-3. After creating the ECS service (Step 8), add a second inbound rule
-   allowing port 5432 from the ECS task security group.
-4. For a fully private setup, create a VPC with private subnets, place both
-   ECS (via a VPC Connector) and RDS in it, and remove public accessibility
-   from RDS altogether.
+1. **AWS Console → EC2 → Security Groups** — find the security group on the
+   RDS instance.
+2. **Inbound rules → Edit → Add rule**: Type `PostgreSQL`, Port `5432`,
+   Source: **My IP** (your Mac's IP).
+3. After creating the ECS service, add a second rule allowing port 5432
+   from the ECS task security group.
 
 ---
 
-## Step 6 — AWS Secrets Manager — runtime secrets (one time)
+## Step 7 — AWS Secrets Manager — runtime secrets (one time)
 
-Create one secret per sensitive value. The deploy workflow reads
-`DATABASE_URL` from Secrets Manager during migrations; ECS reads all
-of them at container startup as environment variable references.
-
+These are injected into the ECS container at startup.
 Replace every `<PLACEHOLDER>` with real values before running.
 
 ```bash
-# Database URL (built from Step 5)
+# Database URL (built from Step 6)
 aws secretsmanager create-secret \
   --name unshelvd/DATABASE_URL \
   --region "$AWS_REGION" \
   --secret-string "postgresql://unshelvd:${RDS_PASSWORD}@${RDS_ENDPOINT}:5432/unshelvd?sslmode=require"
 
-# Session secret — must be a long random hex string
+# Session secret — long random hex string
 aws secretsmanager create-secret \
   --name unshelvd/SESSION_SECRET \
   --region "$AWS_REGION" \
   --secret-string "$(openssl rand -hex 32)"
 
-# Stripe — OPTIONAL. The app runs without Stripe; add keys later via the
-# admin panel (/#/admin → Settings → Payments). Only create these if you
-# prefer env-var injection over the admin panel approach.
-# aws secretsmanager create-secret \
-#   --name unshelvd/STRIPE_SECRET_KEY \
-#   --region "$AWS_REGION" \
-#   --secret-string "sk_test_..."   # replace with sk_live_... for production
-#
-# aws secretsmanager create-secret \
-#   --name unshelvd/STRIPE_WEBHOOK_SECRET \
-#   --region "$AWS_REGION" \
-#   --secret-string "whsec_..."    # signing secret from Stripe dashboard → Webhooks
-
 # PayPal (optional — only needed if PayPal checkout is enabled)
 aws secretsmanager create-secret \
   --name unshelvd/PAYPAL_CLIENT_SECRET \
   --region "$AWS_REGION" \
-  --secret-string "EFgh..."      # from PayPal Developer → My Apps & Credentials
+  --secret-string "EFgh..."
 
 # SMTP password (required for transactional email)
 aws secretsmanager create-secret \
   --name unshelvd/SMTP_PASS \
   --region "$AWS_REGION" \
   --secret-string "your-smtp-password"
+
+# Stripe (optional — add later via the admin panel if you prefer)
+# aws secretsmanager create-secret \
+#   --name unshelvd/STRIPE_SECRET_KEY \
+#   --region "$AWS_REGION" \
+#   --secret-string "sk_test_..."
+#
+# aws secretsmanager create-secret \
+#   --name unshelvd/STRIPE_WEBHOOK_SECRET \
+#   --region "$AWS_REGION" \
+#   --secret-string "whsec_..."
 ```
 
 To update a secret later (e.g. rotating the session key):
@@ -634,9 +316,9 @@ aws secretsmanager put-secret-value \
 
 ---
 
-## Step 7 — Amazon S3 — profile image and cover bucket (one time)
+## Step 8 — Amazon S3 — profile image and cover bucket (one time)
 
-### 7a. Create the bucket
+### 8a. Create the bucket
 
 ```bash
 # us-east-1 does not accept a LocationConstraint parameter
@@ -652,17 +334,14 @@ else
 fi
 ```
 
-### 7b. Enable public read for avatar and cover prefixes only
+### 8b. Enable public read for avatars and covers only
 
 ```bash
-# Remove the account-level Block Public Access override so the bucket
-# policy below can take effect.
 aws s3api put-public-access-block \
   --bucket "$S3_BUCKET" \
   --public-access-block-configuration \
     "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
 
-# Write the policy allowing anonymous GET on avatars/* and covers/* only
 cat > /tmp/bucket-policy.json <<EOF
 {
   "Version": "2012-10-17",
@@ -683,7 +362,7 @@ EOF
 aws s3api put-bucket-policy --bucket "$S3_BUCKET" --policy file:///tmp/bucket-policy.json
 ```
 
-### 7c. Enable versioning (recommended for production)
+### 8c. Enable versioning (recommended)
 
 ```bash
 aws s3api put-bucket-versioning \
@@ -691,26 +370,14 @@ aws s3api put-bucket-versioning \
   --versioning-configuration Status=Enabled
 ```
 
-> **Private bucket alternative:** Keep `BlockPublicPolicy=true`, create a
-> CloudFront distribution with Origin Access Control (OAC) pointing at this
-> bucket, and update `server/s3.ts` `publicUrl()` to return the CloudFront
-> domain instead of the S3 virtual-hosted URL.
-
 ---
 
-## Step 8 — ECS Fargate — backend service (one time)
+## Step 9 — ECS Fargate — backend service (one time)
 
-### 8a. Create IAM roles for ECS
-
-ECS needs two IAM roles:
-
-- **Execution role** — used by ECS to pull the Docker image from ECR and
-  fetch secrets from Secrets Manager. Think of it as ECS's own credentials.
-- **Task role** — assumed by the running container to call AWS APIs (S3 writes,
-  Secrets Manager reads). Think of it as the app's credentials.
+### 9a. Create IAM roles for ECS
 
 ```bash
-# ── Execution role trust policy ──────────────────────────────────────────────
+# Trust policy shared by both roles
 cat > /tmp/ecs-trust.json <<'EOF'
 {
   "Version": "2012-10-17",
@@ -722,7 +389,7 @@ cat > /tmp/ecs-trust.json <<'EOF'
 }
 EOF
 
-# Execution role — attach the AWS-managed policy for ECR + CloudWatch Logs
+# ── Execution role (ECS uses this to pull images + read secrets) ──────────────
 aws iam create-role \
   --role-name unshelvd-ecs-execution \
   --assume-role-policy-document file:///tmp/ecs-trust.json
@@ -731,7 +398,6 @@ aws iam attach-role-policy \
   --role-name unshelvd-ecs-execution \
   --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
-# Also allow the execution role to read secrets (for container secrets injection)
 cat > /tmp/ecs-execution-secrets.json <<EOF
 {
   "Version": "2012-10-17",
@@ -750,7 +416,7 @@ aws iam put-role-policy \
 
 export EXECUTION_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/unshelvd-ecs-execution"
 
-# ── Task role — what the app container can do ─────────────────────────────────
+# ── Task role (what the running container is allowed to do) ───────────────────
 aws iam create-role \
   --role-name unshelvd-ecs-task \
   --assume-role-policy-document file:///tmp/ecs-trust.json
@@ -760,15 +426,9 @@ cat > /tmp/ecs-task-policy.json <<EOF
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "WriteS3",
+      "Sid": "S3ReadWrite",
       "Effect": "Allow",
-      "Action": ["s3:PutObject", "s3:DeleteObject"],
-      "Resource": "arn:aws:s3:::${S3_BUCKET}/*"
-    },
-    {
-      "Sid": "ReadS3",
-      "Effect": "Allow",
-      "Action": ["s3:GetObject"],
+      "Action": ["s3:PutObject", "s3:DeleteObject", "s3:GetObject"],
       "Resource": "arn:aws:s3:::${S3_BUCKET}/*"
     }
   ]
@@ -784,24 +444,22 @@ echo "Execution role: $EXECUTION_ROLE_ARN"
 echo "Task role:      $TASK_ROLE_ARN"
 ```
 
-### 8b. Create the ECS cluster
+### 9b. Create the ECS cluster
 
 ```bash
 aws ecs create-cluster \
   --cluster-name "$ECS_CLUSTER" \
   --region "$AWS_REGION" \
   --capacity-providers FARGATE \
-  --default-capacity-provider-strategy \
-    capacityProvider=FARGATE,weight=1
+  --default-capacity-provider-strategy capacityProvider=FARGATE,weight=1
 
-# Verify it exists
 aws ecs describe-clusters \
   --clusters "$ECS_CLUSTER" \
   --query 'clusters[0].status' --output text
 # Expected: ACTIVE
 ```
 
-### 8c. Create a CloudWatch log group
+### 9c. Create the CloudWatch log group
 
 ```bash
 aws logs create-log-group \
@@ -814,61 +472,41 @@ aws logs put-retention-policy \
   --region "$AWS_REGION"
 ```
 
-### 8d. Register the ECS task definition
+### 9d. Register the ECS task definition
 
-The template is in `ecs-task-def.json`. The `secrets` array uses secret names
-(e.g. `unshelvd/DATABASE_URL`) which work when ECS runs in the same account
-and region as the secrets. If you prefer to use full ARNs, get them from:
-
-```bash
-aws secretsmanager describe-secret --secret-id unshelvd/DATABASE_URL \
-  --query ARN --output text
-# e.g. arn:aws:secretsmanager:us-east-1:123456789012:secret:unshelvd/DATABASE_URL-AbCdEf
-```
-
-Fill in the remaining placeholders and register:
+The template is at `ecs-task-def.json` in the repo root. Substitute the
+account ID and register it:
 
 ```bash
-# Substitute ACCOUNT_ID and REGION placeholders in role ARNs and log config
-sed -e "s/ACCOUNT_ID/${AWS_ACCOUNT_ID}/g" \
-    -e "s|\"awslogs-region\": \"us-east-1\"|\"awslogs-region\": \"${AWS_REGION}\"|g" \
-    ecs-task-def.json > /tmp/task-def-filled.json
+sed "s/261142221895/${AWS_ACCOUNT_ID}/g" ecs-task-def.json > /tmp/task-def-filled.json
 
-# Register the task definition
 aws ecs register-task-definition \
   --cli-input-json file:///tmp/task-def-filled.json \
   --region "$AWS_REGION"
 
-# Verify registration
+# Verify
 aws ecs describe-task-definition \
   --task-definition "$ECS_TASK_DEF" \
   --query 'taskDefinition.taskDefinitionArn' --output text
 ```
 
-To add or change environment variables later, update `ecs-task-def.json`,
-commit it, and re-register — or edit them directly via
-`aws ecs register-task-definition`.
+To update environment variables later, edit `ecs-task-def.json`, commit it,
+and re-run the register command above. Then deploy (see Step 12).
 
-Plain (non-secret) environment variables are in the `environment` array.
-Secrets Manager references are in the `secrets` array and are injected as
-environment variables at container startup.
+Plain environment variables go in the `environment` array; sensitive values
+go in the `secrets` array as Secrets Manager references.
 
 | Variable | Type | Value |
 |---|---|---|
 | `NODE_ENV` | plain | `production` |
 | `PORT` | plain | `8080` |
 | `APP_URL` | plain | `https://unshelvd.koshkikode.com` |
-| `PUBLIC_APP_URL` | plain | `https://unshelvd.koshkikode.com` |
-| `WEB_BASE_URL` | plain | `https://unshelvd.koshkikode.com` |
-| `CORS_ALLOWED_ORIGINS` | plain | `https://unshelvd.koshkikode.com` |
 | `S3_BUCKET_NAME` | plain | `unshelvd-uploads` |
 | `AWS_REGION` | plain | `us-east-1` |
-| `SMTP_HOST` | plain | `smtp.your-provider.com` |
+| `SMTP_HOST` | plain | `email-smtp.us-east-1.amazonaws.com` |
 | `SMTP_PORT` | plain | `587` |
-| `SMTP_USER` | plain | `your-smtp-user` |
+| `SMTP_USER` | plain | your SES SMTP username |
 | `EMAIL_FROM` | plain | `Unshelv'd <noreply@koshkikode.com>` |
-| `PAYPAL_CLIENT_ID` | plain | `Aabc...` *(only if PayPal is enabled)* |
-| `PAYPAL_WEBHOOK_ID` | plain | `xxxxx` *(only if PayPal is enabled)* |
 | `DATABASE_URL` | secret | `unshelvd/DATABASE_URL` |
 | `SESSION_SECRET` | secret | `unshelvd/SESSION_SECRET` |
 | `STRIPE_SECRET_KEY` | secret | `unshelvd/STRIPE_SECRET_KEY` |
@@ -876,29 +514,20 @@ environment variables at container startup.
 | `PAYPAL_CLIENT_SECRET` | secret | `unshelvd/PAYPAL_CLIENT_SECRET` |
 | `SMTP_PASS` | secret | `unshelvd/SMTP_PASS` |
 
-> Add plain values to the `environment` array in `ecs-task-def.json`.
-> All `ADMIN_*` variables can also be added here for predictable first-run
-> admin credentials (see Step 13).
-
-### 8e. Create the VPC security groups and networking
-
-For simplicity this guide uses the **default VPC**. For production hardening
-see Appendix B.
+### 9e. Create VPC security groups
 
 ```bash
-# Get the default VPC ID
 export VPC_ID="$(aws ec2 describe-vpcs \
   --filters Name=isDefault,Values=true \
   --query 'Vpcs[0].VpcId' --output text)"
 
-# Get two subnets in different AZs (required for the ALB)
 export SUBNET_IDS="$(aws ec2 describe-subnets \
   --filters Name=vpc-id,Values="$VPC_ID" \
   --query 'Subnets[0:2].SubnetId' --output text | tr '\t' ',')"
 
 echo "VPC: $VPC_ID  Subnets: $SUBNET_IDS"
 
-# Security group for the ALB — allow inbound 80 and 443 from anywhere
+# Security group for the ALB — inbound 80 + 443 from anywhere
 export ALB_SG_ID="$(aws ec2 create-security-group \
   --group-name unshelvd-alb-sg \
   --description "Unshelv'd ALB — allow HTTP/HTTPS from internet" \
@@ -906,13 +535,11 @@ export ALB_SG_ID="$(aws ec2 create-security-group \
   --query GroupId --output text)"
 
 aws ec2 authorize-security-group-ingress \
-  --group-id "$ALB_SG_ID" \
-  --protocol tcp --port 80 --cidr 0.0.0.0/0
+  --group-id "$ALB_SG_ID" --protocol tcp --port 80  --cidr 0.0.0.0/0
 aws ec2 authorize-security-group-ingress \
-  --group-id "$ALB_SG_ID" \
-  --protocol tcp --port 443 --cidr 0.0.0.0/0
+  --group-id "$ALB_SG_ID" --protocol tcp --port 443 --cidr 0.0.0.0/0
 
-# Security group for ECS tasks — allow inbound 8080 from the ALB only
+# Security group for ECS tasks — inbound 8080 from ALB only
 export ECS_SG_ID="$(aws ec2 create-security-group \
   --group-name unshelvd-ecs-sg \
   --description "Unshelv'd ECS tasks — allow 8080 from ALB" \
@@ -927,7 +554,7 @@ aws ec2 authorize-security-group-ingress \
 echo "ALB SG: $ALB_SG_ID  ECS SG: $ECS_SG_ID"
 ```
 
-### 8f. Create the Application Load Balancer
+### 9f. Create the Application Load Balancer
 
 ```bash
 export ALB_ARN="$(aws elbv2 create-load-balancer \
@@ -944,11 +571,10 @@ export ALB_DNS="$(aws elbv2 describe-load-balancers \
   --load-balancer-arns "$ALB_ARN" \
   --query 'LoadBalancers[0].DNSName' --output text)"
 
-echo "ALB ARN: $ALB_ARN"
 echo "ALB DNS: $ALB_DNS"
-# Save ALB_DNS — you will use it in the Amplify rewrites (Step 12c)
+# Save this value — you'll use it for Amplify rewrites in Step 11c
 
-# Create the target group — forwards to ECS tasks on port 8080
+# Target group pointing to ECS tasks on port 8080
 export TG_ARN="$(aws elbv2 create-target-group \
   --name unshelvd-tg \
   --protocol HTTP \
@@ -973,19 +599,9 @@ aws elbv2 create-listener \
   --default-actions \
     Type=redirect,RedirectConfig="{Protocol=HTTPS,Port=443,StatusCode=HTTP_301}" \
   --region "$AWS_REGION"
-
-# HTTPS listener — requires an ACM certificate (create one in Step 8g first)
-# Come back and run this after Step 8g:
-# aws elbv2 create-listener \
-#   --load-balancer-arn "$ALB_ARN" \
-#   --protocol HTTPS \
-#   --port 443 \
-#   --certificates CertificateArn="$CERT_ARN" \
-#   --default-actions Type=forward,TargetGroupArn="$TG_ARN" \
-#   --region "$AWS_REGION"
 ```
 
-### 8g. Request an ACM certificate for the ALB
+### 9g. Request an ACM certificate for the ALB
 
 ```bash
 export CERT_ARN="$(aws acm request-certificate \
@@ -1003,9 +619,9 @@ aws acm describe-certificate \
   --query 'Certificate.DomainValidationOptions[0].ResourceRecord'
 ```
 
-Add the CNAME record to Route 53, wait a few minutes for validation
-(`aws acm describe-certificate ... --query Certificate.Status`), then
-create the HTTPS listener:
+Add the CNAME to Route 53, then wait for validation
+(`aws acm describe-certificate ... --query Certificate.Status` → `ISSUED`).
+Then create the HTTPS listener:
 
 ```bash
 aws elbv2 create-listener \
@@ -1017,7 +633,7 @@ aws elbv2 create-listener \
   --region "$AWS_REGION"
 ```
 
-### 8h. Create the ECS Fargate service
+### 9h. Create the ECS Fargate service
 
 ```bash
 aws ecs create-service \
@@ -1034,9 +650,9 @@ aws ecs create-service \
   --region "$AWS_REGION"
 ```
 
-> **Note:** `assignPublicIp=ENABLED` is required when using the default VPC's
-> public subnets, so the tasks can pull the Docker image from ECR.
-> In a private-subnet setup, use `DISABLED` and route through a NAT Gateway.
+> `assignPublicIp=ENABLED` is required when using public subnets so tasks can
+> pull the Docker image from ECR. In a private-subnet setup use `DISABLED` with
+> a NAT Gateway.
 
 Wait for the service to reach a steady state:
 
@@ -1049,289 +665,119 @@ aws ecs wait services-stable \
 
 ---
 
-## Step 9 — Configure email (SMTP)
+## Step 10 — Configure email (SMTP)
 
-Unshelv'd sends transactional email for password resets, offer
-notifications, shipping updates, delivery confirmations, and new messages.
-
-### 9a. Choose an SMTP provider
-
-Recommended options (all have free tiers that cover a new marketplace):
+### 10a. Choose an SMTP provider
 
 | Provider | Free tier | Notes |
 |---|---|---|
 | **Amazon SES** | 62,000/month from ECS | Best cost; requires domain verification |
-| **Resend** | 3,000/month | Developer-friendly API; has SMTP relay |
+| **Resend** | 3,000/month | Developer-friendly |
 | **SendGrid** | 100/day | Well-known; good deliverability |
 | **Mailgun** | 100/day | Good API + SMTP |
-| **Brevo (Sendinblue)** | 300/day | Generous free tier |
 
-### 9b. Verify your domain (for SES)
-
-If you use Amazon SES, you must verify the sending domain and request
-production access (SES starts in sandbox mode):
+### 10b. Verify your domain (for SES)
 
 ```bash
-# Verify the domain (SES will give you CNAME/TXT records to add to Route 53)
 aws sesv2 create-email-identity \
   --email-identity koshkikode.com \
   --region "$AWS_REGION"
 
-# List the DKIM tokens to add as CNAME records in Route 53
+# List DKIM tokens to add as CNAME records in Route 53
 aws sesv2 get-email-identity \
   --email-identity koshkikode.com \
   --region "$AWS_REGION" \
   --query 'DkimAttributes.Tokens'
 ```
 
-To get out of SES sandbox mode, open a **Service Quotas → SES → Sending
-limits → Request increase** ticket in the AWS Console.
+To leave SES sandbox mode, open **Service Quotas → SES → Sending limits →
+Request increase** in the AWS Console.
 
-### 9c. Configure via the admin panel (recommended)
+### 10c. Configure via the admin panel (recommended)
 
-After deploying the app, go to `https://$DOMAIN/#/admin` → **Settings →
-Email** and enter SMTP credentials there. This lets you test without
-redeploying.
+After the app is running, go to `https://$DOMAIN/#/admin → Settings → Email`
+and enter SMTP credentials there. You can test without redeploying.
 
-Alternatively, add them as plain environment variables in `ecs-task-def.json`:
-`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `EMAIL_FROM`, and store `SMTP_PASS`
-in Secrets Manager (already included in the template).
+Alternatively, add them directly to `ecs-task-def.json` as `environment`
+entries (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `EMAIL_FROM`) and store
+`SMTP_PASS` in Secrets Manager (already included in the template).
 
-### 9d. Add SPF and DKIM records in Route 53
+### 10d. Add SPF, DKIM, and DMARC records in Route 53
 
-Your SMTP provider will give you specific DNS records. Add them in Route 53
-under the `koshkikode.com` hosted zone so emails don't land in spam.
+At minimum add these DNS records under `koshkikode.com`:
 
-At minimum, add:
-- **SPF** (TXT record on `koshkikode.com`): `"v=spf1 include:your-provider.com ~all"`
+- **SPF** (TXT on `koshkikode.com`): `"v=spf1 include:your-provider.com ~all"`
 - **DKIM** CNAME records (given by your provider)
 - **DMARC** (TXT on `_dmarc.koshkikode.com`): `"v=DMARC1; p=none; rua=mailto:dmarc@koshkikode.com"`
 
 ---
 
-## Step 10 — GitHub OIDC role — CI/CD without long-lived keys (one time)
+## Step 11 — AWS Amplify Hosting — frontend CDN (one time)
 
-This lets GitHub Actions assume an IAM role to push images and trigger
-deployments without storing any AWS access keys in GitHub secrets.
+### 11a. Connect the repository
 
-### 10a. Register GitHub as an OIDC identity provider (once per AWS account)
-
-```bash
-aws iam create-open-id-connect-provider \
-  --url https://token.actions.githubusercontent.com \
-  --client-id-list sts.amazonaws.com \
-  --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
-```
-
-If you get "EntityAlreadyExists", the provider is already registered — skip
-this command.
-
-### 10b. Create the deploy role trust policy
-
-```bash
-cat > /tmp/github-trust-policy.json <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Principal": {
-      "Federated": "arn:aws:iam::${AWS_ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"
-    },
-    "Action": "sts:AssumeRoleWithWebIdentity",
-    "Condition": {
-      "StringEquals": {
-        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-      },
-      "StringLike": {
-        "token.actions.githubusercontent.com:sub": "repo:KoshkiKode/unshelvd:*"
-      }
-    }
-  }]
-}
-EOF
-```
-
-### 10c. Create the role
-
-```bash
-aws iam create-role \
-  --role-name unshelvd-github-deploy \
-  --assume-role-policy-document file:///tmp/github-trust-policy.json
-
-export DEPLOY_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/unshelvd-github-deploy"
-echo "Deploy role ARN: $DEPLOY_ROLE_ARN"
-```
-
-### 10d. Attach the deploy permissions policy
-
-```bash
-cat > /tmp/github-deploy-policy.json <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "ECRAuth",
-      "Effect": "Allow",
-      "Action": ["ecr:GetAuthorizationToken"],
-      "Resource": "*"
-    },
-    {
-      "Sid": "ECRPush",
-      "Effect": "Allow",
-      "Action": [
-        "ecr:BatchCheckLayerAvailability",
-        "ecr:BatchGetImage",
-        "ecr:CompleteLayerUpload",
-        "ecr:GetDownloadUrlForLayer",
-        "ecr:InitiateLayerUpload",
-        "ecr:PutImage",
-        "ecr:UploadLayerPart"
-      ],
-      "Resource": "arn:aws:ecr:${AWS_REGION}:${AWS_ACCOUNT_ID}:repository/${ECR_REPO}"
-    },
-    {
-      "Sid": "ECSDescribe",
-      "Effect": "Allow",
-      "Action": [
-        "ecs:DescribeTaskDefinition",
-        "ecs:DescribeServices",
-        "ecs:DescribeClusters"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "ECSRegisterAndDeploy",
-      "Effect": "Allow",
-      "Action": [
-        "ecs:RegisterTaskDefinition",
-        "ecs:UpdateService"
-      ],
-      "Resource": [
-        "arn:aws:ecs:${AWS_REGION}:${AWS_ACCOUNT_ID}:task-definition/${ECS_TASK_DEF}:*",
-        "arn:aws:ecs:${AWS_REGION}:${AWS_ACCOUNT_ID}:service/${ECS_CLUSTER}/${ECS_SERVICE}"
-      ]
-    },
-    {
-      "Sid": "PassIAMRolesToECS",
-      "Effect": "Allow",
-      "Action": ["iam:PassRole"],
-      "Resource": [
-        "arn:aws:iam::${AWS_ACCOUNT_ID}:role/unshelvd-ecs-execution",
-        "arn:aws:iam::${AWS_ACCOUNT_ID}:role/unshelvd-ecs-task"
-      ]
-    },
-    {
-      "Sid": "ReadDatabaseUrl",
-      "Effect": "Allow",
-      "Action": ["secretsmanager:GetSecretValue"],
-      "Resource": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:unshelvd/DATABASE_URL*"
-    }
-  ]
-}
-EOF
-
-aws iam put-role-policy \
-  --role-name unshelvd-github-deploy \
-  --policy-name unshelvd-deploy-permissions \
-  --policy-document file:///tmp/github-deploy-policy.json
-```
-
----
-
-## Step 11 — Configure the GitHub repository
-
-### 11a. Repository secrets
-
-Go to **GitHub → Settings → Secrets and variables → Actions → Secrets** and
-add:
-
-| Secret name | Value |
-|---|---|
-| `AWS_DEPLOY_ROLE_ARN` | The deploy role ARN from Step 10 (`arn:aws:iam::<ACCOUNT_ID>:role/unshelvd-github-deploy`) |
-
-### 11b. Repository variables
-
-Go to **GitHub → Settings → Secrets and variables → Actions → Variables** and
-add:
-
-| Variable name | Value |
-|---|---|
-| `AWS_REGION` | `us-east-1` |
-| `ECR_REPOSITORY` | `unshelvd` |
-| `ECS_CLUSTER` | `unshelvd` |
-| `ECS_SERVICE` | `unshelvd` |
-| `ECS_TASK_DEFINITION` | `ecs-task-def.json` *(path to file in repo; default if omitted)* |
-| `ECS_CONTAINER_NAME` | `unshelvd` |
-| `DATABASE_URL_SECRET_ID` | `unshelvd/DATABASE_URL` |
-| `STRIPE_PUBLISHABLE_KEY` | `pk_test_…` or `pk_live_…` — **optional**, baked into the Vite client at build time; leave blank and add keys later via the admin panel |
-| `THRIFTBOOKS_AFF_ID` | Your ThriftBooks Impact affiliate ID *(optional)* |
-| `ADSENSE_CLIENT` | Your AdSense publisher ID, e.g. `ca-pub-XXXXXXXXXX` *(optional)* |
-
----
-
-## Step 12 — AWS Amplify Hosting — frontend + custom domain (one time)
-
-### 12a. Connect the repository
-
-1. Open **AWS Console → AWS Amplify → Host web app**.
-2. Source: **GitHub** → authorize Amplify → pick the `KoshkiKode/unshelvd`
-   repository, branch `main`.
+1. **AWS Console → AWS Amplify → Host web app**
+2. Source: **GitHub** → authorize Amplify → pick `KoshkiKode/unshelvd`,
+   branch `main`
 3. Amplify auto-detects `amplify.yml`. Confirm the build settings look correct
-   (build command: `SKIP_ENV_VERIFY=true npm run build`, artifacts: `dist/public`).
+   (build command: `SKIP_ENV_VERIFY=true npm run build`, artifacts: `dist/public`)
 
-### 12b. Set build-time environment variables
+### 11b. Set build-time environment variables
 
 In **App settings → Environment variables** add:
 
 | Key | Value |
 |---|---|
-| `VITE_STRIPE_PUBLISHABLE_KEY` | `pk_test_…` (same as the GitHub variable) |
+| `VITE_STRIPE_PUBLISHABLE_KEY` | `pk_test_…` *(optional — can be added later)* |
 | `VITE_THRIFTBOOKS_AFF_ID` | affiliate ID *(optional)* |
 | `VITE_ADSENSE_CLIENT` | `ca-pub-…` *(optional)* |
 
-Leave `VITE_API_URL` **unset** so the SPA makes same-origin API calls and
-Amplify's rewrite rule proxies them to ECS via the ALB.
+Leave `VITE_API_URL` **unset** — the SPA makes same-origin API calls and
+Amplify's rewrite rule proxies them to ECS.
 
-### 12c. Configure rewrites and redirects
+### 11c. Configure rewrites and redirects
 
-In **App settings → Rewrites and redirects** add the following rules **in
-this exact order** (order matters — the SPA fallback must be last):
+In **App settings → Rewrites and redirects** add these rules **in this exact
+order** (order matters — the SPA fallback must be last):
 
 | # | Source pattern | Target | Rewrite type |
 |---|---|---|---|
-| 1 | `/api/<*>` | `https://<ALB_DNS_NAME>/api/<*>` | `200 (Rewrite)` |
-| 2 | `/ws/<*>` | `https://<ALB_DNS_NAME>/ws/<*>` | `200 (Rewrite)` |
+| 1 | `/api/<*>` | `https://<ALB_DNS>/api/<*>` | `200 (Rewrite)` |
+| 2 | `/ws/<*>` | `https://<ALB_DNS>/ws/<*>` | `200 (Rewrite)` |
 | 3 | `/<*>` | `/index.html` | `200 (Rewrite)` |
 
-Replace `<ALB_DNS_NAME>` with the ALB DNS name from Step 8f (e.g.
+Replace `<ALB_DNS>` with the `ALB_DNS` value from Step 9f (e.g.
 `unshelvd-alb-1234567890.us-east-1.elb.amazonaws.com`).
 
-**Why rule 2 matters:** without the `/ws/<*>` rewrite, WebSocket upgrade
-requests from web browsers are swallowed by the SPA fallback. Messaging then
-silently falls back to 5-second HTTP polling instead of instant push delivery.
+> **Why rule 2 matters:** without the `/ws/<*>` rewrite, WebSocket upgrade
+> requests are swallowed by the SPA fallback, causing messaging to fall back
+> to 5-second HTTP polling instead of instant push delivery.
 
-### 12d. Add the custom domain
+### 11d. Add the custom domain
 
-1. In **Domain management → Add domain** enter `unshelvd.koshkikode.com`.
-2. Amplify issues an ACM certificate and shows you CNAME records to add in
-   Route 53. Copy them.
-3. Open **Route 53 → Hosted zones → koshkikode.com** and add each CNAME
-   record. ACM validation usually completes within 5 minutes.
-4. Once the certificate is validated and the domain is active, Amplify
-   serves the SPA over HTTPS with automatic certificate renewal.
-5. *(Optional)* Add `koshkikode.com` and `www.koshkikode.com` redirects in
-   the same wizard.
+1. **Domain management → Add domain** → enter `unshelvd.koshkikode.com`
+2. Amplify issues an ACM certificate and shows CNAME records — add them in
+   Route 53. ACM validation usually completes within 5 minutes.
+3. Once validated, Amplify serves the SPA over HTTPS with automatic
+   certificate renewal.
+
+### 11e. Route 53 DNS records
+
+**Route 53 → Hosted zones → koshkikode.com → Create record:**
+
+| Record name | Type | Routing | Target |
+|---|---|---|---|
+| `unshelvd` | A | Alias → Application Load Balancer → us-east-1 | `ALB_DNS` from Step 9f |
+| `cdn` | A | Alias → CloudFront distribution | *(if you set up a CDN cert)* |
 
 ---
 
-## Step 13 — Set the admin account credentials (one time)
+## Step 12 — Set admin account credentials (one time)
 
 The first time the container starts it runs `auto-seed`, which creates an
-admin user. Set predictable credentials by adding environment variables to
-the ECS task definition **before** the first successful deploy.
-
-Add these to the `environment` array in `ecs-task-def.json` and
-re-register the task definition:
+admin user. Set predictable credentials by adding these to the `environment`
+array in `ecs-task-def.json` **before** the first successful deploy, then
+re-register the task definition (Step 9d) and deploy (Step 13):
 
 | Key | Value |
 |---|---|
@@ -1339,8 +785,8 @@ re-register the task definition:
 | `ADMIN_EMAIL` | `your-email@koshkikode.com` |
 | `ADMIN_PASSWORD` | A strong password (12+ chars, upper/lower/number/symbol) |
 
-If these are not set, `auto-seed` generates random credentials and prints
-them in the CloudWatch logs for the ECS task:
+If these are not set, `auto-seed` generates random credentials and prints them
+in the CloudWatch logs:
 
 ```bash
 aws logs tail /ecs/unshelvd --follow
@@ -1349,108 +795,143 @@ aws logs tail /ecs/unshelvd --follow
 
 ---
 
-## Step 14 — First deploy
+## Step 13 — First deploy
 
-Now trigger the first deploy by pushing to `main`. The CI + Deploy workflows
-run automatically.
+This is the full deploy sequence. Run these same commands for every
+subsequent release.
+
+### 13a. Log in to Amazon ECR
 
 ```bash
-git push origin main
-# Or, if you haven't changed any code:
-git commit --allow-empty -m "ci: trigger first AWS ECS deploy"
-git push origin main
+aws ecr get-login-password --region "$AWS_REGION" \
+  | docker login --username AWS --password-stdin \
+    "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 ```
 
-Watch progress in **GitHub → Actions**. The workflow:
+### 13b. Build and push the Docker image
 
-1. **`migrate` job** — checks out the code, installs Node 24, fetches
-   `DATABASE_URL` from Secrets Manager, and runs `node script/migrate.js`.
-   This creates all database tables. Migrations are idempotent — safe to
-   re-run on subsequent deploys.
-2. **`build-and-deploy` job** (runs after `migrate` succeeds) — builds the
-   Docker image with the Vite client baked in, pushes `:<sha>` and `:latest`
-   tags to ECR, then registers a new ECS task definition revision and
-   triggers a rolling deploy on the ECS service.
-3. ECS pulls the new image, runs the health-check against `/api/health` via
-   the ALB target group, and drains the old task when the new one is healthy.
+```bash
+REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+GIT_SHA="$(git rev-parse --short HEAD)"
+IMAGE="${REGISTRY}/${ECR_REPO}:${GIT_SHA}"
 
-The first deploy takes 10–15 minutes end to end. Subsequent deploys are
-typically 5–8 minutes.
+docker build \
+  --build-arg VITE_API_URL="" \
+  --build-arg VITE_THRIFTBOOKS_AFF_ID="${VITE_THRIFTBOOKS_AFF_ID:-}" \
+  --build-arg VITE_ADSENSE_CLIENT="${VITE_ADSENSE_CLIENT:-}" \
+  --build-arg VITE_STRIPE_PUBLISHABLE_KEY="${VITE_STRIPE_PUBLISHABLE_KEY:-}" \
+  -t "$IMAGE" \
+  -t "${REGISTRY}/${ECR_REPO}:latest" \
+  .
+
+docker push "$IMAGE"
+docker push "${REGISTRY}/${ECR_REPO}:latest"
+
+echo "Pushed: $IMAGE"
+```
+
+### 13c. Run database migrations
+
+```bash
+# Fetch the DATABASE_URL from Secrets Manager
+export DATABASE_URL="$(aws secretsmanager get-secret-value \
+  --secret-id unshelvd/DATABASE_URL \
+  --region "$AWS_REGION" \
+  --query SecretString --output text)"
+
+node script/migrate.js
+# Expected: "✅  Migrations applied successfully"
+```
+
+### 13d. Register an updated task definition and deploy to ECS
+
+```bash
+# Update the image URI in the task definition
+UPDATED="$(jq \
+  --arg image "$IMAGE" \
+  '.containerDefinitions |= map(if .name == "unshelvd" then .image = $image else . end)' \
+  ecs-task-def.json)"
+
+TASK_DEF_ARN="$(echo "$UPDATED" \
+  | aws ecs register-task-definition \
+      --cli-input-json file:///dev/stdin \
+      --region "$AWS_REGION" \
+      --query 'taskDefinition.taskDefinitionArn' --output text)"
+
+echo "Registered: $TASK_DEF_ARN"
+
+# Trigger the rolling deploy
+aws ecs update-service \
+  --cluster "$ECS_CLUSTER" \
+  --service "$ECS_SERVICE" \
+  --task-definition "$TASK_DEF_ARN" \
+  --force-new-deployment \
+  --region "$AWS_REGION" \
+  --output text --query 'service.serviceArn' > /dev/null
+
+# Wait for the new task to become healthy (~5–10 min)
+aws ecs wait services-stable \
+  --cluster "$ECS_CLUSTER" \
+  --services "$ECS_SERVICE" \
+  --region "$AWS_REGION"
+
+echo "Deploy complete: $IMAGE"
+echo "Verify: curl https://$DOMAIN/api/health"
+```
 
 ---
 
-## Step 15 — Post-deploy verification checklist
+## Step 14 — Post-deploy verification
 
-Run these checks from top to bottom. Fix any failure before proceeding to
-the next item.
+Run these checks from top to bottom after every deploy.
 
-### 15a. API health
+### 14a. API health
 
 ```bash
 curl -fsS "https://$DOMAIN/api/health" | jq .
 # Expected: { "status": "ok", ... }
 ```
 
-### 15b. SPA loads
+### 14b. SPA loads
 
 ```bash
 curl -fsS "https://$DOMAIN/" | grep -c "<html"
 # Expected: 1
 ```
 
-### 15c. Admin login (web)
+### 14c. Admin login
 
-1. Open `https://$DOMAIN/#/login` in a browser.
-2. Sign in with the admin email and password from Step 13.
-3. Open `https://$DOMAIN/#/admin` — the admin dashboard must load.
-4. *(Confirms the session cookie is crossing the Amplify → ALB → ECS origin
-   boundary with `SameSite=None; Secure` correctly.)*
+1. Open `https://$DOMAIN/#/login` in a browser
+2. Sign in with the admin credentials from Step 12
+3. Open `https://$DOMAIN/#/admin` — the dashboard must load
 
-### 15d. Real-time messaging (WebSocket)
+### 14d. Real-time messaging (WebSocket)
 
-1. Register two test user accounts (or use admin + a demo account).
-2. Open a conversation in `/#/messages` on one browser tab.
-3. Open the same conversation in a second tab or incognito window.
-4. Send a message from one tab — it must appear on the other **within ~1
-   second**. A 5-second delay means the `/ws/<*>` Amplify rewrite is not set
-   (see Step 12c).
+1. Register two test accounts
+2. Open a conversation in `/#/messages` on two browser tabs
+3. Send a message — it must appear on the other tab **within ~1 second**
+   (a 5-second delay means the `/ws/<*>` Amplify rewrite is missing)
 
-### 15e. Image upload (S3)
+### 14e. Image upload (S3)
 
-1. Go to `/#/settings` and upload a profile avatar.
-2. The avatar URL in the page source must start with
-   `https://unshelvd-uploads.s3.us-east-1.amazonaws.com/avatars/`.
-   (If it starts with `data:image/`, S3 is not configured — check that
-   `S3_BUCKET_NAME` is set in the ECS task environment variables.)
+1. Go to `/#/settings` and upload a profile avatar
+2. The avatar URL must start with
+   `https://unshelvd-uploads.s3.us-east-1.amazonaws.com/avatars/`
+   (if it starts with `data:image/`, S3 is not configured correctly)
 
-### 15f. Email delivery
+### 14f. Email delivery
 
-1. Go to `/#/login` → **Forgot password** → enter the admin email.
-2. A password-reset email must arrive within 60 seconds.
-3. If it doesn't arrive, check the ECS task logs for SMTP errors:
+1. Go to `/#/login → Forgot password` → enter the admin email
+2. A password-reset email must arrive within 60 seconds
+3. If it doesn't, check ECS logs for SMTP errors:
    ```bash
    aws logs tail /ecs/unshelvd --filter-pattern "SMTP" --follow
    ```
 
-### 15g. Stripe webhook (if payments are enabled)
-
-1. In the Stripe dashboard → **Webhooks** → add an endpoint:
-   `https://$DOMAIN/api/webhooks/stripe`
-   Events: `payment_intent.succeeded`, `payment_intent.payment_failed`,
-   `account.updated`, `transfer.failed`, `charge.refunded`.
-2. Copy the signing secret (`whsec_…`) and update it in Secrets Manager:
-   ```bash
-   aws secretsmanager put-secret-value \
-     --secret-id unshelvd/STRIPE_WEBHOOK_SECRET \
-     --secret-string "whsec_..."
-   ```
-3. Use the **Send test event** button in the Stripe dashboard. The ECS task
-   logs should show `200` for the webhook delivery.
-
-### 15h. CloudWatch logs (confirm ECS is healthy)
+### 14g. CloudWatch logs (confirm ECS is healthy)
 
 ```bash
-# Tail application logs (stdout/stderr from the Node.js process)
+# Tail application logs
 aws logs tail /ecs/unshelvd --follow
 
 # List recent log streams (one per ECS task)
@@ -1462,9 +943,51 @@ aws logs describe-log-streams \
 
 ---
 
-## Step 16 — CloudWatch alarms (recommended)
+## Step 15 — Ongoing deploys (every release)
 
-Set up basic alarms so you are notified before customers notice problems.
+For every release after the first, run Steps 13a–13d in order:
+
+```bash
+# 1. Pull latest code
+git pull origin main
+
+# 2. ECR login (if session has expired — tokens last 12 h)
+aws ecr get-login-password --region "$AWS_REGION" \
+  | docker login --username AWS --password-stdin \
+    "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+# 3. Build + push
+REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+GIT_SHA="$(git rev-parse --short HEAD)"
+IMAGE="${REGISTRY}/${ECR_REPO}:${GIT_SHA}"
+docker build --build-arg VITE_API_URL="" -t "$IMAGE" -t "${REGISTRY}/${ECR_REPO}:latest" .
+docker push "$IMAGE"
+docker push "${REGISTRY}/${ECR_REPO}:latest"
+
+# 4. Migrate
+export DATABASE_URL="$(aws secretsmanager get-secret-value \
+  --secret-id unshelvd/DATABASE_URL --region "$AWS_REGION" \
+  --query SecretString --output text)"
+node script/migrate.js
+
+# 5. Deploy
+UPDATED="$(jq --arg image "$IMAGE" \
+  '.containerDefinitions |= map(if .name == "unshelvd" then .image = $image else . end)' \
+  ecs-task-def.json)"
+TASK_DEF_ARN="$(echo "$UPDATED" | aws ecs register-task-definition \
+  --cli-input-json file:///dev/stdin --region "$AWS_REGION" \
+  --query 'taskDefinition.taskDefinitionArn' --output text)"
+aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE" \
+  --task-definition "$TASK_DEF_ARN" --force-new-deployment --region "$AWS_REGION" \
+  --output text --query 'service.serviceArn' > /dev/null
+aws ecs wait services-stable --cluster "$ECS_CLUSTER" \
+  --services "$ECS_SERVICE" --region "$AWS_REGION"
+echo "Done: $IMAGE"
+```
+
+---
+
+## Step 16 — CloudWatch alarms (recommended)
 
 ### 16a. Create an SNS topic for alert emails
 
@@ -1488,7 +1011,7 @@ echo "Topic ARN: $ALERT_TOPIC_ARN"
 ```bash
 aws cloudwatch put-metric-alarm \
   --alarm-name "unshelvd-alb-5xx-rate" \
-  --alarm-description "More than 5% of ALB responses are 5xx" \
+  --alarm-description "More than 10 ALB 5xx responses in 2 minutes" \
   --namespace "AWS/ApplicationELB" \
   --metric-name "HTTPCode_Target_5XX_Count" \
   --dimensions Name=LoadBalancer,Value="$(aws elbv2 describe-load-balancers \
@@ -1545,29 +1068,18 @@ aws cloudwatch put-metric-alarm \
 
 ## Step 17 — Mobile app production builds
 
-See [MOBILE.md](./MOBILE.md) for the full Android and iOS build guide. Here
-is the summary for the production web-connected builds.
+See [MOBILE.md](./MOBILE.md) for the full Android and iOS build guide.
 
 ### Android release AAB (Play Store)
 
 ```bash
-# Build the web app pointing at production API
 VITE_API_URL=https://unshelvd.koshkikode.com npm run build
 npx cap sync android
 
 cd android
-./gradlew bundleRelease   # produces .aab for Play Store upload
+./gradlew bundleRelease   # .aab for Play Store upload
 # or:
-./gradlew assembleRelease # produces .apk for direct install / testers
-```
-
-The GitHub Actions `release.yml` workflow does this automatically when you
-push a version tag:
-
-```bash
-# Bump version in package.json, then:
-git tag v1.0.0
-git push origin v1.0.0
+./gradlew assembleRelease # .apk for direct install / testers
 ```
 
 ### iOS release IPA (App Store / TestFlight)
@@ -1575,19 +1087,18 @@ git push origin v1.0.0
 ```bash
 VITE_API_URL=https://unshelvd.koshkikode.com npm run build
 npx cap sync ios
-# Open Xcode, set the team + signing certificate, then Product → Archive
 npx cap open ios
+# In Xcode: set team + signing certificate → Product → Archive
 ```
 
-For automated iOS builds, see the `build-ios.yml` and `release.yml` workflows
-and the secrets listed in `MOBILE.md`.
+The GitHub Actions `build.yml` workflow can build and sign these automatically
+when you push a version tag (see `MOBILE.md`).
 
 ---
 
 ## Step 18 — Going live with real payments
 
-When you're ready to accept real money (after the app has been reviewed and
-tested end to end in test mode):
+When you're ready to accept real money:
 
 1. **Stripe** — replace test keys with live keys in Secrets Manager:
    ```bash
@@ -1596,17 +1107,12 @@ tested end to end in test mode):
      --secret-string "sk_live_..."
    aws secretsmanager put-secret-value \
      --secret-id unshelvd/STRIPE_WEBHOOK_SECRET \
-     --secret-string "whsec_..."  # live endpoint signing secret
+     --secret-string "whsec_..."
    ```
-2. **Amplify build variable** — update `VITE_STRIPE_PUBLISHABLE_KEY` to
-   `pk_live_…` (App settings → Environment variables) and redeploy.
-3. **GitHub variable** — update `STRIPE_PUBLISHABLE_KEY` to `pk_live_…` so
-   future CI deploys bake the live key into the client.
-4. **PayPal** — in the admin panel (`/#/admin` → Settings → Payments), flip
-   PayPal mode from `sandbox` to `live` and update the live client ID and
-   secret.
-5. **Stripe Connect** — complete Stripe's platform review and set your
-   payout schedule and platform fee in the admin panel.
+2. **Amplify** — update `VITE_STRIPE_PUBLISHABLE_KEY` to `pk_live_…` in
+   **App settings → Environment variables** and trigger a new Amplify build.
+3. **PayPal** — in the admin panel (`/#/admin → Settings → Payments`), flip
+   mode from `sandbox` to `live` and update the live client ID and secret.
 
 ---
 
@@ -1618,7 +1124,7 @@ ECS keeps all previous task definition revisions. To roll back without a
 code change:
 
 ```bash
-# List recent task definition revisions
+# List recent revisions
 aws ecs list-task-definitions \
   --family-prefix "$ECS_TASK_DEF" \
   --sort DESC \
@@ -1637,28 +1143,27 @@ aws ecs wait services-stable \
   --region "$AWS_REGION"
 ```
 
-Alternatively, re-tag an old Docker image as `:latest` in ECR and push,
-then update the service:
+Alternatively, re-tag an old image as `:latest` in ECR and run a new deploy:
 
 ```bash
 REGISTRY="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
 docker pull "$REGISTRY/$ECR_REPO:<OLD_SHA>"
 docker tag  "$REGISTRY/$ECR_REPO:<OLD_SHA>" "$REGISTRY/$ECR_REPO:latest"
 docker push "$REGISTRY/$ECR_REPO:latest"
-# Then trigger a new deploy via git push or workflow_dispatch
+# Then re-run Steps 13c and 13d
 ```
 
 ### Database rollback
 
-Drizzle migrations are forward-only by design. To undo a schema change,
-write a new migration that reverses it and deploy normally.
+Drizzle migrations are forward-only. To undo a schema change, write a new
+migration that reverses it and deploy normally.
 
 ---
 
-## Local dev parity
+## Local dev
 
 Local development uses Docker Compose for Postgres and data-URI fallback for
-image uploads (no S3 needed). See `README.md` for the full local setup.
+image uploads (no S3 needed).
 
 ```bash
 docker compose up -d db   # starts local PostgreSQL
@@ -1671,27 +1176,22 @@ npm run dev               # start the dev server at http://localhost:5000
 
 ## Common failure modes
 
-Work top-down. Most "the site is broken" symptoms come from one of these.
-
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| GitHub Actions deploy workflow does nothing (jobs show as skipped) | `if: false` is still on a job definition in `deploy.yml` | Remove `if: false` from the affected job |
-| Amplify build fails on `npm run build` | Missing `VITE_*` env var in Amplify console | Add `VITE_STRIPE_PUBLISHABLE_KEY` under **App settings → Environment variables** and redeploy |
-| `https://$DOMAIN/` loads, but `/api/health` returns the SPA HTML | Amplify rewrites are in the wrong order | Ensure `/api/<*>` rewrite rule is **above** the `/<*>` → `/index.html` rule |
-| `/api/health` returns 502 or "Service Unavailable" | ECS task is not running or failing health checks | Check ECS service events and CloudWatch logs at `/ecs/unshelvd`; confirm the execution role can read all `unshelvd/*` secrets |
-| ECS task immediately stops with exit code non-zero | Missing required secret or env var | Tail CloudWatch logs; confirm all Secrets Manager ARNs in the task definition are correct |
-| ECS health check stuck on "IN_PROGRESS" | Health check path or port mismatch in target group | Set health check to HTTP, path `/api/health`, port `8080` |
-| ECS task logs: `ECONNREFUSED` connecting to RDS | RDS security group doesn't allow the ECS task security group | Add an inbound rule on the RDS security group allowing port 5432 from `ECS_SG_ID` |
-| Login works on web but not in the mobile app | CORS rejected the Capacitor origin, or session cookie not crossing origins | Confirm `NODE_ENV=production` so cookies are `SameSite=None; Secure`; Capacitor origins are allowed by default |
-| Images upload but show broken in the browser | `S3_BUCKET_NAME` env var not set in ECS, or bucket policy blocks public reads | Confirm `S3_BUCKET_NAME=unshelvd-uploads` is set; verify the bucket policy allows anonymous GET on `avatars/*` and `covers/*` |
-| Messages take 5s to arrive instead of instant | WebSocket not connecting — Amplify `/ws/<*>` rewrite is missing (web) | Add the `/ws/<*>` rewrite rule pointing to the ALB (see Step 12c) |
-| Password-reset emails not delivered | SMTP not configured, or sending domain not verified | Set SMTP env vars in the ECS task definition; check CloudWatch logs for SMTP errors; verify SPF/DKIM records in Route 53 |
-| Stripe webhooks rejected with `signature verification failed` | Webhook signing secret mismatch | Re-copy the signing secret from the Stripe dashboard for the **specific endpoint** and update `unshelvd/STRIPE_WEBHOOK_SECRET` in Secrets Manager |
-| `npm run check` fails in CI but passes locally | Node version drift | CI uses Node 24; keep your local Node 20+ and ensure `.nvmrc` is consistent |
-| GitHub Actions OIDC fails: `not authorized to perform sts:AssumeRoleWithWebIdentity` | Trust policy `sub` condition doesn't match the repo | Update the trust policy `StringLike` to `repo:KoshkiKode/unshelvd:*` |
-| ECS shows `CannotPullContainerError` | No image has been pushed to ECR yet, or execution role lacks ECR pull permissions | Let the GitHub Actions deploy workflow run first; confirm execution role has `AmazonECSTaskExecutionRolePolicy` attached |
+| Amplify build fails on `npm run build` | Missing `VITE_*` env var | Add it under **App settings → Environment variables** and redeploy |
+| `https://$DOMAIN/` loads but `/api/health` returns the SPA HTML | Amplify rewrites in wrong order | Ensure `/api/<*>` rule is **above** the `/<*>` → `/index.html` rule |
+| `/api/health` returns 502 or "Service Unavailable" | ECS task not running or failing health checks | Check ECS service events and CloudWatch logs at `/ecs/unshelvd`; confirm execution role can read all `unshelvd/*` secrets |
+| ECS task immediately stops with non-zero exit code | Missing required secret or env var | Tail CloudWatch logs; confirm all Secrets Manager names in task definition are correct |
+| ECS health check stuck on "IN_PROGRESS" | Health check path or port mismatch | Set health check to HTTP, path `/api/health`, port `8080` |
+| ECS task logs: `ECONNREFUSED` to RDS | RDS security group doesn't allow ECS task SG | Add inbound rule on RDS SG allowing port 5432 from `ECS_SG_ID` |
+| `CannotPullContainerError` on ECS | No image pushed yet, or execution role missing ECR permissions | Confirm execution role has `AmazonECSTaskExecutionRolePolicy`; ensure image was pushed in Step 13b |
+| Login works on web but not mobile app | CORS rejected Capacitor origin, or session cookie issue | Confirm `NODE_ENV=production` so cookies are `SameSite=None; Secure` |
+| Images upload but show broken | `S3_BUCKET_NAME` not set in ECS, or bucket policy blocks public reads | Confirm `S3_BUCKET_NAME=unshelvd-uploads` is in task definition; verify bucket policy allows GET on `avatars/*` and `covers/*` |
+| Messages take 5 s instead of instant | WebSocket not connecting — Amplify `/ws/<*>` rewrite missing | Add the `/ws/<*>` rewrite rule pointing to the ALB (Step 11c) |
+| Password-reset emails not delivered | SMTP not configured or sending domain not verified | Set SMTP env vars in task definition; check CloudWatch logs for SMTP errors; verify SPF/DKIM in Route 53 |
+| Stripe webhooks rejected: "signature verification failed" | Webhook signing secret mismatch | Re-copy the signing secret from Stripe dashboard for the specific endpoint and update `unshelvd/STRIPE_WEBHOOK_SECRET` |
 
-For any other issue, the fastest signal is:
+For any other issue, the fastest signal is always:
 
 ```bash
 aws logs tail /ecs/unshelvd --follow
@@ -1699,135 +1199,54 @@ aws logs tail /ecs/unshelvd --follow
 
 ---
 
-## Appendix A — Launch-day go/no-go checklist
+## Launch-day go/no-go checklist
 
-A single signoff list to walk top-to-bottom on launch day. Every box must
-be checked before flipping public DNS to the production CDN. Each item
-links back to the section that explains how to satisfy it.
+Walk top-to-bottom on launch day. Every box must be checked before
+making DNS live.
 
-### Identifiers and references
-- [ ] Production URL is `https://unshelvd.koshkikode.com` everywhere
-      (`ecs-task-def.json`, `server/index.ts` CORS allow-list,
-      `client/index.html` canonical + OG tags, `.env.example`,
-      `README.md`, `MOBILE.md`, `CONNECTIVITY.md`).
-- [ ] Mobile bundle / application ID is `com.koshkikode.unshelvd` in
-      `capacitor.config.ts`, `android/app/build.gradle`,
-      `android/app/src/main/res/values/strings.xml`, and the iOS Xcode
-      project (`PRODUCT_BUNDLE_IDENTIFIER`).
-- [ ] Sender email is `noreply@koshkikode.com` and SPF / DKIM / DMARC
-      records exist in Route 53 (Step 9d).
+### Infrastructure (one-time)
+- [ ] `aws sts get-caller-identity` succeeds with your IAM user (Step 2)
+- [ ] Amazon ECR repository `unshelvd` created with `scanOnPush=true` (Step 5)
+- [ ] Amazon RDS PostgreSQL `unshelvd-db` available; master password saved; `unshelvd` database created; security group locked to your IP + ECS SG (Step 6)
+- [ ] Secrets Manager entries created: `unshelvd/DATABASE_URL`, `unshelvd/SESSION_SECRET`, `unshelvd/SMTP_PASS`, and any optional payment secrets (Step 7)
+- [ ] S3 bucket `unshelvd-uploads` created with versioning and bucket policy for public GET on `avatars/*` + `covers/*` (Step 8)
+- [ ] ECS execution role `unshelvd-ecs-execution` and task role `unshelvd-ecs-task` created (Step 9a)
+- [ ] ECS cluster `unshelvd` active (Step 9b)
+- [ ] CloudWatch log group `/ecs/unshelvd` created with 30-day retention (Step 9c)
+- [ ] Task definition `unshelvd` registered with correct account ID substituted (Step 9d)
+- [ ] VPC security groups created for ALB and ECS tasks (Step 9e)
+- [ ] ALB `unshelvd-alb` created with target group, health check on `/api/health`, and HTTPS listener (Step 9f–9g)
+- [ ] ECS Fargate service `unshelvd` created and reached steady state (Step 9h)
 
-### Phase 1 — Pre-deploy code changes (Step 0)
-- [x] Maintenance-mode 503 middleware removed from `server/routes.ts` (0a).
-- [x] `.github/workflows/ci.yml` `test` job is enabled (no `if: false`) (0b).
-- [x] `.github/workflows/deploy.yml` jobs updated for ECS — no `if: false` (0c).
-- [x] `ecs-task-def.json` is present with `ACCOUNT_ID`/`REGION` placeholders (0d).
-- [ ] `ACCOUNT_ID` and `REGION` placeholders replaced in `ecs-task-def.json` and registered (Step 8d).
-- [ ] Changes merged to `main` (0e).
+### Frontend and DNS
+- [ ] Amplify Hosting connected to `KoshkiKode/unshelvd` `main` branch (Step 11a)
+- [ ] Amplify build env vars set; `VITE_API_URL` left **unset** (Step 11b)
+- [ ] Amplify rewrites configured in order: `/api/<*>` → ALB, `/ws/<*>` → ALB, `/<*>` → `/index.html` (Step 11c)
+- [ ] Custom domain `unshelvd.koshkikode.com` added in Amplify; ACM cert validated (Step 11d)
+- [ ] Route 53 alias record for `unshelvd.koshkikode.com` → ALB (Step 11e)
+- [ ] Sender domain SPF / DKIM / DMARC records in Route 53 (Step 10d)
 
-### Phase 2 — AWS infrastructure (one-time)
-- [ ] AWS credentials configured (`aws sts get-caller-identity` succeeds) (Step 1).
-- [ ] Amazon ECR repository `unshelvd` created with `scanOnPush=true` (Step 4).
-- [ ] Amazon RDS PostgreSQL `unshelvd-db` available, master password stored,
-      `unshelvd` database created, security group locked down (Step 5).
-- [ ] AWS Secrets Manager entries created for `DATABASE_URL`,
-      `SESSION_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
-      `PAYPAL_CLIENT_SECRET` (if used), `SMTP_PASS` (Step 6).
-- [ ] Amazon S3 bucket `unshelvd-uploads` created with versioning enabled
-      and bucket policy allowing public GET on `avatars/*` and `covers/*`
-      only (Step 7).
-- [ ] ECS execution role `unshelvd-ecs-execution` and task role
-      `unshelvd-ecs-task` created (Step 8a).
-- [ ] ECS cluster `unshelvd` created (Step 8b).
-- [ ] CloudWatch log group `/ecs/unshelvd` created with 30-day retention (Step 8c).
-- [ ] Task definition `unshelvd` registered in ECS with correct ARNs (Step 8d).
-- [ ] VPC security groups created for ALB and ECS tasks (Step 8e).
-- [ ] Application Load Balancer `unshelvd-alb` created with target group,
-      health check, and HTTPS listener (Step 8f–8g).
-- [ ] ECS Fargate service `unshelvd` created and reached steady state (Step 8h).
+### First deploy
+- [ ] ECR login succeeded (Step 13a)
+- [ ] Docker image built and pushed to ECR (Step 13b)
+- [ ] `node script/migrate.js` completed successfully (Step 13c)
+- [ ] ECS service reached steady state with new task definition (Step 13d)
 
-### Phase 3 — CI / CD and frontend
-- [ ] GitHub OIDC provider registered and `unshelvd-github-deploy` role
-      scoped to `repo:KoshkiKode/unshelvd:*` (Step 10).
-- [ ] GitHub repo secret `AWS_DEPLOY_ROLE_ARN` set (Step 11a).
-- [ ] GitHub repo variables `AWS_REGION`, `ECR_REPOSITORY`, `ECS_CLUSTER`,
-      `ECS_SERVICE`, `ECS_TASK_DEFINITION`, `ECS_CONTAINER_NAME`,
-      `DATABASE_URL_SECRET_ID`, `STRIPE_PUBLISHABLE_KEY` set (Step 11b).
-- [ ] Amplify Hosting connected to `KoshkiKode/unshelvd` `main` branch and
-      detects `amplify.yml` (Step 12a).
-- [ ] Amplify build env `VITE_STRIPE_PUBLISHABLE_KEY` set;
-      `VITE_API_URL` left **unset** so SPA uses same-origin (Step 12b).
-- [ ] Amplify rewrites configured **in this exact order**:
-      `/api/<*>` → ALB, `/ws/<*>` → ALB,
-      `/<*>` → `/index.html` (Step 12c).
-- [ ] Custom domain `unshelvd.koshkikode.com` added in Amplify, ACM
-      certificate validated, Route 53 CNAME records live (Step 12d).
-- [ ] First deploy succeeded — most recent GitHub Actions run on `main` is
-      green and ECS shows the new task as `RUNNING` (Step 14).
+### Functional verification (Step 14)
+- [ ] `curl https://unshelvd.koshkikode.com/api/health` returns `{ "status": "ok" }` (14a)
+- [ ] SPA loads at `https://unshelvd.koshkikode.com/` (14b)
+- [ ] Admin login and `/#/admin` dashboard work (14c)
+- [ ] Real-time message round-trips in under 1 second (14d)
+- [ ] Avatar upload returns an `https://unshelvd-uploads.s3.…` URL (14e)
+- [ ] Password-reset email arrives within 60 seconds (14f)
 
-### Phase 4 — Functional verification (Step 15)
-- [ ] `curl -fsS https://unshelvd.koshkikode.com/api/health` returns
-      `{ "status": "ok" }` (15a).
-- [ ] `https://unshelvd.koshkikode.com/` serves the SPA (15b).
-- [ ] Admin login works on the web at `/#/login` and `/#/admin` loads (15c).
-- [ ] Real-time messaging round-trips in under 1 second between two
-      browsers — proves the `/ws/<*>` Amplify rewrite is in place (15d).
-- [ ] Avatar upload returns an `https://unshelvd-uploads.s3.…` URL (not a
-      `data:image/` fallback) (15e).
-- [ ] Password-reset email arrives within 60 seconds (15f).
-- [ ] Stripe **test** webhook from the dashboard returns 200 in ECS
-      logs (15g).
+### Observability
+- [ ] SNS topic `unshelvd-alerts` exists and email subscription confirmed (Step 16a)
+- [ ] CloudWatch alarms armed for ALB 5xx, RDS low storage, and ECS task count (Steps 16b–16d)
+- [ ] One-time manual RDS snapshot taken before launch
 
-### Phase 5 — Observability and safety nets (Step 16)
-- [ ] SNS topic `unshelvd-alerts` exists and the operator email
-      subscription is **confirmed** (16a).
-- [ ] CloudWatch alarm `unshelvd-alb-5xx-rate` armed against the ALB
-      `HTTPCode_Target_5XX_Count` metric (16b).
-- [ ] CloudWatch alarm `unshelvd-rds-low-storage` armed against
-      `FreeStorageSpace` (16c).
-- [ ] CloudWatch alarm `unshelvd-ecs-no-tasks` armed against
-      `RunningTaskCount` (16d).
-- [ ] CloudWatch log retention set on `/ecs/unshelvd` (30 days).
-- [ ] One-time manual RDS snapshot taken immediately before launch.
-
-### Phase 6 — Mobile readiness (Step 17 + MOBILE.md)
-- [ ] Android signed AAB built with
-      `VITE_API_URL=https://unshelvd.koshkikode.com` and uploaded to
-      Play Console internal testing (package `com.koshkikode.unshelvd`).
-- [ ] iOS archive uploaded to TestFlight (bundle id
-      `com.koshkikode.unshelvd`).
-- [ ] Play Console privacy policy URL set to
-      `https://unshelvd.koshkikode.com/#/privacy`.
-- [ ] App Store Connect privacy policy URL set to
-      `https://unshelvd.koshkikode.com/#/privacy`.
-
-### Phase 7 — Going live with real money (Step 18)
-*Defer until the platform has been reviewed and you are ready to accept
-real payments.*
-- [ ] `unshelvd/STRIPE_SECRET_KEY` rotated to `sk_live_…` in Secrets
-      Manager.
-- [ ] `unshelvd/STRIPE_WEBHOOK_SECRET` rotated to the **live** endpoint
-      signing secret.
-- [ ] Amplify env `VITE_STRIPE_PUBLISHABLE_KEY` set to `pk_live_…` and
-      site redeployed.
-- [ ] GitHub variable `STRIPE_PUBLISHABLE_KEY` set to `pk_live_…`.
-- [ ] PayPal flipped from `sandbox` to `live` in `/#/admin → Settings →
-      Payments` with live client id + secret entered.
-- [ ] Stripe Connect platform review completed and payout schedule +
-      platform fee set in admin.
-
-### Phase 8 — Recommended hardening (post-launch, not blocking)
-- [ ] Move RDS into a private VPC; remove `--publicly-accessible`; attach
-      ECS service to private subnets via a VPC Connector.
-- [ ] Switch S3 to a private bucket fronted by CloudFront with Origin
-      Access Control; update `server/s3.ts` `publicUrl()` accordingly.
-- [ ] Add AWS WAF in front of the ALB with
-      `AWSManagedRulesCommonRuleSet` and
-      `AWSManagedRulesAmazonIpReputationList`.
-- [ ] Enable Amazon GuardDuty and AWS Security Hub.
-- [ ] Add a CloudWatch Synthetics canary that hits `/api/health` and `/`
-      every 5 minutes from at least two regions.
-- [ ] Enable ECS Service Auto Scaling to scale task count based on
-      ALB `RequestCountPerTarget` or CPU utilization.
-- [ ] Stand up a separate ECS service from a `staging` branch for
-      pre-production testing.
+### Payments (when ready — not required for launch)
+- [ ] `unshelvd/STRIPE_SECRET_KEY` rotated to `sk_live_…` in Secrets Manager
+- [ ] `unshelvd/STRIPE_WEBHOOK_SECRET` rotated to live endpoint signing secret
+- [ ] Amplify env `VITE_STRIPE_PUBLISHABLE_KEY` updated to `pk_live_…` and redeployed
+- [ ] PayPal flipped from `sandbox` to `live` in `/#/admin → Settings → Payments`
