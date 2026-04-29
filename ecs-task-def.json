@@ -66,7 +66,11 @@
                 },
                 {
                     "name": "SMTP_USER",
-                    "value": "AKIATZTKKCRDVDQE53XW"
+                    "value": "AKIATZTKKCRD2K4XAT5N"
+                },
+                {
+                    "name": "PAYPAL_CLIENT_ID",
+                    "value": "BAApG_OHhkmqjCRm2UZ9UWT_MiF0qlWz6ocdVJgvkq20gX9PXcZ3Rh3Nd0fIltoWbRB4x8u5o51gH4OSvI"
                 },
                 {
                     "name": "EMAIL_FROM",

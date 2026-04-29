@@ -322,11 +322,11 @@ export function applySecurityMiddleware(app: Express, pgPool?: Pool) {
     skip: (req) => {
       const path = req.path;
       return (
-        path.startsWith("/api/auth/") ||
-        path.startsWith("/api/search/") ||
-        path.startsWith("/api/payments/checkout") ||
-        path.startsWith("/api/payments/paypal/create-order") ||
-        path.startsWith("/api/payments/paypal/capture-order")
+        path.startsWith("/api/auth/") || path.startsWith("/auth/") ||
+        path.startsWith("/api/search/") || path.startsWith("/search/") ||
+        path.startsWith("/api/payments/checkout") || path.startsWith("/payments/checkout") ||
+        path.startsWith("/api/payments/paypal/create-order") || path.startsWith("/payments/paypal/create-order") ||
+        path.startsWith("/api/payments/paypal/capture-order") || path.startsWith("/payments/paypal/capture-order")
       );
     },
     store: makeStore(API_WINDOW_MS),
@@ -363,7 +363,7 @@ export function parseIntParam(value: string | string[] | undefined): number | nu
   if (Array.isArray(value)) value = value[0];
   if (!value) return null;
   const parsed = parseInt(value, 10);
-  if (isNaN(parsed) || !isFinite(parsed) || parsed <= 0) return null;
+  if (isNaN(parsed) || !isFinite(parsed) || parsed < 0) return null;
   return parsed;
 }
 

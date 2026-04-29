@@ -799,7 +799,7 @@ describe("GET /api/payments/fee-info", () => {
 // Stripe webhook — dev-mode (no STRIPE_WEBHOOK_SECRET)
 // ──────────────────────────────────────────────────────────────────────────
 
-describe("POST /api/webhooks/stripe (dev mode)", () => {
+describe("POST /api/payments/stripe/webhook (dev mode)", () => {
   let app: express.Express;
 
   beforeEach(async () => {
@@ -811,7 +811,7 @@ describe("POST /api/webhooks/stripe (dev mode)", () => {
 
   it("returns { received: true } for an unrecognised event type", async () => {
     const res = await request(app)
-      .post("/api/webhooks/stripe")
+      .post("/api/payments/stripe/webhook")
       .send({ type: "unknown.event", data: { object: {} } });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ received: true });
@@ -819,7 +819,7 @@ describe("POST /api/webhooks/stripe (dev mode)", () => {
 
   it("handles payment_intent.succeeded without metadata gracefully", async () => {
     const res = await request(app)
-      .post("/api/webhooks/stripe")
+      .post("/api/payments/stripe/webhook")
       .send({
         type: "payment_intent.succeeded",
         data: { object: { metadata: {} } },
@@ -830,7 +830,7 @@ describe("POST /api/webhooks/stripe (dev mode)", () => {
 
   it("handles payment_intent.payment_failed with no pi id gracefully", async () => {
     const res = await request(app)
-      .post("/api/webhooks/stripe")
+      .post("/api/payments/stripe/webhook")
       .send({
         type: "payment_intent.payment_failed",
         data: { object: { id: null } },
@@ -841,7 +841,7 @@ describe("POST /api/webhooks/stripe (dev mode)", () => {
 
   it("handles account.updated event", async () => {
     const res = await request(app)
-      .post("/api/webhooks/stripe")
+      .post("/api/payments/stripe/webhook")
       .send({
         type: "account.updated",
         data: {
@@ -858,7 +858,7 @@ describe("POST /api/webhooks/stripe (dev mode)", () => {
 
   it("handles charge.refunded event", async () => {
     const res = await request(app)
-      .post("/api/webhooks/stripe")
+      .post("/api/payments/stripe/webhook")
       .send({
         type: "charge.refunded",
         data: {
@@ -875,7 +875,7 @@ describe("POST /api/webhooks/stripe (dev mode)", () => {
 
   it("handles charge.refunded event with no payment_intent gracefully", async () => {
     const res = await request(app)
-      .post("/api/webhooks/stripe")
+      .post("/api/payments/stripe/webhook")
       .send({
         type: "charge.refunded",
         data: { object: { id: "ch_test" } },
