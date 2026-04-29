@@ -1,5 +1,16 @@
 # Unshelv'd — Full Production Deployment Guide (AWS)
 
+> **Deployment is done locally from macOS using the AWS CLI.**
+> No GitHub Actions secrets or OIDC setup are required for deploying.
+>
+> | Task | Script |
+> |------|--------|
+> | Deploy infrastructure (first time) | `./scripts/deploy-infra.sh` |
+> | Deploy the application (every release) | `./scripts/deploy.sh` |
+>
+> GitHub Actions only runs CI (type-check, build, tests) on every push.
+> See [Step 1](#step-1--prerequisites) for prerequisites.
+
 This is the single, complete deployment reference for this repository.
 Follow every step in order — sections marked **(one time)** only need to be
 done on the very first deploy.
