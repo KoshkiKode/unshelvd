@@ -76,7 +76,7 @@ parameters:
   # REQUIRED — ACM certificate ARN in us-east-1 covering unshelvd.koshkikode.com
   # Console: Certificate Manager → Request → Public → DNS validation → approve
   # in Route 53.  Paste the ARN here once it shows status "Issued".
-  CertificateArn: "arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/arn:aws:acm:us-east-1:261142221895:certificate/28ca1207-2220-499a-a136-96ac67081ee9"
+  CertificateArn: "arn:aws:acm:us-east-1:261142221895:certificate/28ca1207-2220-499a-a136-96ac67081ee9"
 
   # OPTIONAL — ACM certificate ARN in us-east-1 covering cdn.koshkikode.com.
   # Leave blank to use the auto-generated *.cloudfront.net domain until you are
