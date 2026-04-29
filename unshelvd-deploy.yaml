@@ -23,18 +23,28 @@
 #          Value: <a strong password, 16+ characters>
 #      CloudFormation will resolve {{resolve:ssm-secure:/unshelvd/db-password}}
 #      at deploy time — the password never appears in this file or in git.
-#   c. Fill in AlertEmail below with your real ops/admin email address.
-#   d. If a GitHub OIDC provider already exists in your account, paste its ARN
+#   c. Create an SSM SecureString parameter with your GitHub Personal Access Token:
+#        AWS Console → Systems Manager → Parameter Store → Create parameter
+#          Name:  /unshelvd/github-token
+#          Tier:  Standard
+#          Type:  SecureString
+#          Value: <GitHub PAT with repo scope>
+#      The token allows Amplify Hosting to clone the repo and auto-build on push.
+#      Generate via GitHub → Settings → Developer settings → Personal access tokens
+#      → Tokens (classic) → Generate new token → select scope: repo.
+#   d. Fill in AlertEmail below with your real ops/admin email address.
+#   e. If a GitHub OIDC provider already exists in your account, paste its ARN
 #      into GitHubOidcProviderArn (IAM → Identity providers).  Leave blank to
 #      let the stack create it (safe only when none exists yet).
 #
 # After the stack is CREATED (one-time console steps — nothing to edit here):
 #   • CloudFormation → Stacks → unshelvd → Outputs tab:
 #       copy AlbDnsName, CloudFrontDomainName, GitHubDeployRoleArn,
-#            EcrRepositoryUri, UploadsBucketName, CodeCommitCloneUrlHttp
-#   • Route 53 → koshkikode.com hosted zone → Create two A-alias records:
-#       unshelvd.koshkikode.com → ALB (AlbDnsName)
-#       cdn.koshkikode.com      → CloudFront (CloudFrontDomainName)
+#            EcrRepositoryUri, UploadsBucketName, CodeCommitCloneUrlHttp,
+#            AmplifyAppId, AmplifyDefaultDomain
+#   • Route 53 → koshkikode.com hosted zone → Create one A-alias record:
+#       cdn.koshkikode.com  → CloudFront (CloudFrontDomainName)
+#     (unshelvd.koshkikode.com is created automatically by Amplify Domain)
 #   • Secrets Manager → unshelvd/SMTP_PASS → Set secret value
 #       (paste the SES SMTP password generated from SES → SMTP settings)
 #   • GitHub → Settings → Secrets → update AWS_DEPLOY_ROLE_ARN to
@@ -43,12 +53,10 @@
 #       ECR_REPOSITORY=unshelvd  ECS_CLUSTER=unshelvd  ECS_SERVICE=unshelvd
 #       ECS_CONTAINER_NAME=unshelvd  DATABASE_URL_SECRET_ID=unshelvd/DATABASE_URL
 #       CODECOMMIT_HTTP_URL=<CodeCommitCloneUrlHttp output>
-#   • Amplify → Host web app → GitHub → KoshkiKode/unshelvd, branch: main
-#       Rewrites (in order):
-#         /api/<*>  →  https://<AlbDnsName>/api/<*>   (200 Rewrite)
-#         /ws/<*>   →  https://<AlbDnsName>/ws/<*>    (200 Rewrite)
-#         /<*>      →  /index.html                    (200 Rewrite)
-#       Custom domain: unshelvd.koshkikode.com
+#   • Amplify Hosting is created automatically — no console setup needed.
+#     Set per-branch env vars (VITE_STRIPE_PUBLISHABLE_KEY, etc.) via the
+#     Amplify console or by updating AmplifyApp EnvironmentVariables in this file
+#     and redeploying the stack.
 #   • Admin panel: https://unshelvd.koshkikode.com/#/admin → Settings
 #       → Payments to add Stripe / PayPal keys at any time (no redeploy needed).
 # ──────────────────────────────────────────────────────────────────────────────
@@ -120,6 +128,18 @@ parameters:
   # Looks like: arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com
   # Leave blank if no provider exists yet — the stack will create it.
   GitHubOidcProviderArn: "arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com"
+
+  # ── GitHub token (Amplify Hosting) ───────────────────────────────────────────
+  # REQUIRED — GitHub Personal Access Token (classic) with repo scope.
+  # Amplify uses it to clone the repository and trigger a build on every push.
+  # Before deploying, create the SSM parameter:
+  #   Systems Manager → Parameter Store → Create parameter
+  #     Name:  /unshelvd/github-token
+  #     Type:  SecureString
+  #     Value: <your GitHub PAT with repo scope>
+  # Generate the token at: GitHub → Settings → Developer settings →
+  #   Personal access tokens → Tokens (classic) → Generate new token → repo scope.
+  GitHubToken: "{{resolve:ssm-secure:/unshelvd/github-token}}"
 
 tags:
   Project: unshelvd

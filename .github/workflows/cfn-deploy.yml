@@ -25,6 +25,12 @@ name: Deploy CloudFormation Stack
 #   CFN_DB_PASSWORD           — RDS master password, 16+ characters.
 #                               Must not change after first deploy (RDS ignores it).
 #
+#   CFN_GITHUB_TOKEN          — GitHub Personal Access Token (classic) with
+#                               repo scope. Used by Amplify Hosting to clone the
+#                               repository and trigger builds on every push to main.
+#                               Create via GitHub → Settings → Developer settings
+#                               → Personal access tokens → Tokens (classic).
+#
 # ─── Required GitHub repository VARIABLES (Settings → Variables → Actions) ───
 #
 #   GITHUBOIDCPROVIDERARN     — ARN of the GitHub OIDC provider in this AWS
@@ -84,6 +90,7 @@ jobs:
           DB_PASSWORD: ${{ secrets.CFN_DB_PASSWORD }}
           DB_INSTANCE_CLASS: ${{ vars.CFN_DB_INSTANCE_CLASS || 'db.t4g.micro' }}
           GITHUB_OIDC_PROVIDER_ARN: ${{ vars.GITHUBOIDCPROVIDERARN }}
+          CFN_GITHUB_TOKEN: ${{ secrets.CFN_GITHUB_TOKEN }}
         run: |
           aws cloudformation deploy \
             --template-file infra/unshelvd.cfn.yaml \
@@ -97,7 +104,8 @@ jobs:
               AlertEmail="$ALERT_EMAIL" \
               DBPassword="$DB_PASSWORD" \
               DBInstanceClass="$DB_INSTANCE_CLASS" \
-              GitHubOidcProviderArn="$GITHUB_OIDC_PROVIDER_ARN"
+              GitHubOidcProviderArn="$GITHUB_OIDC_PROVIDER_ARN" \
+              GitHubToken="$CFN_GITHUB_TOKEN"
 
       - name: Print stack outputs
         env:

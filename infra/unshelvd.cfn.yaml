@@ -2,10 +2,10 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   Unshelv'd — single-region AWS architecture (us-east-1, AZs a+d)
   VPC, ALB, ECS Fargate service, RDS PostgreSQL, ECR, S3 + CloudFront via OAC,
-  Secrets Manager scaffold, CloudWatch alarms, SNS.
-  Codifies steps 1–9 of the architecture plan.
-  Steps 10–12 (Amplify Hosting, SES domain verification, Route 53 records)
-  are console-driven and documented in DEPLOY.md.
+  Amplify Hosting (SPA frontend), Secrets Manager scaffold, CloudWatch alarms, SNS.
+  Codifies steps 1–9 plus Amplify Hosting of the architecture plan.
+  Steps 11–12 (SES domain verification, Route 53 cdn alias) are console-driven
+  and documented in DEPLOY.md.
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Usage — AWS Console + GitHub Actions (no CLI required):
@@ -61,28 +61,24 @@ Description: >-
 #   After the stack is CREATED (one-time post-stack actions):
 #     a. Open CloudFormation → Stacks → unshelvd → Outputs tab and note:
 #          GitHubDeployRoleArn, AlbDnsName, CloudFrontDomainName,
-#          EcrRepositoryUri, UploadsBucketName, CodeCommitCloneUrlHttp.
+#          EcrRepositoryUri, UploadsBucketName, CodeCommitCloneUrlHttp,
+#          AmplifyAppId, AmplifyDefaultDomain.
 #     b. Update the AWS_DEPLOY_ROLE_ARN secret to GitHubDeployRoleArn.
 #     c. Set these GitHub repository VARIABLES for deploy.yml:
 #          ECR_REPOSITORY=unshelvd, ECS_CLUSTER=unshelvd, ECS_SERVICE=unshelvd,
 #          ECS_CONTAINER_NAME=unshelvd, DATABASE_URL_SECRET_ID=unshelvd/DATABASE_URL
 #          CODECOMMIT_HTTP_URL=<CodeCommitCloneUrlHttp output>
 #     d. Route 53 → Hosted zones → koshkikode.com → Create record:
-#          unshelvd.koshkikode.com  A  Alias → ALB → <AlbDnsName output>
-#          cdn.koshkikode.com       A  Alias → CloudFront → <CloudFrontDomainName output>
+#          cdn.koshkikode.com  A  Alias → CloudFront → <CloudFrontDomainName output>
+#        (unshelvd.koshkikode.com is automatically created by Amplify Domain)
 #     e. SES SMTP credentials — Console: SES → SMTP settings → Create SMTP credentials.
 #          Store the SMTP username in ecs-task-def.json (SMTP_USER env var) or
 #          configure email later via the admin panel (/#/admin → Settings → Email).
 #          Store the SMTP password → Secrets Manager → unshelvd/SMTP_PASS →
 #          "Set secret value" → enter the password (replaces the placeholder).
-#     f. Amplify Hosting — Console: Amplify → Host web app → GitHub →
-#          KoshkiKode/unshelvd → branch: main.
-#          Add env vars: VITE_STRIPE_PUBLISHABLE_KEY (optional, can be left blank
-#          and configured via admin panel later), VITE_THRIFTBOOKS_AFF_ID,
-#          VITE_ADSENSE_CLIENT.
-#          Rewrites (in order): /api/<*> → https://<AlbDnsName>/api/<*> (200),
-#          /ws/<*> → https://<AlbDnsName>/ws/<*> (200), /<*> → /index.html (200).
-#          Custom domain → unshelvd.koshkikode.com.
+#     f. Amplify Hosting is created automatically by the stack.
+#          Set VITE_STRIPE_PUBLISHABLE_KEY and any other Amplify env vars via the
+#          Amplify console or update AmplifyApp EnvironmentVariables and redeploy.
 #     g. Push to main → deploy.yml runs automatically → first real deploy.
 #     h. Sign in at /#/admin → Settings → Payments to add Stripe/PayPal keys.
 #          Stripe, PayPal keys are NOT required for launch — the platform runs
@@ -168,6 +164,18 @@ Parameters:
       Find it in IAM → Identity providers, or run:
         aws iam list-open-id-connect-providers
       Typically: arn:aws:iam::261142221895:oidc-provider/token.actions.githubusercontent.com
+
+  GitHubToken:
+    Type: String
+    NoEcho: true
+    Description: >-
+      GitHub Personal Access Token (classic) with repo scope, used by
+      Amplify Hosting to clone the repository and trigger builds on push.
+      Create via GitHub → Settings → Developer settings → Personal access tokens
+      → Tokens (classic) → Generate new token → select scope: repo.
+      Store it in SSM Parameter Store as /unshelvd/github-token (SecureString)
+      before deploying. In unshelvd-deploy.yaml reference it via the
+      SSM secure string dynamic reference pattern.
 
 # ──────────────────────────────────────────────────────────────────────────────
 Conditions:
@@ -728,6 +736,34 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref AppTargetGroup
 
+  # HTTP listener forwards /api/* and /ws/* directly to the target group so
+  # that the Amplify server-side proxy can reach the ECS service over HTTP
+  # (avoiding TLS certificate mismatch on the raw ALB DNS name).
+  # All other HTTP paths are redirected to HTTPS for browser clients.
+  HttpApiListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HttpRedirectListener
+      Priority: 1
+      Conditions:
+        - Field: path-pattern
+          Values: ["/api/*"]
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref AppTargetGroup
+
+  HttpWsListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HttpRedirectListener
+      Priority: 2
+      Conditions:
+        - Field: path-pattern
+          Values: ["/ws/*"]
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref AppTargetGroup
+
   HttpRedirectListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -1040,10 +1076,113 @@ Resources:
           Value: !Ref DbInstance
       AlarmActions: [!Ref AlarmTopic]
 
+  # ── 15. Amplify Hosting (SPA frontend / website) ───────────────────────────
+  # Creates the Amplify app connected to GitHub, wires up the main branch for
+  # auto-build on push, and registers unshelvd.<DomainName> as the custom
+  # domain (Amplify requests and validates the ACM certificate automatically
+  # via Route 53 in the same account — usually live within 5 minutes).
+  #
+  # /api/* and /ws/* are proxied server-side to the ECS ALB so the browser
+  # only ever talks to one origin. The ALB is NOT exposed publicly via DNS —
+  # it is accessed only through the Amplify server-side rewrite.
+  AmplifyApp:
+    Type: AWS::Amplify::App
+    Properties:
+      Name: !Ref AppName
+      # Repository URL is built from AppName. AppName must exactly match the
+      # GitHub repository name (case-sensitive). The GitHub organisation
+      # (KoshkiKode) is hard-coded to match the trust policy of GitHubDeployRole.
+      Repository: !Sub "https://github.com/KoshkiKode/${AppName}"
+      OauthToken: !Ref GitHubToken
+      Platform: WEB
+      BuildSpec: |
+        version: 1
+        frontend:
+          phases:
+            preBuild:
+              commands:
+                - npm ci
+            build:
+              commands:
+                - SKIP_ENV_VERIFY=true npm run build
+          artifacts:
+            baseDirectory: dist/public
+            files:
+              - '**/*'
+          cache:
+            paths:
+              - node_modules/**/*
+      CustomRules:
+        # Proxy /api/* and /ws/* server-side to the ECS ALB over HTTP.
+        # HTTP is used here because the ALB TLS certificate covers the custom
+        # domain (unshelvd.<DomainName>), not the raw ELB DNS name. The ALB
+        # HTTP listener has explicit rules that forward these paths directly to
+        # the target group (bypassing the default HTTP→HTTPS redirect).
+        # End-user traffic is always HTTPS — Amplify terminates TLS at the edge.
+        - Source: /api/<*>
+          Target: !Sub "http://${Alb.DNSName}/api/<*>"
+          Status: "200"
+        - Source: /ws/<*>
+          Target: !Sub "http://${Alb.DNSName}/ws/<*>"
+          Status: "200"
+        # SPA fallback — must be last.
+        - Source: /<*>
+          Target: /index.html
+          Status: "200"
+      EnvironmentVariables:
+        # Stripe publishable key (pk_live_… or pk_test_…). Leave blank and
+        # configure later via the admin panel (/#/admin → Settings → Payments).
+        - Name: VITE_STRIPE_PUBLISHABLE_KEY
+          Value: ""
+        # Optional ThriftBooks affiliate ID. Set after launch if needed.
+        - Name: VITE_THRIFTBOOKS_AFF_ID
+          Value: ""
+        # Optional AdSense publisher ID (ca-pub-…). Set after launch if needed.
+        - Name: VITE_ADSENSE_CLIENT
+          Value: ""
+      CustomHeaders: |
+        customHeaders:
+          - pattern: '/assets/**'
+            headers:
+              - key: Cache-Control
+                value: 'public, max-age=31536000, immutable'
+      Tags:
+        - Key: Project
+          Value: !Ref AppName
+        - Key: Environment
+          Value: production
+
+  AmplifyMainBranch:
+    Type: AWS::Amplify::Branch
+    Properties:
+      AppId: !GetAtt AmplifyApp.AppId
+      BranchName: main
+      EnableAutoBuild: true
+      Stage: PRODUCTION
+      Tags:
+        - Key: Project
+          Value: !Ref AppName
+
+  # Amplify requests the ACM certificate and creates the Route 53 validation
+  # CNAME automatically (requires the hosted zone to be in the same account).
+  # unshelvd.<DomainName> will point to Amplify once the cert is issued.
+  AmplifyDomain:
+    Type: AWS::Amplify::Domain
+    Properties:
+      AppId: !GetAtt AmplifyApp.AppId
+      DomainName: !Ref DomainName
+      SubDomainSettings:
+        - Prefix: unshelvd
+          BranchName: !GetAtt AmplifyMainBranch.BranchName
+      EnableAutoSubDomain: false
+
 # ──────────────────────────────────────────────────────────────────────────────
 Outputs:
   AlbDnsName:
-    Description: Public ALB DNS — create a Route 53 alias `unshelvd.<domain>` → this.
+    Description: >-
+      Internal ALB DNS — used by Amplify rewrites to proxy /api/* and /ws/*.
+      No public Route 53 alias is required; Amplify reaches the ALB directly
+      via this DNS name through the server-side rewrite.
     Value: !GetAtt Alb.DNSName
     Export: { Name: !Sub "${AppName}-alb-dns" }
 
@@ -1098,3 +1237,17 @@ Outputs:
     Description: SSH clone URL for the CodeCommit mirror repo.
     Value: !GetAtt CodeCommitRepo.CloneUrlSsh
     Export: { Name: !Sub "${AppName}-codecommit-ssh" }
+
+  AmplifyAppId:
+    Description: Amplify application ID — use to manage the app via CLI or console.
+    Value: !GetAtt AmplifyApp.AppId
+    Export: { Name: !Sub "${AppName}-amplify-app-id" }
+
+  AmplifyDefaultDomain:
+    Description: >-
+      Auto-generated Amplify domain (*.amplifyapp.com). Accessible immediately
+      after the first build; the custom domain unshelvd.<DomainName> becomes
+      live once the ACM certificate is validated by Route 53 (usually within
+      5 minutes of stack creation).
+    Value: !GetAtt AmplifyApp.DefaultDomain
+    Export: { Name: !Sub "${AppName}-amplify-domain" }
