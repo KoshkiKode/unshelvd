@@ -340,7 +340,7 @@ export const insertBookSchema = createInsertSchema(books).omit({
   price: z.number().min(0).nullable().optional(),
   genre: z.string().max(200).nullable().optional(),
   isbn: z.string().max(20).nullable().optional(),
-  coverUrl: z.string().nullable().optional(),
+  coverUrl: z.string().url("Cover URL must be a valid URL").nullable().optional(),
   description: z.string().max(5000).nullable().optional(),
   publisher: z.string().max(200).nullable().optional(),
   edition: z.string().max(100).nullable().optional(),

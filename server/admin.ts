@@ -440,15 +440,17 @@ export function registerAdminRoutes(app: Express) {
         .json({ message: "Please provide a list of queries." });
     }
 
-    // Validate each query: max 50 items, each a plain text string (≤ 100 chars,
-    // only letters/digits/spaces/common punctuation — no shell metacharacters).
+    // Validate each query: max 50 items, each a plain text string (≤ 200 chars,
+    // only Unicode letters/digits/spaces/common punctuation — no shell metacharacters).
     // spawn() does NOT use a shell so there is no injection risk, but we validate
     // here for defense-in-depth and to prevent the args being used maliciously if
     // the Python script is ever updated to read sys.argv.
+    // \p{L} covers all Unicode letter categories (Latin, Arabic, CJK, Devanagari, etc.)
+    // so catalog queries can be supplied in any human language or script.
     if (queries.length > 50) {
       return res.status(400).json({ message: "Too many queries (max 50)" });
     }
-    const SAFE_QUERY_REGEX = /^[\w\s',.\-\u00C0-\u024F\u0400-\u04FF]{1,100}$/u;
+    const SAFE_QUERY_REGEX = /^[\p{L}\p{N}\s',.\-]{1,200}$/u;
     for (const q of queries) {
       if (typeof q !== "string" || !SAFE_QUERY_REGEX.test(q)) {
         return res.status(400).json({ message: `Invalid query value: "${String(q).slice(0, 50)}"` });
