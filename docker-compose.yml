@@ -4,6 +4,8 @@
 #
 # Or run everything in containers:
 #        docker compose up --build
+#
+# Production: set all variables in .env before running docker compose up --build -d
 
 services:
   db:
@@ -24,7 +26,13 @@ services:
       retries: 5
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        VITE_STRIPE_PUBLISHABLE_KEY: ${VITE_STRIPE_PUBLISHABLE_KEY:-}
+        VITE_API_URL: ${VITE_API_URL:-}
+        VITE_THRIFTBOOKS_AFF_ID: ${VITE_THRIFTBOOKS_AFF_ID:-}
+        VITE_ADSENSE_CLIENT: ${VITE_ADSENSE_CLIENT:-}
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -33,6 +41,25 @@ services:
       NODE_ENV: production
       PORT: "8080"
       SESSION_SECRET: ${SESSION_SECRET:-unshelvd-dev-secret-change-me}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-}
+      # Stripe
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      VITE_STRIPE_PUBLISHABLE_KEY: ${VITE_STRIPE_PUBLISHABLE_KEY:-}
+      # Email (SMTP)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      # PayPal (optional)
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
+      PAYPAL_WEBHOOK_ID: ${PAYPAL_WEBHOOK_ID:-}
+      # File uploads
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - ./uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy

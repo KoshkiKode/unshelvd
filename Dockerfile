@@ -60,7 +60,7 @@ USER node
 ENV PORT=8080
 EXPOSE 8080
 
-# ECS container-level health check (ALB target group also checks /api/health).
+# Container health check — Caddy reverse-proxies to this endpoint
 HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=3 \
   CMD curl -f http://localhost:8080/api/health || exit 1
 
