@@ -81,7 +81,7 @@ nano .env
 ```
 
 The `.env.example` in this repo has detailed inline comments for every variable.
-Read them — especially the Stripe, SMTP, and S3 sections.
+Read them — especially the Stripe and SMTP sections.
 
 ---
 
@@ -111,7 +111,7 @@ Leave all three unset to run without payments (dev/demo mode).
 
 | Variable | Example |
 |---|---|
-| `SMTP_HOST` | `smtp.gmail.com`, `email-smtp.us-east-1.amazonaws.com`, etc. |
+| `SMTP_HOST` | Your SMTP provider's host, e.g. `smtp.mailprovider.com` |
 | `SMTP_PORT` | `587` (STARTTLS) or `465` (SSL) |
 | `SMTP_USER` | Your SMTP username |
 | `SMTP_PASS` | Your SMTP password |
@@ -119,6 +119,8 @@ Leave all three unset to run without payments (dev/demo mode).
 
 If unset, emails are printed to the console (dev mode). You can also configure SMTP
 via the admin panel at runtime (Settings → Email) without restarting the app.
+
+Any standard SMTP provider works: Postfix on the same server, Mailgun, Brevo, Fastmail, Proton Mail Bridge, etc.
 
 ### PayPal (Optional)
 
@@ -130,18 +132,24 @@ via the admin panel at runtime (Settings → Email) without restarting the app.
 
 PayPal is disabled by default. Enable in admin panel (Settings → Payments) after setting credentials.
 
-### Profile Images (Optional S3)
+### Profile Images
 
-By default, profile images are stored as base64 data URIs in the database. To use S3 instead:
+By default, profile images are stored as files on the local Docker volume. No external
+storage service is required.
 
 | Variable | Description |
 |---|---|
-| `AWS_REGION` | e.g. `us-east-1` |
-| `S3_BUCKET_NAME` | Your bucket name |
-| `CDN_BASE_URL` | Optional CDN in front of bucket (e.g. CloudFront) |
+| `UPLOAD_DIR` | Path **inside** the container where uploaded images are stored. Default: `/app/uploads`. Bind-mount this path in `docker-compose.yml` to persist across container recreations. |
 
-See `.env.example` for full S3 setup instructions. **S3 is entirely optional** — the app
-works perfectly without it.
+The `docker-compose.yml` already includes the correct bind mount:
+
+```yaml
+volumes:
+  - ./uploads:/app/uploads
+```
+
+This keeps all uploaded images in `./uploads/` on the host alongside the repo — safe
+across `docker compose up --build` rebuilds. Back it up with your normal server backup.
 
 ### Mobile
 
@@ -293,6 +301,14 @@ docker exec unshelvd-db-1 pg_dump -U unshelvd unshelvd | \
   gzip > /var/backups/db/unshelvd-manual-$(date +%Y-%m-%d).sql.gz
 ```
 
+### Backup uploaded images
+
+```bash
+tar -czf /var/backups/uploads-$(date +%Y-%m-%d).tar.gz /var/www/unshelvd/uploads/
+```
+
+Add this to the same nightly cron job as the database backup.
+
 ### Restore from backup
 
 ```bash
@@ -305,6 +321,9 @@ docker exec -i unshelvd-db-1 psql -U unshelvd -c "CREATE DATABASE unshelvd;"
 
 gunzip -c /var/backups/db/unshelvd-2026-01-01.sql.gz | \
   docker exec -i unshelvd-db-1 psql -U unshelvd unshelvd
+
+# Restore uploads if needed
+tar -xzf /var/backups/uploads-2026-01-01.tar.gz -C /
 
 # Restart
 docker compose start app
@@ -338,7 +357,7 @@ npm run db:setup
 
 # Dynamic DNS — check if IP is updating
 tail -f /var/log/ddns.log
-curl https://checkip.amazonaws.com   # your current public IP
+curl https://api.ipify.org   # your current public IP
 
 # Disk space
 df -h
@@ -354,6 +373,7 @@ docker system prune      # remove stopped containers + dangling images
 | SSL cert fails with `no such host` | DNS hasn't propagated yet — wait up to 5 minutes for dynamic DNS cron to run, or check GoDaddy |
 | Stripe webhook signature mismatch | `STRIPE_WEBHOOK_SECRET` is wrong or was copied from test mode — verify in Stripe Dashboard |
 | `MODULE_NOT_FOUND` on startup | Image was not rebuilt after a dependency change — `docker compose up --build -d` |
+| Uploaded images not persisting after rebuild | Check that `./uploads:/app/uploads` bind mount is in `docker-compose.yml` |
 
 ---
 
