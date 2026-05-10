@@ -8,8 +8,9 @@ A peer-to-peer book marketplace for every language, every country, every era. Bu
 |---|---|
 | **Production URL** | https://unshelvd.koshkikode.com |
 | **Mobile bundle / application ID** | `com.koshkikode.unshelvd` |
-| **Deployment guide** | [DEPLOY.md](./DEPLOY.md) — full AWS runbook |
-| **Pre-launch checklist** | [DEPLOY.md → Step 0](./DEPLOY.md#step-0--pre-deploy-code-changes-required-before-first-deploy) and the launch-day go/no-go appendix |
+| **Self-hosting guide** | [DEPLOY.md](./DEPLOY.md) — home server runbook |
+| **Server setup (first time)** | [HOME_SERVER_SETUP.md](./HOME_SERVER_SETUP.md) — full Debian + Docker + Caddy setup |
+| **Pre-launch checklist** | [DEPLOY.md → Pre-deploy checklist](./DEPLOY.md#pre-deploy-checklist) |
 
 ## What Makes It Different
 
@@ -26,10 +27,10 @@ A peer-to-peer book marketplace for every language, every country, every era. Bu
 |-------|-----------|
 | Frontend | React 19, TypeScript, Tailwind CSS, shadcn/ui |
 | Backend | Express.js, Passport.js (auth), Stripe Connect + PayPal (payments) |
-| Database | PostgreSQL + Drizzle ORM |
+| Database | PostgreSQL 16 + Drizzle ORM |
 | Desktop | Tauri v2 (optional — see [DESKTOP.md](./DESKTOP.md)) |
 | Mobile | Capacitor (Android + iOS) |
-| Hosting | AWS Amplify Hosting (SPA + CDN) → AWS ECS Fargate + ALB (API + WebSocket) → Amazon RDS for PostgreSQL → Amazon S3 (uploads) |
+| Hosting | Self-hosted: Debian tower · Docker Compose · Caddy · GoDaddy DNS |
 | Catalog | Open Library API + proprietary database |
 
 ## Complete Local Setup (Web + API + Database + Admin + Mobile)
@@ -165,7 +166,9 @@ Then sign in with your production admin account and open the admin screen from t
 
 ## Deploy to Production
 
-See [DEPLOY.md](./DEPLOY.md) for the full step-by-step production deployment guide.
+See [DEPLOY.md](./DEPLOY.md) for the full self-hosting production deployment guide.
+
+For first-time server setup (Debian install, Docker, Caddy, dynamic DNS), see [HOME_SERVER_SETUP.md](./HOME_SERVER_SETUP.md).
 
 ## Project Structure
 
@@ -204,9 +207,9 @@ unshelvd/
 ├── ios/                   # Capacitor iOS project
 ├── scripts/               # Build scripts (Android, iOS, catalog seeder)
 ├── .github/workflows/     # CI: auto-build APK + verify iOS on every push
-├── Dockerfile             # Production container (ECS Fargate)
-├── docker-compose.yml     # Local dev (PostgreSQL)
-└── ecs-task-def.json      # AWS ECS Fargate task definition template
+├── Dockerfile             # Production container image
+├── docker-compose.yml     # Local dev + production deployment
+└── HOME_SERVER_SETUP.md   # Full Debian + Docker + Caddy server setup guide
 ```
 
 ## Security
