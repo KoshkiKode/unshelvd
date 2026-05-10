@@ -10,6 +10,7 @@ A peer-to-peer book marketplace for every language, every country, every era. Bu
 | **Mobile bundle / application ID** | `com.koshkikode.unshelvd` |
 | **Self-hosting guide** | [DEPLOY.md](./DEPLOY.md) — home server runbook |
 | **Server setup (first time)** | [HOME_SERVER_SETUP.md](./HOME_SERVER_SETUP.md) — full Debian + Docker + Caddy setup |
+| **Connectivity & WebSocket guide** | [CONNECTIVITY.md](./CONNECTIVITY.md) — how web, native, and API talk to each other |
 | **Pre-launch checklist** | [DEPLOY.md → Pre-deploy checklist](./DEPLOY.md#pre-deploy-checklist) |
 
 ## What Makes It Different
@@ -17,7 +18,7 @@ A peer-to-peer book marketplace for every language, every country, every era. Bu
 - **150+ languages**, 30+ writing systems, 17 calendar systems
 - **Historical nations**: Yugoslavia, USSR, Ottoman Empire, Austria-Hungary — recognized as countries of origin
 - **Work-edition graph**: every book automatically linked to all its editions, translations, and printings
-- **Book requests**: post what you're looking for, get matched with sellers
+- **Book requests**: post what you’re looking for, get matched with sellers
 - **In-app payments** with escrow protection (Stripe Connect + PayPal)
 - **35 UI languages**: top global languages with native labels and RTL support where needed
 
@@ -113,8 +114,8 @@ Optional larger catalog import:
 npm run catalog:mass-seed:py
 ```
 
-This pulls a much larger Open Library dataset (typically 12,000-15,000 catalog books, depending on Open Library response volume, deduplication, and temporary API throttling).
-Expect ~5-10 minutes on a typical connection; completion is indicated when the command exits successfully and returns to your shell prompt.
+This pulls a much larger Open Library dataset (typically 12,000–15,000 catalog books, depending on Open Library response volume, deduplication, and temporary API throttling).
+Expect ~5–10 minutes on a typical connection; completion is indicated when the command exits successfully and returns to your shell prompt.
 
 ### 6) Start the app
 
@@ -150,7 +151,7 @@ npx cap open android   # or: npx cap open ios
 
 By default for native local dev, the app API target is:
 
-- Android emulator: `http://10.0.2.2:5000` (`10.0.2.2` is the emulator alias to your host machine's `localhost`)
+- Android emulator: `http://10.0.2.2:5000` (`10.0.2.2` is the emulator alias to your host machine’s `localhost`)
 - iOS simulator: `http://localhost:5000`
 
 ### Production mobile build
@@ -169,6 +170,8 @@ Then sign in with your production admin account and open the admin screen from t
 See [DEPLOY.md](./DEPLOY.md) for the full self-hosting production deployment guide.
 
 For first-time server setup (Debian install, Docker, Caddy, dynamic DNS), see [HOME_SERVER_SETUP.md](./HOME_SERVER_SETUP.md).
+
+For how the web app, native apps, and API communicate (CORS, cookies, WebSocket, env vars), see [CONNECTIVITY.md](./CONNECTIVITY.md).
 
 ## Project Structure
 
@@ -205,8 +208,10 @@ unshelvd/
 ├── migrations/            # Drizzle migration files
 ├── android/               # Capacitor Android project
 ├── ios/                   # Capacitor iOS project
-├── scripts/               # Build scripts (Android, iOS, catalog seeder)
-├── .github/workflows/     # CI: auto-build APK + verify iOS on every push
+├── script/                # Node.js build + seed + migration runner scripts
+│                          #   (bootstrap.js, build.ts, migrate.js, seed.js, …)
+├── scripts/               # Mobile build shells + Python catalog tooling
+│                          #   (build-android.sh, build-ios.sh, mass-seed.py, …)
 ├── Dockerfile             # Production container image
 ├── docker-compose.yml     # Local dev + production deployment
 └── HOME_SERVER_SETUP.md   # Full Debian + Docker + Caddy server setup guide
@@ -236,4 +241,4 @@ MIT
 - End User License Agreement (EULA): `/#/eula`
 - Platform License Agreement: `/#/license-agreement`
 
-Unshelv'd uses a small middleman marketplace model with a current 10% per-transaction fee, with a public target to reduce to 5% as the platform scales.
+Unshelv’d uses a small middleman marketplace model with a current 10% per-transaction fee, with a public target to reduce to 5% as the platform scales.
