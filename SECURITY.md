@@ -1,29 +1,48 @@
-# Security Policy — Unshelv'd
+# Security Policy
 
-See the [organisation-level security policy](https://github.com/KoshkiKode/.github/blob/main/.github/SECURITY.md) for the full responsible disclosure process, response timelines, and scope.
+## Scope
 
----
+This policy applies to the Unshelv'd web application, REST API, and Capacitor mobile clients. It does **not** cover third-party payment processors (Stripe, PayPal) — report payment-related vulnerabilities directly to those providers.
 
-## Unshelv'd-Specific Notes
+## Supported Versions
 
-Unshelv'd handles real financial transactions via Stripe Connect and PayPal. Payment-related vulnerabilities are treated as **critical priority**.
+| Component | Supported |
+|-----------|----------|
+| Web app (latest `main`) | ✅ |
+| Mobile (latest release) | ✅ |
+| Desktop (Tauri, latest release) | ✅ |
+| Older tagged releases | ❌ — upgrade to latest |
 
-### Areas of Heightened Sensitivity
+## Reporting a Vulnerability
 
-- **Authentication / session management** — user account takeover
-- **Payment flows** — escrow bypass, unauthorized charges, or fund redirection
-- **User data** — PII exposure, IDOR vulnerabilities allowing access to another user's listings or messages
-- **Seller payouts** — any vulnerability that could redirect or duplicate payouts
-- **API endpoints** — missing auth checks, privilege escalation
+Please **do not** open a public GitHub issue for security vulnerabilities.
 
-### Out of Scope for Unshelv'd
+Email: **security@koshkikode.com**
 
-- Stripe or PayPal platform vulnerabilities — report those directly to Stripe/PayPal
-- Rate limiting on public endpoints that don't expose sensitive data
-- Missing security headers on static assets
+Include:
+- A clear description of the vulnerability
+- Steps to reproduce (or proof-of-concept)
+- Potential impact (data exposure, privilege escalation, etc.)
+- Your GitHub handle or preferred contact for follow-up
 
-### Reporting
+You can expect an acknowledgement within **72 hours** and a status update within **7 days**.
 
-Use the **GitHub Private Security Advisory** feature on this repository, or follow the contact instructions in the [org-level SECURITY.md](https://github.com/KoshkiKode/.github/blob/main/.github/SECURITY.md).
+## Sensitive Data in Scope
 
-**Do not open a public issue for security vulnerabilities.**
+- User accounts, email addresses, shipping addresses
+- Order history and listing data
+- Session tokens and authentication flows
+- Stripe Connect / PayPal OAuth tokens (server-side)
+
+## Out of Scope
+
+- Spam, phishing, or social engineering attacks
+- Denial-of-service attacks
+- Vulnerabilities in dependencies not under KoshkiKode control
+- Issues requiring physical device access
+
+## Disclosure Policy
+
+We follow coordinated disclosure. Once a fix is released, we will credit reporters in the relevant release notes (unless you prefer to remain anonymous).
+
+No bug bounty programme is currently active.

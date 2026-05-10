@@ -1,95 +1,137 @@
 # Contributing to Unshelv'd
 
-See the [organisation-level contributing guide](https://github.com/KoshkiKode/.github/blob/main/.github/CONTRIBUTING.md) for branch naming, commit message conventions, PR guidelines, and code of conduct.
+Thank you for your interest in Unshelv'd. This guide covers how to set up a local development environment, the coding standards we follow, and how to submit changes.
 
-This file covers Unshelv'd-specific setup and conventions.
+## Table of Contents
+
+- [Getting Started](#getting-started)
+- [Full Stack Setup](#full-stack-setup)
+- [Running Tests](#running-tests)
+- [Code Style](#code-style)
+- [Mobile & Desktop Builds](#mobile--desktop-builds)
+- [Branch & Commit Conventions](#branch--commit-conventions)
+- [Submitting a Pull Request](#submitting-a-pull-request)
+- [Reporting Issues](#reporting-issues)
 
 ---
 
-## Prerequisites
+## Getting Started
 
-- [Node.js](https://nodejs.org/) v20+
-- [npm](https://www.npmjs.com/) v10+
-- [PostgreSQL](https://www.postgresql.org/) 16+ (or Docker)
-- [Docker](https://www.docker.com/) + [Docker Compose](https://docs.docker.com/compose/) (recommended for local DB)
-
-## Local Development
+**Prerequisites:**
+- Node.js 20+
+- Docker & Docker Compose
+- `npm` (or `pnpm` — both work)
 
 ```bash
-# Install dependencies
+git clone https://github.com/KoshkiKode/unshelvd.git
+cd unshelvd
 npm install
+cp .env.example .env   # fill in your local values
+```
 
-# Copy environment template and fill in values
-cp .env.example .env
+The `.env.example` file documents every required variable with descriptions.
 
-# Start the database (Docker)
-docker compose up -d db
+---
 
-# Run database migrations
+## Full Stack Setup
+
+### 1. Start the database
+
+```bash
+docker-compose up -d
+```
+
+This starts PostgreSQL. The default credentials match `.env.example`.
+
+### 2. Run migrations
+
+```bash
 npm run db:migrate
+```
 
-# Start the dev server (frontend + backend together)
+Optionally seed with sample data:
+
+```bash
+npm run db:seed
+```
+
+### 3. Start the dev server
+
+```bash
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173` (frontend) and `http://localhost:3000` (API).
+This starts both the Express API and the Vite frontend concurrently. The web app runs at `http://localhost:5173` by default.
+
+---
 
 ## Running Tests
 
 ```bash
-# Unit + integration tests
-npm run test
-
-# Watch mode
-npm run test:watch
+npm test          # run all tests with vitest
+npm run test:ui   # vitest UI mode
 ```
+
+Tests live in `tests/`. Please add or update tests for any behaviour you change.
+
+---
 
 ## Code Style
 
-- **Formatter:** Prettier (config in repo root)
-- **Linter:** ESLint
-- Run both before committing: `npm run lint && npm run format`
-- CI will reject PRs that fail lint or format checks
+- **TypeScript** — strict mode is on. Do not disable type checks with `@ts-ignore` without a comment explaining why.
+- **Formatting** — Prettier is configured. Run `npm run format` before committing.
+- **Linting** — ESLint is configured. Run `npm run lint` and fix all errors before pushing.
+- **Imports** — use path aliases (`@/`) defined in `tsconfig.json` rather than relative `../../` chains.
+- **Drizzle ORM** — schema lives in `database/`. Add new migrations with `npm run db:generate` after changing the schema.
 
-## Project Structure
+---
+
+## Mobile & Desktop Builds
+
+See [MOBILE.md](./MOBILE.md) for Android/iOS build instructions via Capacitor.
+
+See [DESKTOP.md](./DESKTOP.md) for the optional Tauri desktop build.
+
+---
+
+## Branch & Commit Conventions
+
+**Branch naming:**
 
 ```
-client/       React frontend (Vite + TypeScript)
-server/       Express.js backend
-shared/       Types and utilities shared between client and server
-database/     Drizzle ORM schema and migrations
-migrations/   Generated migration files
-scripts/      Dev and maintenance scripts
-tests/        Test suites
+feat/short-description
+fix/short-description
+chore/short-description
+docs/short-description
 ```
 
-## Database Migrations
+**Commit messages** follow [Conventional Commits](https://www.conventionalcommits.org/):
 
-```bash
-# Generate a new migration after schema changes
-npm run db:generate
-
-# Apply migrations
-npm run db:migrate
-
-# Open Drizzle Studio (GUI)
-npm run db:studio
+```
+feat: add RTL support for Arabic listings
+fix: correct escrow release timing on mobile
+chore: update drizzle-orm to 0.31
+docs: clarify DEPLOY.md Caddy config
 ```
 
-Never edit migration files by hand. Always generate them via `npm run db:generate`.
+---
 
-## Mobile (Capacitor)
+## Submitting a Pull Request
 
-See `MOBILE.md` for building the Android and iOS apps.
+1. Fork the repo and create your branch from `main`.
+2. Make your changes with tests where applicable.
+3. Run `npm run lint && npm run format && npm test` — all must pass.
+4. Open a PR against `main` and fill in the PR template.
+5. Link the relevant issue in the PR description.
 
-## Desktop (Tauri)
+PRs that change core business logic (escrow, payments, i18n, auth) require extra care — please describe your change thoroughly and include manual testing notes.
 
-See `DESKTOP.md` for building the desktop app.
+---
 
-## Key Conventions
+## Reporting Issues
 
-- All API routes go in `server/routes/`
-- All database schema changes go through Drizzle migrations — never raw SQL on production
-- Keep client-side and server-side types in `shared/` so they stay in sync
-- Payment-related code (Stripe, PayPal) is in `server/payments/` — treat it with extra care and always add tests
-- Secrets and API keys go in `.env` only — never committed
+Use the issue templates:
+- **Bug report** — for unexpected behaviour
+- **Feature request** — for new ideas
+
+For security vulnerabilities, see [SECURITY.md](./SECURITY.md) — **do not** open a public issue.
