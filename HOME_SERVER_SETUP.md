@@ -1,8 +1,8 @@
 # KoshkiKode — Complete Home Server Setup Guide
 
 > **Goal:** Run Unshelvd and all KoshkiKode sites from a headless Debian tower
-> on Metronet fiber, using Route 53 for DNS and Caddy for HTTPS.
-> No cloud hosting fees. No S3 required.
+> on Metronet fiber, using GoDaddy DNS for domain management and Caddy for HTTPS.
+> No cloud hosting fees. No external storage required.
 >
 > **Hardware target:** Single desktop tower, 8 GB RAM, ~800 GB storage.
 > Everything here is designed to run comfortably on that machine.
@@ -18,7 +18,7 @@
 5. [Install Docker](#4-install-docker)
 6. [Install Caddy](#5-install-caddy)
 7. [Router: Port Forwarding](#6-router-port-forwarding)
-8. [Route 53: Dynamic DNS](#7-route-53-dynamic-dns)
+8. [GoDaddy: Dynamic DNS](#7-godaddy-dynamic-dns)
 9. [Deploy Unshelvd](#8-deploy-unshelvd)
 10. [Paywalled Download Pages](#9-paywalled-download-pages)
 11. [Additional Websites](#10-additional-websites)
@@ -32,7 +32,7 @@
 
 ## Running Everything on One Machine
 
-Your tower is more than capable. Here’s the approximate memory footprint of
+Your tower is more than capable. Here's the approximate memory footprint of
 the full stack at rest:
 
 | Service | RAM (approx) |
@@ -50,7 +50,7 @@ Docker app you add costs roughly 100–300 MB RAM.
 
 > **After any reboot:** Docker has `restart: unless-stopped` on both containers,
 > and Caddy is enabled via systemctl. Everything comes back automatically —
-> you don’t need to do anything.
+> you don't need to do anything.
 
 ---
 
@@ -62,16 +62,16 @@ Docker app you add costs roughly 100–300 MB RAM.
 - A separate machine to SSH from (your main laptop/PC)
 
 ### Accounts & Services
-- **AWS Route 53** — DNS provider. You’ll create an IAM user with limited
-  Route 53 permissions. [AWS IAM Console →](https://console.aws.amazon.com/iam/)
-- **Your domain** — nameservers pointed at Route 53
+- **GoDaddy** — domain registrar and DNS provider. Your nameservers should point here.
+  [GoDaddy DNS Manager →](https://dcc.godaddy.com/manage/dns)
+- **Your domain** — nameservers pointed at GoDaddy
 - **Stripe** — for payments. [stripe.com →](https://stripe.com)
-- **Email / SMTP** — Unshelvd sends transactional emails (password reset,
-  offers, transactions). [Amazon SES](https://aws.amazon.com/ses/) is cheapest
-  for Route 53 users; any SMTP provider works.
+- **Email / SMTP** — Unshelvd sends transactional emails (password reset, offers,
+  transactions). Any standard SMTP provider works: Postfix on the same server,
+  Mailgun, Brevo, Fastmail, Proton Mail Bridge, Zoho Mail, etc.
 
 ### Software to download on your main machine
-- [Debian 12 “Bookworm” netinst ISO](https://www.debian.org/distrib/netinst) —
+- [Debian 12 "Bookworm" netinst ISO](https://www.debian.org/distrib/netinst) —
   ~400 MB small installer (not the full DVD)
 - [Rufus (Windows)](https://rufus.ie) or
   [Balena Etcher (Mac/Linux)](https://etcher.balena.io) — to flash ISO to USB
@@ -96,9 +96,9 @@ Docker app you add costs roughly 100–300 MB RAM.
      - Nothing else. No desktop, no print server.
 5. Let it install and reboot. Pull out the USB when it reboots.
 
-You’ll see a plain text login prompt. That’s correct.
+You'll see a plain text login prompt. That's correct.
 
-To find your tower’s local IP, log in at the screen once and run:
+To find your tower's local IP, log in at the screen once and run:
 ```bash
 ip addr show
 ```
@@ -126,7 +126,7 @@ su -
 apt update && apt upgrade -y
 
 # Install essentials
-apt install -y curl git ufw unzip htop nano awscli
+apt install -y curl git ufw unzip htop nano jq
 
 # Firewall — allow SSH, HTTP, HTTPS only
 ufw allow 22
@@ -140,7 +140,7 @@ ufw status
 
 Log into your Metronet router admin (usually `192.168.1.1` in a browser).
 Find **DHCP Reservations** or **Static Leases**. Add an entry that ties your
-tower’s MAC address to a fixed IP like `192.168.1.50` so port forwarding
+tower's MAC address to a fixed IP like `192.168.1.50` so port forwarding
 never breaks.
 
 Find your MAC address:
@@ -160,7 +160,7 @@ ip link show
 # Remove any old versions
 apt remove -y docker docker-engine docker.io containerd runc
 
-# Add Docker’s official apt repository
+# Add Docker's official apt repository
 apt install -y ca-certificates curl gnupg
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/debian/gpg | \
@@ -198,7 +198,7 @@ exit
 ## 5. Install Caddy
 
 Caddy is your reverse proxy. It automatically obtains and renews HTTPS certs
-from Let’s Encrypt for every domain you configure — no Certbot, no cron jobs.
+from Let's Encrypt for every domain you configure — no Certbot, no cron jobs.
 
 [Caddy documentation →](https://caddyserver.com/docs/)
 [Caddy install guide →](https://caddyserver.com/docs/install#debian-ubuntu-raspbian)
@@ -237,64 +237,40 @@ In your Metronet router admin panel, find **Port Forwarding** and add:
 | Web HTTP | 80 | 192.168.1.50 | 80 | TCP |
 | Web HTTPS | 443 | 192.168.1.50 | 443 | TCP |
 
-Replace `192.168.1.50` with your tower’s reserved local IP.
+Replace `192.168.1.50` with your tower's reserved local IP.
 
 ### Verify it works
 
 From your phone on **cellular** (not Wi-Fi — you need to be outside your
 network), visit `http://YOUR_PUBLIC_IP`. Get your public IP with:
 ```bash
-curl https://checkip.amazonaws.com
+curl -sf https://api.ipify.org
 ```
 If Caddy responds at all (even a 404), port forwarding is working.
 
 ---
 
-## 7. Route 53: Dynamic DNS
+## 7. GoDaddy: Dynamic DNS
 
 Metronet residential IPs are dynamic and can change. This script checks your
-public IP every 5 minutes and updates all your Route 53 A records automatically.
+public IP every 5 minutes and updates all your GoDaddy A records automatically
+using the GoDaddy DNS Management API.
 
-### Create a limited IAM user
+### Get your GoDaddy API credentials
 
-1. [AWS IAM Console →](https://console.aws.amazon.com/iam/) → Users →
-   Create user, name it `route53-ddns`
-2. Find your **Hosted Zone ID** in
-   [Route 53 Console →](https://console.aws.amazon.com/route53/)
-   (looks like `Z1234ABCDEF`)
-3. Attach this inline policy to the new user:
+1. Go to [GoDaddy Developer Portal →](https://developer.godaddy.com/keys)
+2. Click **Create New API Key**
+3. Name it something like `ddns-server`, environment **Production**
+4. Copy the **Key** and **Secret** — you only see the secret once
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "route53:ChangeResourceRecordSets",
-        "route53:ListResourceRecordSets"
-      ],
-      "Resource": "arn:aws:route53:::hostedzone/YOUR_HOSTED_ZONE_ID"
-    },
-    {
-      "Effect": "Allow",
-      "Action": "route53:ListHostedZones",
-      "Resource": "*"
-    }
-  ]
-}
-```
-
-4. Create access keys for this user and save them securely.
-
-### Configure AWS CLI on the server
+### Store credentials on the server
 
 ```bash
-aws configure --profile route53-ddns
-# Access Key ID:     (paste your key)
-# Secret Access Key: (paste your secret)
-# Default region:    us-east-1
-# Output format:     json
+# Store as environment variables for the script
+# Replace with your actual key and secret
+echo 'GODADDY_API_KEY=your_key_here' >> /etc/environment
+echo 'GODADDY_API_SECRET=your_secret_here' >> /etc/environment
+source /etc/environment
 ```
 
 ### Create the dynamic DNS script
@@ -306,39 +282,43 @@ nano /usr/local/bin/update-dns.sh
 ```bash
 #!/bin/bash
 
-HOSTED_ZONE_ID="YOUR_HOSTED_ZONE_ID"
-# All A records to keep updated, space-separated
-RECORDS="koshkikode.com www.koshkikode.com unshelvd.koshkikode.com downloads.koshkikode.com"
-IP_FILE="/tmp/last_known_ip.txt"
-PROFILE="route53-ddns"
+# GoDaddy DDNS updater
+# Checks your public IP every run and updates A records in GoDaddy if changed.
 
-CURRENT_IP=$(curl -sf https://checkip.amazonaws.com)
+GODADDY_API_KEY="${GODADDY_API_KEY}"
+GODADDY_API_SECRET="${GODADDY_API_SECRET}"
+DOMAIN="koshkikode.com"
+
+# All A record names to keep updated (@ = root domain, or use subdomains)
+RECORDS=("@" "www" "unshelvd" "downloads" "vetviona")
+
+IP_FILE="/tmp/last_known_ip.txt"
+LOG="/var/log/ddns.log"
+
+CURRENT_IP=$(curl -sf https://api.ipify.org)
 
 if [ -z "$CURRENT_IP" ]; then
-  echo "$(date): Failed to get public IP" >> /var/log/ddns.log
+  echo "$(date): Failed to get public IP" >> "$LOG"
   exit 1
 fi
 
 LAST_IP=$(cat "$IP_FILE" 2>/dev/null)
 [ "$CURRENT_IP" = "$LAST_IP" ] && exit 0
 
-echo "$(date): IP changed $LAST_IP -> $CURRENT_IP - updating Route 53" >> /var/log/ddns.log
+echo "$(date): IP changed ${LAST_IP:-none} -> $CURRENT_IP — updating GoDaddy" >> "$LOG"
 
-for RECORD in $RECORDS; do
-  aws route53 change-resource-record-sets \
-    --profile "$PROFILE" \
-    --hosted-zone-id "$HOSTED_ZONE_ID" \
-    --change-batch "{
-      \"Changes\": [{
-        \"Action\": \"UPSERT\",
-        \"ResourceRecordSet\": {
-          \"Name\": \"$RECORD\",
-          \"Type\": \"A\",
-          \"TTL\": 300,
-          \"ResourceRecords\": [{\"Value\": \"$CURRENT_IP\"}]
-        }
-      }]
-    }" >> /var/log/ddns.log 2>&1
+for RECORD in "${RECORDS[@]}"; do
+  RESPONSE=$(curl -sf -X PUT \
+    "https://api.godaddy.com/v1/domains/${DOMAIN}/records/A/${RECORD}" \
+    -H "Authorization: sso-key ${GODADDY_API_KEY}:${GODADDY_API_SECRET}" \
+    -H "Content-Type: application/json" \
+    -d "[{\"data\":\"${CURRENT_IP}\",\"ttl\":600}]")
+  STATUS=$?
+  if [ $STATUS -eq 0 ]; then
+    echo "$(date):   ✓ ${RECORD}.${DOMAIN} -> ${CURRENT_IP}" >> "$LOG"
+  else
+    echo "$(date):   ✗ Failed to update ${RECORD}.${DOMAIN} (curl exit $STATUS)" >> "$LOG"
+  fi
 done
 
 echo "$CURRENT_IP" > "$IP_FILE"
@@ -358,6 +338,15 @@ cat /var/log/ddns.log
 crontab -e
 # Add this line:
 */5 * * * * /usr/local/bin/update-dns.sh
+```
+
+### Verify GoDaddy DNS is pointing to you
+
+```bash
+# Check what GoDaddy currently has for your root A record
+curl -sf \
+  -H "Authorization: sso-key ${GODADDY_API_KEY}:${GODADDY_API_SECRET}" \
+  "https://api.godaddy.com/v1/domains/koshkikode.com/records/A/@" | jq .
 ```
 
 ---
@@ -411,11 +400,12 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 VITE_STRIPE_PUBLISHABLE_KEY=pk_live_...
 
 # --- SMTP (for transactional email) ---
-# Amazon SES is recommended (see .env.example for full instructions)
-SMTP_HOST=email-smtp.us-east-1.amazonaws.com
+# Any standard SMTP provider works: Postfix, Mailgun, Brevo, Fastmail, etc.
+# Add SPF/DKIM records in your GoDaddy DNS zone for your chosen provider.
+SMTP_HOST=smtp.your-provider.com
 SMTP_PORT=587
-SMTP_USER=your-ses-smtp-user
-SMTP_PASS=your-ses-smtp-password
+SMTP_USER=your-smtp-user
+SMTP_PASS=your-smtp-password
 EMAIL_FROM=Unshelv'd <noreply@koshkikode.com>
 
 # --- Mobile build target (set on CLI only, not in .env) ---
@@ -584,10 +574,35 @@ anotherapp.koshkikode.com {
 `/etc/caddy/Caddyfile`:
 
 ```
-# Main landing / portfolio
+# KoshkiKode main site
 koshkikode.com {
-    root * /var/www/main
+    root * /var/www/website
     file_server
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        Cache-Control "public, max-age=0, must-revalidate"
+    }
+
+    # Serve /README as plain text
+    @readme path /README /readme /README.txt
+    header @readme Content-Type "text/plain; charset=utf-8"
+
+    # .html -> folder redirects
+    redir /about.html     /about/     301
+    redir /vetviona.html  /vetviona/  301
+    redir /unshelvd.html  /unshelvd/  301
+    redir /cordite.html   /the-cordite-wars/ 301
+    redir /readme         /README     301
+    redir /README.txt     /README     301
+
+    # Folder-based routing (try index.html inside each folder)
+    try_files {path} {path}/index.html /index.html
 }
 
 www.koshkikode.com {
@@ -602,6 +617,11 @@ unshelvd.koshkikode.com {
 # Paywalled downloads
 downloads.koshkikode.com {
     reverse_proxy localhost:3001
+}
+
+# Vetviona license server
+vetviona.koshkikode.com {
+    reverse_proxy localhost:3002
 }
 ```
 
@@ -739,7 +759,7 @@ df -h
 # RAM usage
 free -h
 
-# What’s listening on which ports
+# What's listening on which ports
 ss -tlnp
 ```
 
@@ -757,12 +777,12 @@ ss -tlnp
 | Docker Compose Docs | https://docs.docker.com/compose/ |
 | Caddy Install | https://caddyserver.com/docs/install |
 | Caddy Caddyfile Reference | https://caddyserver.com/docs/caddyfile |
+| GoDaddy DNS Manager | https://dcc.godaddy.com/manage/dns |
+| GoDaddy Developer API Keys | https://developer.godaddy.com/keys |
+| GoDaddy DNS API Docs | https://developer.godaddy.com/doc/endpoint/domains |
 | Capacitor Docs | https://capacitorjs.com/docs |
 | Android Studio | https://developer.android.com/studio |
 | Xcode | https://developer.apple.com/xcode/ |
-| AWS IAM Console | https://console.aws.amazon.com/iam/ |
-| Route 53 Console | https://console.aws.amazon.com/route53/ |
-| Amazon SES (email) | https://aws.amazon.com/ses/ |
 | Stripe Dashboard | https://dashboard.stripe.com |
 | restic Backup Tool | https://restic.readthedocs.io |
 | Backblaze B2 | https://www.backblaze.com/cloud-storage |
