@@ -1408,8 +1408,15 @@ export async function registerRoutes(
         console.error("[webhook] Signature verification failed:", err);
         return res.status(400).json({ message: "Webhook signature invalid" });
       }
+    } else if (process.env.NODE_ENV === "production") {
+      // Never trust an unsigned body in production: anyone could POST a forged
+      // payment_intent.succeeded and get a purchase marked as paid.
+      console.error(
+        "[webhook] STRIPE_WEBHOOK_SECRET is not configured; refusing to process an unsigned Stripe event",
+      );
+      return res.status(503).json({ message: "Webhook not configured" });
     } else {
-      // Dev mode: trust the body as-is (no secret configured)
+      // Dev mode only: trust the body as-is (no secret configured)
       event = req.body;
     }
 
@@ -1490,6 +1497,12 @@ export async function registerRoutes(
         console.error("[paypal-webhook] Signature verification failed");
         return res.status(400).json({ message: "Webhook signature invalid" });
       }
+    } else if (process.env.NODE_ENV === "production") {
+      // Never trust an unsigned body in production (see the Stripe webhook above).
+      console.error(
+        "[paypal-webhook] PAYPAL_WEBHOOK_ID is not configured; refusing to process an unsigned PayPal event",
+      );
+      return res.status(503).json({ message: "Webhook not configured" });
     }
 
     const eventType: string = event.event_type ?? "";

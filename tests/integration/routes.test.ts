@@ -5,7 +5,7 @@
  * run without a real Postgres connection.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import express from "express";
 import request from "supertest";
 import { createServer } from "http";
@@ -3913,5 +3913,67 @@ describe("POST /api/webhooks/paypal", () => {
     // Missing PayPal signature headers → 400
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/missing.*signature/i);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Webhooks in production must never trust an unsigned body
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("webhooks in production without a signing secret", () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dbCallQueue.length = 0;
+    delete process.env.STRIPE_WEBHOOK_SECRET;
+    delete process.env.PAYPAL_WEBHOOK_ID;
+    process.env.NODE_ENV = "production";
+    app = await buildApp();
+  });
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  it("Stripe: refuses an unsigned event with 503 and never confirms the payment", async () => {
+    const res = await request(app)
+      .post("/api/payments/stripe/webhook")
+      .send({
+        type: "payment_intent.succeeded",
+        data: { object: { metadata: { transactionId: "7", buyerId: "3" } } },
+      });
+
+    expect(res.status).toBe(503);
+    expect(res.body.message).toBe("Webhook not configured");
+    expect(confirmPayment).not.toHaveBeenCalled();
+  });
+
+  it("PayPal: refuses an unsigned event with 503 and never touches the database", async () => {
+    pushDbResults([{ id: 5, status: "paid", bookId: 3, paypalAuthorizationId: "AUTH_123" }]);
+
+    const res = await request(app)
+      .post("/api/webhooks/paypal")
+      .send({ event_type: "PAYMENT.AUTHORIZATION.VOIDED", resource: { id: "AUTH_123" } });
+
+    expect(res.status).toBe(503);
+    expect(res.body.message).toBe("Webhook not configured");
+    // The queued row was never consumed, i.e. the handler returned before any query.
+    expect(dbCallQueue.length).toBe(1);
+  });
+
+  it("Stripe: still rejects a bad signature when the secret IS configured", async () => {
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+    const secured = await buildApp();
+
+    const res = await request(secured)
+      .post("/api/payments/stripe/webhook")
+      .send({ type: "payment_intent.succeeded" });
+
+    // No stripe-signature header / raw body -> 400, not processed
+    expect(res.status).toBe(400);
+    expect(confirmPayment).not.toHaveBeenCalled();
+    delete process.env.STRIPE_WEBHOOK_SECRET;
   });
 });
