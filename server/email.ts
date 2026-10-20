@@ -23,7 +23,7 @@
  *   Alternatively, configure email at runtime via the admin panel (Settings → Email).
  */
 
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 import { getSetting, isEnabled } from "./platform-settings";
 
 // ── Transporter cache ──────────────────────────────────────────────────────
@@ -31,7 +31,7 @@ import { getSetting, isEnabled } from "./platform-settings";
 // but expire it after CACHE_TTL_MS so admin SMTP changes take effect.
 
 interface TransportCache {
-  transport: nodemailer.Transporter;
+  transport: Transporter;
   from: string;
   expiresAt: number;
 }
@@ -48,7 +48,7 @@ export function invalidateEmailCache(): void {
  * Build (or return cached) nodemailer transporter from DB settings / env vars.
  * Returns null when no SMTP credentials are configured (dev / test mode).
  */
-async function getTransport(): Promise<{ transport: nodemailer.Transporter; from: string } | null> {
+async function getTransport(): Promise<{ transport: Transporter; from: string } | null> {
   // Return cached instance if still fresh
   if (_cache && Date.now() < _cache.expiresAt) {
     return { transport: _cache.transport, from: _cache.from };
