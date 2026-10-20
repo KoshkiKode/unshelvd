@@ -13,6 +13,55 @@ import rateLimit, { type Store, type ClientRateLimitInfo } from "express-rate-li
 import type { Pool } from "pg";
 import type { Express, Request, Response, NextFunction } from "express";
 
+// ═══ Allowed origins ═══
+// One exact-match allowlist shared by CORS (server/index.ts) and the CSRF origin
+// check below. There is deliberately NO wildcard or suffix matching: anyone can
+// host a page on a public hosting domain (e.g. their own *.run.app Cloud Run
+// service), so trusting a whole suffix would let an attacker's page pass CORS
+// with credentials and also pass the CSRF header check. To allow another origin,
+// list it in the CORS_ALLOWED_ORIGINS env var (comma-separated, exact origins).
+const DEFAULT_ALLOWED_ORIGINS = [
+  "capacitor://localhost",
+  "https://localhost",
+  "http://localhost",
+  "http://localhost:3000",
+  "http://localhost:5000",
+  "http://10.0.2.2:5000",
+  "https://unshelvd.koshkikode.com",
+  "https://koshkikode.com",
+  "https://www.koshkikode.com",
+  "https://un-533c7f1e3dae462c8491ea28099ebb06.ecs.us-east-1.on.aws",
+];
+
+export function trimTrailingSlash(url: string): string {
+  let end = url.length;
+  while (end > 0 && url.charCodeAt(end - 1) === 47) end -= 1; // '/'
+  return url.slice(0, end);
+}
+
+let allowedOriginsCache: { raw: string; origins: Set<string> } | null = null;
+
+/** The effective allowlist: built-in origins plus CORS_ALLOWED_ORIGINS. */
+export function getAllowedOrigins(): Set<string> {
+  const raw = process.env.CORS_ALLOWED_ORIGINS ?? "";
+  if (!allowedOriginsCache || allowedOriginsCache.raw !== raw) {
+    const fromEnv = raw
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+    allowedOriginsCache = {
+      raw,
+      origins: new Set([...DEFAULT_ALLOWED_ORIGINS, ...fromEnv].map(trimTrailingSlash)),
+    };
+  }
+  return allowedOriginsCache.origins;
+}
+
+/** True only for an origin that is exactly on the allowlist. */
+export function isAllowedOrigin(origin: string): boolean {
+  return getAllowedOrigins().has(trimTrailingSlash(origin));
+}
+
 // Rate limiter window durations — defined at module level for easy tuning
 const AUTH_WINDOW_MS = 15 * 60 * 1000;  // 15 minutes
 const PAYMENT_WINDOW_MS = 60 * 1000;    // 1 minute
@@ -192,6 +241,59 @@ const productionCspDirectives = {
   baseUri: ["'self'"],
 };
 
+// Endpoints that external providers call server-to-server. They authenticate with
+// their own signature headers (Stripe-Signature / PayPal transmission headers)
+// instead of a browser session, so the browser-oriented CSRF check does not apply.
+// Keep this list exact and short: every entry skips CSRF protection.
+const CSRF_EXEMPT_PATHS = new Set(["/api/payments/stripe/webhook"]);
+const CSRF_EXEMPT_PREFIXES = ["/api/webhooks/"];
+
+/**
+ * CSRF protection for cookie-authenticated, state-changing requests.
+ *
+ * Session cookies use SameSite=None in production (required for the Capacitor
+ * native app to make cross-origin requests), which disables the browser's
+ * built-in cross-site-request protection. We compensate with two checks:
+ *
+ *  1. A custom request header. The client (queryClient.ts -> apiRequest) attaches
+ *     "X-App-CSRF: 1" to every mutation; a cross-site form or redirect cannot set
+ *     a custom header, and a cross-origin fetch can only do so if CORS allows it.
+ *  2. An Origin check. When the browser sends an Origin header it must be this
+ *     server's own origin or on the exact allowlist. This keeps the header check
+ *     from being the only line of defence if CORS is ever misconfigured. Requests
+ *     with no Origin header (native HTTP clients, curl) rely on check 1 alone.
+ *
+ * Pass enforce=false to disable (development: cookies are SameSite=Lax there and
+ * curl/Postman should work freely).
+ */
+export function createCsrfProtection(enforce: boolean) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!enforce) return next();
+
+    const method = req.method.toUpperCase();
+    if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return next();
+
+    if (CSRF_EXEMPT_PATHS.has(req.path) || CSRF_EXEMPT_PREFIXES.some((p) => req.path.startsWith(p))) {
+      return next();
+    }
+
+    if (!req.headers["x-app-csrf"]) {
+      return res.status(403).json({ message: "CSRF validation failed" });
+    }
+
+    const origin = req.headers.origin;
+    if (typeof origin === "string") {
+      const host = req.get("host");
+      const sameOrigin = !!host && trimTrailingSlash(origin) === `${req.protocol}://${host}`;
+      if (!sameOrigin && !isAllowedOrigin(origin)) {
+        return res.status(403).json({ message: "CSRF validation failed" });
+      }
+    }
+
+    return next();
+  };
+}
+
 /**
  * Apply all security middleware to the Express app.
  * In production a shared PostgreSQL store is used for rate limiting so
@@ -231,34 +333,9 @@ export function applySecurityMiddleware(app: Express, pgPool?: Pool) {
     );
   }
 
-  // ═══ CSRF Protection — custom request header technique ═══
-  // Session cookies use SameSite=None in production (required for the Capacitor native
-  // app to make cross-origin requests), which disables the browser's built-in
-  // cross-site-request protection.  We compensate by requiring every state-changing
-  // request from our own clients to carry a custom header that a cross-site form or
-  // redirect cannot set.
-  //
-  // The client (queryClient.ts → apiRequest) attaches "X-App-CSRF: 1" to every
-  // mutation.  Webhook routes are excluded because external services (Stripe, PayPal)
-  // authenticate via their own signature headers instead.
-  //
-  // Only enforced in production — in development cookies are SameSite=Lax, which
-  // provides native cross-site protection, and we want curl/Postman to work freely.
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    if (!isProduction) return next();
-
-    const method = req.method.toUpperCase();
-    if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return next();
-
-    // Webhook routes carry their own provider-signed authentication
-    if (req.path.startsWith("/api/webhooks/")) return next();
-
-    if (!req.headers["x-app-csrf"]) {
-      return res.status(403).json({ message: "CSRF validation failed" });
-    }
-
-    return next();
-  });
+  // ═══ CSRF Protection — custom request header + Origin check ═══
+  // See createCsrfProtection() for the full rationale. Only enforced in production.
+  app.use(createCsrfProtection(isProduction));
 
   // ═══ Rate Limiters ═══
   // In production: use the shared PostgreSQL store so limits are enforced

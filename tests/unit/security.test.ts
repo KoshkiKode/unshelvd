@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import express from "express";
 import request from "supertest";
-import { sanitizeLikeInput, parseIntParam, stripHtml, validateIdParam, applySecurityMiddleware, PgRateLimitStore } from "../../server/security";
+import { sanitizeLikeInput, parseIntParam, stripHtml, validateIdParam, applySecurityMiddleware, PgRateLimitStore, isAllowedOrigin } from "../../server/security";
 
 // ────────────────────────────────────────────────────────────────
 // sanitizeLikeInput
@@ -540,6 +540,188 @@ describe("CSRF protection (production mode)", () => {
       .send({ title: "test" });
 
     expect(res.status).toBe(200);
+  });
+
+  // Regression: the Stripe webhook is registered at /api/payments/stripe/webhook,
+  // not under /api/webhooks/, so it used to be rejected with 403 in production and
+  // Stripe's own deliveries never reached the handler.
+  it("exempts the Stripe webhook route (/api/payments/stripe/webhook) from CSRF checks", async () => {
+    const app = makeProductionApp();
+    app.post("/api/payments/stripe/webhook", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app)
+      .post("/api/payments/stripe/webhook")
+      .send({ type: "payment_intent.succeeded" });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("keeps the webhook exemption exact: look-alike payment paths still need the CSRF header", async () => {
+    const app = makeProductionApp();
+    const paths = [
+      "/api/payments/stripe/webhook/extra",
+      "/api/payments/stripe/webhooks",
+      "/api/payments/checkout",
+      "/api/payments/stripe/webhook-other",
+    ];
+    for (const p of paths) app.post(p, (_req, res) => res.json({ ok: true }));
+
+    for (const p of paths) {
+      const res = await request(app).post(p).send({});
+      expect(res.status, p).toBe(403);
+    }
+  });
+
+  // Regression: CORS used to trust every https://*.run.app origin, and anyone can
+  // host a page on their own Cloud Run URL. The CSRF header alone is not enough
+  // when the attacker's page is treated as an allowed origin.
+  it("rejects a request from an arbitrary *.run.app origin even with the CSRF header", async () => {
+    const app = makeProductionApp();
+    app.post("/api/books", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app)
+      .post("/api/books")
+      .set("X-App-CSRF", "1")
+      .set("Origin", "https://attacker-abc123-uc.a.run.app")
+      .send({ title: "test" });
+
+    expect(res.status).toBe(403);
+    expect(res.body.message).toBe("CSRF validation failed");
+  });
+
+  it("rejects look-alike, wrong-scheme and opaque origins", async () => {
+    const app = makeProductionApp();
+    app.post("/api/books", (_req, res) => res.json({ ok: true }));
+
+    const bad = [
+      "https://koshkikode.com.evil.example",
+      "https://evil-koshkikode.com",
+      "http://unshelvd.koshkikode.com", // wrong scheme
+      "https://unshelvd.koshkikode.com:8443", // wrong port
+      "null", // sandboxed iframe / file:// / some redirects
+    ];
+    for (const origin of bad) {
+      const res = await request(app)
+        .post("/api/books")
+        .set("X-App-CSRF", "1")
+        .set("Origin", origin)
+        .send({});
+      expect(res.status, origin).toBe(403);
+    }
+  });
+
+  it("allows allowlisted web and Capacitor origins that carry the CSRF header", async () => {
+    const app = makeProductionApp();
+    app.post("/api/books", (_req, res) => res.json({ ok: true }));
+
+    for (const origin of ["https://unshelvd.koshkikode.com", "capacitor://localhost", "https://localhost"]) {
+      const res = await request(app)
+        .post("/api/books")
+        .set("X-App-CSRF", "1")
+        .set("Origin", origin)
+        .send({});
+      expect(res.status, origin).toBe(200);
+    }
+  });
+
+  it("allows a same-origin request even when the host is not on the allowlist (self-hosted)", async () => {
+    const app = makeProductionApp();
+    app.post("/api/books", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app)
+      .post("/api/books")
+      .set("Host", "self-hosted.example.test")
+      .set("Origin", "http://self-hosted.example.test")
+      .set("X-App-CSRF", "1")
+      .send({});
+
+    expect(res.status).toBe(200);
+  });
+
+  it("does not treat a different origin as same-origin just because the Host header is spoofed to a similar name", async () => {
+    const app = makeProductionApp();
+    app.post("/api/books", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app)
+      .post("/api/books")
+      .set("Host", "self-hosted.example.test")
+      .set("Origin", "http://self-hosted.example.test.evil.example")
+      .set("X-App-CSRF", "1")
+      .send({});
+
+    expect(res.status).toBe(403);
+  });
+
+  it("still allows clients that send no Origin header (native HTTP, curl) when the CSRF header is present", async () => {
+    const app = makeProductionApp();
+    app.post("/api/books", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app).post("/api/books").set("X-App-CSRF", "1").send({});
+
+    expect(res.status).toBe(200);
+  });
+});
+
+// ────────────────────────────────────────────────────────
+// isAllowedOrigin — exact-match CORS / CSRF allowlist
+// ────────────────────────────────────────────────────────
+
+describe("isAllowedOrigin", () => {
+  const originalEnv = process.env.CORS_ALLOWED_ORIGINS;
+
+  afterEach(() => {
+    if (originalEnv === undefined) delete process.env.CORS_ALLOWED_ORIGINS;
+    else process.env.CORS_ALLOWED_ORIGINS = originalEnv;
+  });
+
+  it("accepts the built-in production and Capacitor origins", () => {
+    delete process.env.CORS_ALLOWED_ORIGINS;
+    expect(isAllowedOrigin("https://unshelvd.koshkikode.com")).toBe(true);
+    expect(isAllowedOrigin("https://koshkikode.com")).toBe(true);
+    expect(isAllowedOrigin("capacitor://localhost")).toBe(true);
+  });
+
+  it("tolerates a trailing slash", () => {
+    delete process.env.CORS_ALLOWED_ORIGINS;
+    expect(isAllowedOrigin("https://unshelvd.koshkikode.com/")).toBe(true);
+  });
+
+  it("rejects arbitrary *.run.app origins (regression: used to be trusted by suffix)", () => {
+    delete process.env.CORS_ALLOWED_ORIGINS;
+    expect(isAllowedOrigin("https://attacker-abc123-uc.a.run.app")).toBe(false);
+    expect(isAllowedOrigin("https://unshelvd-533c7f1e3dae-uc.a.run.app")).toBe(false);
+    expect(isAllowedOrigin("https://run.app")).toBe(false);
+  });
+
+  it("rejects look-alike, wrong-scheme and empty origins", () => {
+    delete process.env.CORS_ALLOWED_ORIGINS;
+    expect(isAllowedOrigin("https://koshkikode.com.evil.example")).toBe(false);
+    expect(isAllowedOrigin("https://evilkoshkikode.com")).toBe(false);
+    expect(isAllowedOrigin("http://unshelvd.koshkikode.com")).toBe(false);
+    expect(isAllowedOrigin("null")).toBe(false);
+    expect(isAllowedOrigin("")).toBe(false);
+  });
+
+  it("adds origins from CORS_ALLOWED_ORIGINS by exact match only", () => {
+    process.env.CORS_ALLOWED_ORIGINS =
+      " https://unshelvd-abc123-uc.a.run.app/ , https://app.example.org ";
+
+    // Exactly the configured origins (whitespace and trailing slash tolerated)
+    expect(isAllowedOrigin("https://unshelvd-abc123-uc.a.run.app")).toBe(true);
+    expect(isAllowedOrigin("https://app.example.org")).toBe(true);
+
+    // Nothing else on the same suffix or a sub/parent domain
+    expect(isAllowedOrigin("https://attacker-abc123-uc.a.run.app")).toBe(false);
+    expect(isAllowedOrigin("https://x.app.example.org")).toBe(false);
+    expect(isAllowedOrigin("https://example.org")).toBe(false);
+  });
+
+  it("picks up a changed CORS_ALLOWED_ORIGINS value instead of serving a stale cache", () => {
+    process.env.CORS_ALLOWED_ORIGINS = "https://one.example.org";
+    expect(isAllowedOrigin("https://one.example.org")).toBe(true);
+    process.env.CORS_ALLOWED_ORIGINS = "https://two.example.org";
+    expect(isAllowedOrigin("https://one.example.org")).toBe(false);
+    expect(isAllowedOrigin("https://two.example.org")).toBe(true);
   });
 });
 
