@@ -1,5 +1,5 @@
 /**
- * Unit tests for server/s3.ts URL helpers.
+ * Unit tests for server/s3.ts object-storage URL helpers (GCS + legacy S3 shapes).
  *
  * We mock @aws-sdk/client-s3 so no network call is ever attempted.
  * The module reads its config at import time, so each test re-imports
@@ -27,6 +27,8 @@ async function loadS3(env: Record<string, string | undefined>) {
   vi.resetModules();
   for (const k of [
     "S3_BUCKET_NAME",
+    "S3_ENDPOINT",
+    "S3_REGION",
     "AWS_REGION",
     "CDN_BASE_URL",
   ]) {
@@ -56,6 +58,23 @@ describe("s3.uploadImage URL formatting", () => {
     );
     expect(url).toMatch(
       /^https:\/\/unshelvd-uploads\.s3\.us-east-1\.amazonaws\.com\/avatars\/42\/[0-9a-f-]+\.png$/,
+    );
+  });
+
+  it("returns a Google Cloud Storage URL when S3_ENDPOINT points at GCS", async () => {
+    const s3 = await loadS3({
+      S3_BUCKET_NAME: "unshelvd-uploads",
+      S3_ENDPOINT: "https://storage.googleapis.com",
+      S3_REGION: "auto",
+    });
+    const url = await s3.uploadImage(
+      42,
+      Buffer.from([1, 2, 3]),
+      "image/png",
+      "avatar",
+    );
+    expect(url).toMatch(
+      /^https:\/\/storage\.googleapis\.com\/unshelvd-uploads\/avatars\/42\/[0-9a-f-]+\.png$/,
     );
   });
 

@@ -31,7 +31,7 @@ A peer-to-peer book marketplace for every language, every country, every era. Bu
 | Database | PostgreSQL 16 + Drizzle ORM |
 | Desktop | Tauri v2 (optional — see [DESKTOP.md](./DESKTOP.md)) |
 | Mobile | Capacitor (Android + iOS) |
-| Hosting | Self-hosted: Debian tower · Docker Compose · Caddy · GoDaddy DNS |
+| Hosting | Google Cloud (Cloud Run + Cloud SQL + Cloud Storage) · GoDaddy domain & DNS — the AWS stack was retired Oct 2026 and the self-hosted guides below are kept as a fallback path |
 | Catalog | Open Library API + proprietary database |
 
 ## Complete Local Setup (Web + API + Database + Admin + Mobile)

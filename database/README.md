@@ -173,13 +173,13 @@ This path restores only the baseline SQL assets. It does not reproduce the full 
 
 ---
 
-## Remote PostgreSQL / Amazon RDS
+## Remote PostgreSQL / Google Cloud SQL
 
-For the production AWS deployment, point `DATABASE_URL` at your Amazon RDS for PostgreSQL instance, or let the setup scripts build the connection string for you.
+The old AWS RDS deployment was retired along with the AWS account (Oct 2026). For production on Google Cloud, point `DATABASE_URL` at a Cloud SQL for PostgreSQL instance — either via its private/public IP or through the Cloud SQL Auth Proxy.
 
 Example direct connection string:
 
-```postgresql://unshelvd:<YOUR_DB_PASSWORD>@YOUR-RDS-ENDPOINT.rds.amazonaws.com:5432/unshelvd```
+```postgresql://unshelvd:<YOUR_DB_PASSWORD>@<CLOUD_SQL_INSTANCE_IP>:5432/unshelvd```
 
 ---
 

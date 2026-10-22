@@ -1,5 +1,10 @@
 # KoshkiKode — Complete Home Server Setup Guide
 
+> **Status note (Oct 2026):** Fallback/self-hosted path. The AWS account is gone;
+> production hosting is moving to Google Cloud with GoDaddy keeping the domain,
+> DNS, and registrar duties. This guide remains valid for running the stack on
+> your own hardware.
+>
 > **Goal:** Run Unshelvd and all KoshkiKode sites from a headless Debian tower
 > on Metronet fiber, using GoDaddy DNS for domain management and Caddy for HTTPS.
 > No cloud hosting fees. No external storage required.

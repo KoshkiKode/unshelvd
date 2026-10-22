@@ -1,5 +1,11 @@
 # Unshelv'd — Production Deployment Guide
 
+> **Status note (Oct 2026):** This is the self-hosted deployment path. KoshkiKode's AWS
+> account was closed, and the going-forward production target is Google Cloud
+> (Cloud Run + Cloud SQL + Cloud Storage, fronted by the GoDaddy-managed
+> koshkikode.com DNS). This guide still works for a home server / VPS and is
+> kept as the fallback path.
+>
 > **Self-hosted deployment only.** This guide covers deploying Unshelv'd on your own hardware
 > (a home server or any Linux VPS) using Docker Compose, Caddy, and GoDaddy DNS.
 >
