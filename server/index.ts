@@ -7,24 +7,19 @@ import { applySecurityMiddleware, isAllowedOrigin } from "./security";
 import { pool } from "./storage";
 import { runMigrations } from "./migrate";
 import { runAutoSeed } from "./auto-seed";
-import { startJobs } from "./jobs";
+import { startJobs, stopJobs } from "./jobs";
 
 const app = express();
 
-// Trust proxy — needed for ECS Fargate / load balancers, secure cookies, and rate limiting
+// Trust proxy — needed for Cloud Run/load balancers, secure cookies, and rate limiting.
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
 
-  // Security audit logs on startup
   if (!process.env.SESSION_SECRET) {
-    console.warn(
-      "⚠️  SECURITY WARNING: SESSION_SECRET is not set in production. Using insecure default.",
-    );
+    throw new Error("SESSION_SECRET must be set in production");
   }
   if (!process.env.DATABASE_URL) {
-    console.error(
-      "❌ CRITICAL ERROR: DATABASE_URL is missing! Server will fail start.",
-    );
+    throw new Error("DATABASE_URL must be set in production");
   }
 }
 
@@ -108,23 +103,10 @@ export function log(message: string, source = "express") {
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse).replace(/[\r\n]/g, " ")}`;
-      }
-
-      log(logLine);
+      log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
     }
   });
 
@@ -178,7 +160,7 @@ app.use((req, res, next) => {
     );
 
     // Auto-seed works + catalog on first run (no-op if already populated).
-    // Runs AFTER listen() so the ECS health check sees the port open immediately.
+    // Runs AFTER listen() so the container health check sees the port open immediately.
     runAutoSeed().catch((err) => {
       console.error("Auto-seed failed (non-fatal):", err);
     });
@@ -188,6 +170,29 @@ app.use((req, res, next) => {
     startJobs().catch((err) => {
       console.error("Job runner failed to start (non-fatal):", err);
     });
+
+    let shuttingDown = false;
+    const shutdown = (signal: string) => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      log(`received ${signal}; shutting down`);
+      stopJobs();
+
+      const forceExit = setTimeout(() => {
+        console.error("Graceful shutdown timed out");
+        process.exit(1);
+      }, 10_000);
+      forceExit.unref();
+
+      httpServer.close(() => {
+        pool.end()
+          .catch((err) => console.error("Database pool shutdown failed:", err))
+          .finally(() => process.exit(0));
+      });
+    };
+
+    process.once("SIGTERM", () => shutdown("SIGTERM"));
+    process.once("SIGINT", () => shutdown("SIGINT"));
   } catch (err) {
     console.error("Fatal startup error:", err);
     process.exit(1);

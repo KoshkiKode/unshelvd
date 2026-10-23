@@ -1,10 +1,10 @@
 -- ============================================================
 -- Unshelv'd — Complete Database Schema
--- PostgreSQL (Amazon Aurora compatible)
+-- PostgreSQL
 --
 -- Run this once against a fresh database to create all tables.
 -- Usage (psql):
---   psql "postgresql://USER:PASSWORD@YOUR-AURORA-ENDPOINT:5432/unshelvd" -f schema.sql
+--   psql "postgresql://USER:PASSWORD@YOUR-DATABASE-HOST:5432/unshelvd" -f schema.sql
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS "works" (
@@ -213,4 +213,3 @@ CREATE TABLE IF NOT EXISTS "platform_settings" (
     "value"      text,
     "updated_at" timestamp DEFAULT now()
 );
-

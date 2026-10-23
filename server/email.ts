@@ -19,7 +19,7 @@
  * SMTP setup for koshkikode.com:
  *   Configure SMTP credentials from your email provider, then set:
  *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM=noreply@koshkikode.com
- *   If your DNS is in Route 53, add your SMTP provider's SPF/DKIM records there.
+ *   Add your SMTP provider's SPF/DKIM records to your DNS provider.
  *   Alternatively, configure email at runtime via the admin panel (Settings → Email).
  */
 
@@ -482,4 +482,3 @@ export async function sendDisputeResolved(
   );
   await sendEmail(to, `Dispute resolved for "${esc(bookTitle)}"`, html);
 }
-

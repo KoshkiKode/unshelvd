@@ -30,9 +30,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   "https://unshelvd.koshkikode.com",
   "https://koshkikode.com",
   "https://www.koshkikode.com",
-  // NOTE: the old AWS ECS origin (…ecs.us-east-1.on.aws) was removed —
-  // AWS was fully decommissioned Oct 2026. Add new origins via
-  // CORS_ALLOWED_ORIGINS instead of editing this list.
+  // Add additional origins via CORS_ALLOWED_ORIGINS instead of editing this list.
 ];
 
 export function trimTrailingSlash(url: string): string {

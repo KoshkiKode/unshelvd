@@ -76,7 +76,7 @@ import connectPgSimple from "connect-pg-simple";
 import createMemoryStore from "memorystore";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { uploadImage, deleteImage, isS3Configured } from "./s3";
+import { uploadImage, deleteImage, isGcsConfigured } from "./gcs";
 
 const parsedBcryptRounds = Number.parseInt(process.env.BCRYPT_SALT_ROUNDS ?? "", 10);
 const BCRYPT_SALT_ROUNDS =
@@ -261,7 +261,7 @@ export async function registerRoutes(
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       secure: process.env.NODE_ENV === "production",
     },
-    // Trust the first proxy (ALB / ECS / nginx, etc.)
+    // Trust the first proxy (Cloud Run, load balancer, or reverse proxy).
     proxy: process.env.NODE_ENV === "production",
   });
   app.use(sessionMiddleware);
@@ -322,9 +322,14 @@ export async function registerRoutes(
       if (client) {
         try { await client.query("ROLLBACK"); } catch { /* ignore rollback errors */ }
       }
-      res
-        .status(503)
-        .json({ status: "degraded", db: "error", error: err.message, timestamp: new Date().toISOString() });
+      res.status(503).json({
+        status: "degraded",
+        db: "error",
+        ...(process.env.NODE_ENV === "production"
+          ? {}
+          : { error: err instanceof Error ? err.message : "Database check failed" }),
+        timestamp: new Date().toISOString(),
+      });
     } finally {
       client?.release();
     }
@@ -484,7 +489,11 @@ export async function registerRoutes(
   app.post("/api/auth/logout", (req, res) => {
     req.logout((err) => {
       if (err) return res.status(500).json({ message: "Logout failed" });
-      return res.json({ message: "Logged out" });
+      req.session.destroy((sessionErr) => {
+        if (sessionErr) return res.status(500).json({ message: "Logout failed" });
+        res.clearCookie("connect.sid");
+        return res.json({ message: "Logged out" });
+      });
     });
   });
 
@@ -1719,7 +1728,7 @@ export async function registerRoutes(
         const currentUser = await storage.getUser(req.user!.id);
         if (currentUser?.avatarUrl && currentUser.avatarUrl !== data.avatarUrl) {
           deleteImage(currentUser.avatarUrl).catch((err) => {
-            console.error("[s3] Failed to delete old avatar on profile update:", err);
+            console.error("[gcs] Failed to delete old avatar on profile update:", err);
           });
         }
       }
@@ -2511,10 +2520,10 @@ export async function registerRoutes(
       const deletedEmail = `deleted_${user.id}@deleted.invalid`;
       const deletedUsername = `deleted_${user.id}`;
 
-      // Delete the user's avatar from S3 (best-effort, non-fatal)
+      // Delete the user's avatar from GCS (best-effort, non-fatal)
       if (user.avatarUrl) {
         deleteImage(user.avatarUrl).catch((err) => {
-          console.error("[s3] Failed to delete avatar on account deletion:", err);
+          console.error("[gcs] Failed to delete avatar on account deletion:", err);
         });
       }
 
@@ -2587,9 +2596,9 @@ export async function registerRoutes(
 
   // === IMAGE UPLOAD ===
   // Accepts a base64-encoded data URL from the client (FileReader.readAsDataURL).
-  // When S3_BUCKET_NAME is configured, decodes the bytes and uploads to S3,
-  // returning a permanent public object-storage URL (GCS / CDN, depending on config).
-  // When S3 is not configured (local dev without a bucket), echoes the data
+  // When GCS_BUCKET_NAME is configured, decodes the bytes and uploads to GCS,
+  // returning a permanent public object-storage URL.
+  // When GCS is not configured (local dev without a bucket), echoes the data
   // URL back so the rest of the flow still works without cloud infra.
   // Max size: 1 MB avatar / 2 MB cover (raw).  The path-specific 3 mb body parser
   // is registered in server/index.ts before the global 100 kb parser so large
@@ -2616,13 +2625,13 @@ export async function registerRoutes(
         return res.status(400).json({ message: `Image too large. Maximum size is ${limitMB} MB.` });
       }
 
-      if (isS3Configured()) {
+      if (isGcsConfigured()) {
         const buffer = Buffer.from(base64Part, "base64");
         const url = await uploadImage(req.user!.id, buffer, mimeType, type);
         return res.json({ url });
       }
 
-      // S3 not configured — fall back to echoing the data URI (dev/no-bucket mode)
+      // GCS not configured — fall back to echoing the data URI (dev/no-bucket mode)
       return res.json({ url: dataUrl });
     } catch (err) {
       if (err instanceof ZodError) return res.status(400).json({ message: err.issues[0]?.message });

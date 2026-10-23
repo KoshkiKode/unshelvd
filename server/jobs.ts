@@ -10,7 +10,7 @@
  *     OFFER_EXPIRY_DAYS (default 7).
  *
  * Multi-instance safety:
- *   Multiple ECS Fargate tasks can run simultaneously.  Each job acquires
+ *   Multiple Cloud Run/container instances can run simultaneously.  Each job acquires
  *   a PostgreSQL advisory lock before executing so only one instance
  *   processes the job at a time — the others skip that run silently.
  *
@@ -255,9 +255,13 @@ async function expireAbandonedTransactions(): Promise<void> {
  * Runs each job once immediately on startup (to catch anything that missed
  * the last run), then repeats every JOB_INTERVAL_MS.
  *
- * Call this AFTER httpServer.listen() so the ECS health check sees PORT open.
+ * Call this AFTER httpServer.listen() so the container health check sees PORT open.
  */
+let jobInterval: NodeJS.Timeout | null = null;
+
 export async function startJobs(): Promise<void> {
+  if (jobInterval) clearInterval(jobInterval);
+
   console.log(
     `[jobs] Starting background job runner (interval: ${JOB_INTERVAL_MS / 3600000}h)`,
   );
@@ -278,5 +282,12 @@ export async function startJobs(): Promise<void> {
   runAll();
 
   // Schedule recurring runs
-  setInterval(runAll, JOB_INTERVAL_MS);
+  jobInterval = setInterval(runAll, JOB_INTERVAL_MS);
+}
+
+/** Stop recurring work during graceful process shutdown. */
+export function stopJobs(): void {
+  if (!jobInterval) return;
+  clearInterval(jobInterval);
+  jobInterval = null;
 }

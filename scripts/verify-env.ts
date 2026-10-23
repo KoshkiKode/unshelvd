@@ -31,7 +31,7 @@ if (target === "android" || target === "ios") {
 
 // 2. Check for SESSION_SECRET in production
 if (isProduction && !process.env.SESSION_SECRET) {
-  console.warn(`⚠️  WARNING: SESSION_SECRET is not set. Using default (not secure for production).`);
+  errors.push("SESSION_SECRET is required in production.");
 }
 
 // 3. Database check (optional but helpful)

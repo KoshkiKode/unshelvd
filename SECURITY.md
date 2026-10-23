@@ -10,7 +10,7 @@ This policy applies to the Unshelv'd web application, REST API, and Capacitor mo
 |-----------|----------|
 | Web app (latest `main`) | ✅ |
 | Mobile (latest release) | ✅ |
-| Desktop (Tauri, latest release) | ✅ |
+| Desktop (Tauri) | Not currently implemented |
 | Older tagged releases | ❌ — upgrade to latest |
 
 ## Reporting a Vulnerability
