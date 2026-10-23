@@ -9,7 +9,7 @@
  *   node script/migrate.js
  *
  * Required env:
- *   DATABASE_URL — PostgreSQL connection string (RDS TCP or local Unix socket)
+ *   DATABASE_URL — PostgreSQL connection string (managed PostgreSQL TCP or local Unix socket)
  */
 
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -27,7 +27,7 @@ async function main() {
     process.exit(1);
   }
 
-  // Unix socket connections (local dev) don't use SSL; RDS requires SSL
+  // Unix socket connections (local dev) don't use SSL; managed PostgreSQL may require SSL
   const isUnixSocket = process.env.DATABASE_URL.includes("host=/");
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,

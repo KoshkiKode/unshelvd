@@ -10,7 +10,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { bookCatalog } from "@shared/schema";
 import { sql } from "drizzle-orm";
 
-// Unix socket connections (local dev) don't use SSL; RDS requires SSL
+// Unix socket connections (local dev) don't use SSL; managed PostgreSQL may require SSL
 const isUnixSocket = (process.env.DATABASE_URL || "").includes("host=/");
 const pool = new Pool({ 
   connectionString: process.env.DATABASE_URL,

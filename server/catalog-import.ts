@@ -78,7 +78,7 @@ function detectScript(lang: string): string | null {
 }
 
 async function importFromDump(filePath: string) {
-  // Unix socket connections (local dev) don't use SSL; RDS requires SSL
+  // Unix socket connections (local dev) don't use SSL; managed PostgreSQL may require SSL
   const isUnixSocket = (process.env.DATABASE_URL || "").includes("host=/");
   const pool = new Pool({ 
     connectionString: process.env.DATABASE_URL,
@@ -165,7 +165,7 @@ async function importFromDump(filePath: string) {
 
 // Quick seed from Open Library API (for small initial dataset)
 async function seedFromAPI(queries: string[]) {
-  // Unix socket connections (local dev) don't use SSL; RDS requires SSL
+  // Unix socket connections (local dev) don't use SSL; managed PostgreSQL may require SSL
   const isUnixSocket = (process.env.DATABASE_URL || "").includes("host=/");
   const pool = new Pool({ 
     connectionString: process.env.DATABASE_URL,
