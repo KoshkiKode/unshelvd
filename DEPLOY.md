@@ -1,7 +1,7 @@
 # Unshelv'd — Production Deployment Guide
 
-> **Status note (Oct 2026):** This is the self-hosted deployment path. KoshkiKode's AWS
-> account was closed, and the going-forward production target is Google Cloud
+> **Status note (Oct 2026):** This is the self-hosted deployment path. The
+> going-forward production target is Google Cloud
 > (Cloud Run + Cloud SQL + Cloud Storage, fronted by the GoDaddy-managed
 > koshkikode.com DNS). This guide still works for a home server / VPS and is
 > kept as the fallback path.
@@ -140,22 +140,12 @@ PayPal is disabled by default. Enable in admin panel (Settings → Payments) aft
 
 ### Profile Images
 
-By default, profile images are stored as files on the local Docker volume. No external
-storage service is required.
+Profile images are stored in Google Cloud Storage.
 
 | Variable | Description |
 |---|---|
-| `UPLOAD_DIR` | Path **inside** the container where uploaded images are stored. Default: `/app/uploads`. Bind-mount this path in `docker-compose.yml` to persist across container recreations. |
-
-The `docker-compose.yml` already includes the correct bind mount:
-
-```yaml
-volumes:
-  - ./uploads:/app/uploads
-```
-
-This keeps all uploaded images in `./uploads/` on the host alongside the repo — safe
-across `docker compose up --build` rebuilds. Back it up with your normal server backup.
+| `GCS_BUCKET_NAME` | Google Cloud Storage bucket for uploaded images. |
+| `GCS_PUBLIC_BASE_URL` | Optional public base URL or CDN domain for uploaded images. Defaults to the bucket's `storage.googleapis.com` URL. |
 
 ### Mobile
 
@@ -307,14 +297,6 @@ docker exec unshelvd-db-1 pg_dump -U unshelvd unshelvd | \
   gzip > /var/backups/db/unshelvd-manual-$(date +%Y-%m-%d).sql.gz
 ```
 
-### Backup uploaded images
-
-```bash
-tar -czf /var/backups/uploads-$(date +%Y-%m-%d).tar.gz /var/www/unshelvd/uploads/
-```
-
-Add this to the same nightly cron job as the database backup.
-
 ### Restore from backup
 
 ```bash
@@ -327,9 +309,6 @@ docker exec -i unshelvd-db-1 psql -U unshelvd -c "CREATE DATABASE unshelvd;"
 
 gunzip -c /var/backups/db/unshelvd-2026-01-01.sql.gz | \
   docker exec -i unshelvd-db-1 psql -U unshelvd unshelvd
-
-# Restore uploads if needed
-tar -xzf /var/backups/uploads-2026-01-01.tar.gz -C /
 
 # Restart
 docker compose start app
@@ -379,7 +358,7 @@ docker system prune      # remove stopped containers + dangling images
 | SSL cert fails with `no such host` | DNS hasn't propagated yet — wait up to 5 minutes for dynamic DNS cron to run, or check GoDaddy |
 | Stripe webhook signature mismatch | `STRIPE_WEBHOOK_SECRET` is wrong or was copied from test mode — verify in Stripe Dashboard |
 | `MODULE_NOT_FOUND` on startup | Image was not rebuilt after a dependency change — `docker compose up --build -d` |
-| Uploaded images not persisting after rebuild | Check that `./uploads:/app/uploads` bind mount is in `docker-compose.yml` |
+| Uploaded images unavailable | Verify `GCS_BUCKET_NAME`, Google credentials, bucket access, and `GCS_PUBLIC_BASE_URL` |
 
 ---
 

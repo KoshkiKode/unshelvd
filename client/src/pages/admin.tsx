@@ -995,7 +995,7 @@ export default function AdminDashboard() {
                   </div>
                   <CardDescription>
                     Transactional emails (password resets, offers, shipping updates).
-                    Supports any SMTP provider — Amazon SES is recommended since the domain is on Route 53.
+                    Supports any standard SMTP provider.
                     When disabled or unconfigured, emails are printed to server logs only.
                   </CardDescription>
                 </CardHeader>
@@ -1005,7 +1005,7 @@ export default function AdminDashboard() {
                       <Label htmlFor="smtp-host" className="text-xs font-medium">SMTP Host</Label>
                       <Input
                         id="smtp-host"
-                        placeholder="email-smtp.us-east-1.amazonaws.com"
+                        placeholder="smtp.mailprovider.com"
                         value={emailSmtpHost}
                         onChange={(e) => setEmailSmtpHost(e.target.value)}
                         className="mt-1 font-mono text-xs"
@@ -1039,7 +1039,7 @@ export default function AdminDashboard() {
                       <Input
                         id="smtp-pass"
                         type={showEmailPass ? "text" : "password"}
-                        placeholder="SES SMTP password"
+                        placeholder="SMTP password"
                         value={emailSmtpPass}
                         onChange={(e) => setEmailSmtpPass(e.target.value)}
                         className="font-mono text-xs pr-10"

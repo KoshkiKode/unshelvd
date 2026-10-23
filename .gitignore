@@ -14,7 +14,7 @@ vite.config.ts.*
 *.pem
 
 
-# (Removed Cloud SQL proxy and Firebase local-state ignores after AWS migration.)
+# (Removed Cloud SQL proxy and Firebase local-state ignores.)
 
 # Debug / scratch files
 git_diff.txt

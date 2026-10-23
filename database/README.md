@@ -175,7 +175,7 @@ This path restores only the baseline SQL assets. It does not reproduce the full 
 
 ## Remote PostgreSQL / Google Cloud SQL
 
-The old AWS RDS deployment was retired along with the AWS account (Oct 2026). For production on Google Cloud, point `DATABASE_URL` at a Cloud SQL for PostgreSQL instance — either via its private/public IP or through the Cloud SQL Auth Proxy.
+For production on Google Cloud, point `DATABASE_URL` at a Cloud SQL for PostgreSQL instance — either via its private/public IP or through the Cloud SQL Auth Proxy.
 
 Example direct connection string:
 
@@ -199,7 +199,7 @@ pg_dump "$DATABASE_URL" --no-owner --no-acl -f database/backup-$(date +%Y%m%d).s
 
 The SQL in this folder is compatible with:
 
-- **Amazon RDS for PostgreSQL** (production target)
+- **Cloud SQL for PostgreSQL** (production target)
 - **Standard PostgreSQL 13+** (local dev)
 
 Key choices:
