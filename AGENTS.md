@@ -1,6 +1,6 @@
 # Unshelv'd - Agent Instructions
 
-**Version:** 1.1.0 (reviewed 2026-10-26)
+**Version:** 1.2.0 (reviewed 2026-10-26)
 
 These tool-neutral instructions apply to coding agents working in this repository. Follow the user's task and current project documentation.
 
@@ -18,13 +18,15 @@ These tool-neutral instructions apply to coding agents working in this repositor
 - When the user asks for analysis, review, or planning only, do not implement changes.
 - Keep the handoff concise: changed behavior/files, validation results, assumptions, and blockers.
 
-## Cost-aware agent choice
+## AI tool and model choice
 
-- Minimize credits while preserving reliable, safe results. Optimize total task cost, including input/output and reasoning tokens, tool calls, retries, and rework, not just a nominal per-million-token rate.
-- When the active host shows comparable credits-per-million-token rates, prefer the lowest rate among models capable of the task. If rates are not exposed or use different billing systems, do not infer them from API pricing or model names; use the host's current usage/credit display.
-- If model choice is available, Claude Haiku 5.5 is the preferred first trial for bounded tasks when offered. Use the lowest effort adequate for the task; Max effort can increase total usage and is for explicit comparisons or work whose complexity/risk justifies it. Escalate to GPT-6 Luna or another stronger available model only when justified by task risk, complexity, or failed validation.
-- For an explicit model comparison, compare equivalent work using actual host-reported usage and verified results. Do not run duplicate agents by default. These instructions cannot select a model, change effort, override user settings, or enable paid overages.
-- Keep context and tool calls focused, avoid redundant exploration and unrequested subagents, and never skip required safety or validation to save credits.
+- The owner prefers the highest reasoning effort the active tool offers by default. Use Max when available; Antigravity currently documents Low, Medium, and High, so High is its maximum. Effort labels are provider-specific, and higher effort may consume more tokens or quota.
+- In GitHub Copilot Pro+, start with Claude Haiku 5.5 at the highest supported effort; GPT-6 Luna at the highest supported effort is a same-rate alternative. The current default-context rate card lists both at $0.10 input/$0.50 output per 1M tokens. Haiku 4.5 is $1/$5 (about 10x) and is not a default. These are Copilot rates only; long-context/cache tiers differ. Check the current [rate card](https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing).
+- In Antigravity under Google AI Pro, use only models shown in the current selector. Gemini 3.8 Flash is a cost-conscious candidate at High, but Google does not publish a comparable per-model credits-per-million table for Antigravity; verify actual usage in the model/usage display rather than claiming a cheapest model.
+- Use Perplexity Education Pro Search/Research for cited external research, not private repository contents or code editing. Perplexity Computer has separate credits (currently 100 credits = $1). If the user explicitly requests a Computer task, use its highest available effort while within included usage; stop for approval before paid credits and never enable auto-refill.
+- Use one coding agent for each implementation task; Copilot, Antigravity, and Perplexity usage does not pool. Use another agent only for a separately requested review, not a duplicate implementation.
+- Choose the least-expensive model capable of the task at the owner's requested effort. If work would cross included quota or require paid overage, stop and report; do not enable overages, auto-refill, buy credits, or change model, privacy, subscription, or billing settings.
+- Model availability and rates change. Verify the active selector and current provider documentation; do not use API pricing as a proxy for another product's subscription quota.
 
 ## Project-specific guidance
 
@@ -34,10 +36,11 @@ These tool-neutral instructions apply to coding agents working in this repositor
 - Use payment-provider test/sandbox modes only. Do not initiate real charges, refunds, transfers, or production account changes. Missing production secrets are a blocker, not permission to weaken verification.
 - Keep `.env.example` limited to safe placeholders. Never copy real credentials from local configuration into source, logs, prompts, or test fixtures.
 - Treat database schema and migration changes as high risk. Follow existing migration conventions; do not run a destructive migration or change live data without explicit approval.
-- Hosting and cloud configuration can be task-specific. Read the current deployment docs and workflows before proposing changes; do not assume a historical hosting plan is current.
+- Google Cloud is the owner's preferred hosting provider for this service, with GoDaddy handling domain/DNS. Read current Cloud Run, Cloud SQL, storage, and deployment documentation; keep self-hosting as an alternative only when the task requests it. Do not migrate providers or deploy without explicit approval.
 
 ## Validation
 
 - Check `package.json` and the relevant CI workflow before selecting commands. Typical checks are `npm run check`, `npm test`, and the build command used by CI (`SKIP_ENV_VERIFY=true npm run build` when that CI setting is applicable).
 - For payment or authentication changes, run the focused unit/integration tests as well as the relevant broader suite when practical. Use synthetic data and test credentials only.
 - Do not deploy or run commands against production to validate a change.
+- Model fit: use the cost-first Copilot model at the highest available effort, then validate payment signatures, transaction idempotency, and auth flows with tests. Do not use higher-priced models or real payment events by default.
