@@ -50,7 +50,7 @@ jobs:
           NODE_ENV: test
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: coverage/
@@ -58,7 +58,7 @@ jobs:
 
       - name: Upload cobertura coverage artifact
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report-typescript
           path: coverage/cobertura-coverage.xml
