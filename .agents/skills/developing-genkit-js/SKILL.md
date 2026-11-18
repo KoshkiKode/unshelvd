@@ -82,10 +82,6 @@ See [Common Errors](references/common-errors.md) for a list of deprecated APIs (
 4.  **Ensure Correctness**:
     -   Run type checks (e.g., `npx tsc --noEmit`) after making changes.
     -   If type checks fail, consult [Common Errors](references/common-errors.md) before searching source code.
-5.  **Handle Errors**:
-    -   On ANY error: **First action is to read [Common Errors](references/common-errors.md)**
-    -   Match error to documented patterns
-    -   Apply documented fixes before attempting alternatives
 
 ## Finding Documentation
 
