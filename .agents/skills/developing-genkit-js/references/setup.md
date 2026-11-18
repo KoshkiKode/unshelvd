@@ -3,7 +3,6 @@
 Follow these instructions to set up Genkit in the current codebase. These instructions are general-purpose and have not been written with specific codebase knowledge, so use your best judgement when following them.
 
 0. Tell the user "I'm going to check out your workspace and set you up to use Genkit for GenAI workflows."
-1. If the current workspace is empty or is a starter template, your goal will be to create a simple image generation flow that allows someone to generate an image based on a prompt and selectable style. If the current workspace is not empty, you will create a simple example flow to help get the user started.
 2. Check to see if any Genkit provider plugin (such as `@genkit-ai/google-genai` or `@genkit-ai/oai-compat` or others, may start with `genkitx-*`) is installed.
    - If not, ask the user which provider they want to use.
    - **For non-Google providers**: Use `genkit docs:search "plugins"` to find the correct package and installation instructions.
