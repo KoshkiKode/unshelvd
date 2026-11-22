@@ -119,7 +119,7 @@ docs: clarify DEPLOY.md Caddy config
 
 1. Fork the repo and create your branch from `main`.
 2. Make your changes with tests where applicable.
-3. Run `npm run lint && npm run format && npm test` — all must pass.
+3. Run `npm run check && npm test` — all must pass.
 4. Open a PR against `main` and fill in the PR template.
 5. Link the relevant issue in the PR description.
 
