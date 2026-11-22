@@ -79,8 +79,7 @@ Tests live in `tests/`. Please add or update tests for any behaviour you change.
 ## Code Style
 
 - **TypeScript** — strict mode is on. Do not disable type checks with `@ts-ignore` without a comment explaining why.
-- **Formatting** — Prettier is configured. Run `npm run format` before committing.
-- **Linting** — ESLint is configured. Run `npm run lint` and fix all errors before pushing.
+- **Validation** — Run `npm run check` and fix all errors before submitting a pull request.
 - **Imports** — use path aliases (`@/`) defined in `tsconfig.json` rather than relative `../../` chains.
 - **Drizzle ORM** — schema lives in `database/`. Add new migrations with `npm run db:generate` after changing the schema.
 
