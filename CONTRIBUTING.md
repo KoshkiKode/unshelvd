@@ -79,8 +79,7 @@ Tests live in `tests/`. Please add or update tests for any behaviour you change.
 ## Code Style
 
 - **TypeScript** — strict mode is on. Do not disable type checks with `@ts-ignore` without a comment explaining why.
-- **Formatting** — Prettier is configured. Run `npm run format` before committing.
-- **Linting** — ESLint is configured. Run `npm run lint` and fix all errors before pushing.
+- **Validation** — Run `npm run check` and fix all errors before submitting a pull request.
 - **Imports** — use path aliases (`@/`) defined in `tsconfig.json` rather than relative `../../` chains.
 - **Drizzle ORM** — schema lives in `database/`. Add new migrations with `npm run db:generate` after changing the schema.
 
@@ -120,7 +119,7 @@ docs: clarify DEPLOY.md Caddy config
 
 1. Fork the repo and create your branch from `main`.
 2. Make your changes with tests where applicable.
-3. Run `npm run lint && npm run format && npm test` — all must pass.
+3. Run `npm run check && npm test` — all must pass.
 4. Open a PR against `main` and fill in the PR template.
 5. Link the relevant issue in the PR description.
 

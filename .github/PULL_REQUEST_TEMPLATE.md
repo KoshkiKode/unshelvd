@@ -19,8 +19,7 @@ Closes #
 
 <!-- How did you test this? What should reviewers check? -->
 
-- [ ] `npm run lint` passes
-- [ ] `npm run format` applied
+- [ ] `npm run check` passes
 - [ ] `npm test` passes
 - [ ] Tested manually (describe env / steps below)
 
